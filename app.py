@@ -137,31 +137,48 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
         return None
 
 def calculate_nine_box_position(performance, potential):
-    """Calcula a posição na matriz 9-box baseada em performance e potencial"""
-    # Converter ratings para posições na matriz 9-box
-    # Performance: 1-5 -> 1-3 (baixo, médio, alto)
-    # Potencial: 1-5 -> 1-3 (baixo, médio, alto)
+    """Calcula a posição na matriz 9-box baseada na tabela de correlação"""
     
-    if performance <= 2:
-        perf_pos = 1  # Alto
-    elif performance <= 3.5:
-        perf_pos = 2  # Médio
+    def rating_to_9box(rating):
+        """Converte rating (1-5) para 9-box (1-9) usando a tabela de correlação"""
+        # Fórmula da tabela: 9BOX = 10 - (RATING * 2)
+        # Exemplo: RATING 1.0 = 9BOX 8.0, RATING 5.0 = 9BOX 0.0
+        # Mas na tabela vemos que RATING 1.0 = 9BOX 9.0, RATING 5.0 = 9BOX 1.0
+        # Então a fórmula correta é: 9BOX = 10 - (RATING * 2) + 1
+        nine_box_value = 10 - (rating * 2) + 1
+        
+        # Garantir que está entre 1 e 9
+        return max(1, min(9, nine_box_value))
+    
+    # Converter ratings para valores 9-box
+    performance_9box = rating_to_9box(performance)
+    potential_9box = rating_to_9box(potential)
+    
+    # Calcular posição na matriz 9-box
+    # Matriz 9-box: Performance (linha) x Potencial (coluna)
+    # Posição = (potencial - 1) * 3 + (4 - performance)
+    # Mas precisamos ajustar para a lógica correta da matriz
+    
+    # Converter para posições na matriz (1-3 para cada eixo)
+    if performance_9box >= 7:
+        perf_pos = 1  # Alto (posição 1 na matriz)
+    elif performance_9box >= 4:
+        perf_pos = 2  # Médio (posição 2 na matriz)
     else:
-        perf_pos = 3  # Baixo
+        perf_pos = 3  # Baixo (posição 3 na matriz)
     
-    if potential <= 2:
-        pot_pos = 1  # Alto
-    elif potential <= 3.5:
-        pot_pos = 2  # Médio
+    if potential_9box >= 7:
+        pot_pos = 1  # Alto (posição 1 na matriz)
+    elif potential_9box >= 4:
+        pot_pos = 2  # Médio (posição 2 na matriz)
     else:
-        pot_pos = 3  # Baixo
+        pot_pos = 3  # Baixo (posição 3 na matriz)
     
-    # Calcular posição na matriz 9-box (1-9)
-    # Matriz: (potencial-1) * 3 + (4-performance)
-    nine_box = (pot_pos - 1) * 3 + (4 - perf_pos)
+    # Calcular posição final na matriz 9-box (1-9)
+    # Matriz: (potencial - 1) * 3 + (4 - performance)
+    nine_box_position = (pot_pos - 1) * 3 + (4 - perf_pos)
     
-    return nine_box
-
+    return nine_box_position
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
     try:
