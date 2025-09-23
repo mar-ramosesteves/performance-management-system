@@ -118,7 +118,7 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
         performance_rating = sum(performance_ratings) / len(performance_ratings) if performance_ratings else 0
         potential_rating = sum(potential_ratings) / len(potential_ratings) if potential_ratings else 0
         
-        # Calcular posição na matriz 9-box
+        # Calcular posição na matriz 9-box usando a tabela de correlação
         nine_box_position = calculate_nine_box_position(performance_rating, potential_rating)
         
         return {
@@ -135,6 +135,7 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
     except Exception as e:
         print(f"Erro ao calcular scores: {e}")
         return None
+
 
 def calculate_nine_box_position(performance, potential):
     """Calcula a posição na matriz 9-box baseada na tabela de correlação"""
