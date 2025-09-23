@@ -1,15 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import os
-from supabase import create_client, Client
 
 app = Flask(__name__)
-
-# Configuração do Supabase
-SUPABASE_URL = "sua_url_do_supabase_aqui"
-SUPABASE_KEY = "sua_chave_do_supabase_aqui"
-
-# Inicializar cliente Supabase
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.route('/')
 def index():
@@ -17,18 +9,31 @@ def index():
 
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
-    try:
-        response = supabase.table('employees').select('*').execute()
-        return jsonify(response.data)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # Dados de exemplo para testar
+    sample_employees = [
+        {
+            "id": 1,
+            "nome": "João Silva",
+            "cargo": "Analista",
+            "empresa": "Empresa Exemplo",
+            "salario": 5000
+        },
+        {
+            "id": 2,
+            "nome": "Maria Santos",
+            "cargo": "Gerente",
+            "empresa": "Empresa Exemplo",
+            "salario": 8000
+        }
+    ]
+    return jsonify(sample_employees)
 
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
     try:
         data = request.get_json()
-        response = supabase.table('employees').insert(data).execute()
-        return jsonify(response.data)
+        # Por enquanto, apenas retorna os dados recebidos
+        return jsonify({"message": "Funcionário criado com sucesso", "data": data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
