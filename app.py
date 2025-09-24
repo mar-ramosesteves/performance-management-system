@@ -147,6 +147,8 @@ def calculate_nine_box_position(performance, potential):
         # Arredondar para 1 casa decimal
         rounded_rating = round(rating, 1)
         
+        print(f"DEBUG: rating original: {rating}, arredondado: {rounded_rating}")
+        
         # Tabela de correlação exata da sua imagem
         correlation_table = {
             1.0: 9.0, 1.1: 8.8, 1.2: 8.6, 1.3: 8.4, 1.4: 8.2, 1.5: 8.0,
@@ -161,20 +163,13 @@ def calculate_nine_box_position(performance, potential):
         # Procurar na tabela
         if rounded_rating in correlation_table:
             result = correlation_table[rounded_rating]
+            print(f"DEBUG: Encontrado na tabela: {rounded_rating} -> {result}")
         else:
             # Se não encontrar, usar a fórmula
             result = 10 - (rounded_rating * 2)
+            print(f"DEBUG: Não encontrado na tabela, usando fórmula: {result}")
         
-        print(f"DEBUG: rating {rating} -> arredondado {rounded_rating} -> 9-box {result}")
         return result
-    
-    # Testar com exemplos da tabela
-    print("DEBUG: Testando correlação com exemplos da tabela:")
-    print(f"RATING 1.0 -> 9BOX {rating_to_9box(1.0)} (deveria ser 9.0)")
-    print(f"RATING 2.0 -> 9BOX {rating_to_9box(2.0)} (deveria ser 7.0)")
-    print(f"RATING 3.0 -> 9BOX {rating_to_9box(3.0)} (deveria ser 5.0)")
-    print(f"RATING 4.0 -> 9BOX {rating_to_9box(4.0)} (deveria ser 3.0)")
-    print(f"RATING 5.0 -> 9BOX {rating_to_9box(5.0)} (deveria ser 1.0)")
     
     # Converter ratings para valores 9-box
     performance_9box = rating_to_9box(performance)
@@ -183,34 +178,13 @@ def calculate_nine_box_position(performance, potential):
     print(f"DEBUG: Performance: {performance} -> 9-box: {performance_9box}")
     print(f"DEBUG: Potential: {potential} -> 9-box: {potential_9box}")
     
-    # Calcular posição na matriz 9-box
-    # Matriz 9-box: Performance (linha) x Potencial (coluna)
-    # Posição = (potencial - 1) * 3 + (4 - performance)
-    # Mas precisamos ajustar para a lógica correta da matriz
+    # Por enquanto, vamos retornar apenas a média dos dois valores 9-box
+    # Isso vai nos mostrar se a conversão está funcionando
+    nine_box_position = round((performance_9box + potential_9box) / 2)
     
-    # Converter para posições na matriz (1-3 para cada eixo)
-    if performance_9box >= 7:
-        perf_pos = 1  # Alto (posição 1 na matriz)
-    elif performance_9box >= 4:
-        perf_pos = 2  # Médio (posição 2 na matriz)
-    else:
-        perf_pos = 3  # Baixo (posição 3 na matriz)
-    
-    if potential_9box >= 7:
-        pot_pos = 1  # Alto (posição 1 na matriz)
-    elif potential_9box >= 4:
-        pot_pos = 2  # Médio (posição 2 na matriz)
-    else:
-        pot_pos = 3  # Baixo (posição 3 na matriz)
-    
-    # Calcular posição final na matriz 9-box (1-9)
-    # Matriz: (potencial - 1) * 3 + (4 - performance)
-    nine_box_position = (pot_pos - 1) * 3 + (4 - perf_pos)
-    
-    print(f"DEBUG: Performance pos: {perf_pos}, Potential pos: {pot_pos}, 9-box position: {nine_box_position}")
+    print(f"DEBUG: nine_box_position calculado: {nine_box_position}")
     
     return nine_box_position
-
 
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
