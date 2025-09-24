@@ -145,7 +145,8 @@ def calculate_nine_box_position(performance, potential):
     def rating_to_9box(rating):
         """Converte rating (1-5) para 9-box (1-9) usando a tabela de correlação"""
         # Baseado na tabela: RATING 1.0 = 9BOX 9.0, RATING 5.0 = 9BOX 1.0
-        # Fórmula: 9BOX = 10 - (RATING * 2)
+        # Fórmula correta: 9BOX = 10 - (RATING * 2) + 1
+        # Mas vamos usar a fórmula exata da tabela: 9BOX = 10 - (RATING * 2)
         nine_box_value = 10 - (rating * 2)
         
         # Garantir que está entre 1 e 9
@@ -195,6 +196,7 @@ def calculate_nine_box_position(performance, potential):
     print(f"DEBUG: Performance pos: {perf_pos}, Potential pos: {pot_pos}, 9-box position: {nine_box_position}")
     
     return nine_box_position
+
 
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
