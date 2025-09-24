@@ -171,16 +171,10 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
 def calculate_nine_box_position(performance, potential):
     """Calcula a posição na matriz 9-box baseada na tabela de correlação"""
     
-    print(f"DEBUG: calculate_nine_box_position chamada com performance={performance}, potential={potential}")
-    
     def rating_to_9box(rating):
         """Converte rating (1-5) para 9-box (1-9) usando a tabela de correlação"""
-        # Arredondar para 1 casa decimal
         rounded_rating = round(rating, 1)
         
-        print(f"DEBUG: rating original: {rating}, arredondado: {rounded_rating}")
-        
-        # Tabela de correlação exata da sua imagem
         correlation_table = {
             1.0: 9.0, 1.1: 8.8, 1.2: 8.6, 1.3: 8.4, 1.4: 8.2, 1.5: 8.0,
             1.6: 7.8, 1.7: 7.6, 1.8: 7.4, 1.9: 7.2, 2.0: 7.0, 2.1: 6.8,
@@ -191,31 +185,40 @@ def calculate_nine_box_position(performance, potential):
             4.6: 1.8, 4.7: 1.6, 4.8: 1.4, 4.9: 1.2, 5.0: 1.0
         }
         
-        # Procurar na tabela
         if rounded_rating in correlation_table:
-            result = correlation_table[rounded_rating]
-            print(f"DEBUG: Encontrado na tabela: {rounded_rating} -> {result}")
+            return correlation_table[rounded_rating]
         else:
-            # Se não encontrar, usar a fórmula
-            result = 10 - (rounded_rating * 2)
-            print(f"DEBUG: Não encontrado na tabela, usando fórmula: {result}")
-        
-        return result
+            return 10 - (rounded_rating * 2)
     
     # Converter ratings para valores 9-box
     performance_9box = rating_to_9box(performance)
     potential_9box = rating_to_9box(potential)
     
-    print(f"DEBUG: Performance: {performance} -> 9-box: {performance_9box}")
-    print(f"DEBUG: Potential: {potential} -> 9-box: {potential_9box}")
+    # CORREÇÃO: Usar a tabela de correlação para determinar as posições
+    # Baseado na tabela: 1-3=Baixo, 4-6=Médio, 7-9=Alto
     
-    # Por enquanto, vamos retornar apenas a média dos dois valores 9-box
-    # Isso vai nos mostrar se a conversão está funcionando
-    nine_box_position = round((performance_9box + potential_9box) / 2)
+    # Determinar posição de Performance (1-3)
+    if performance_9box >= 7:
+        perf_pos = 1  # Alto Desempenho
+    elif performance_9box >= 4:
+        perf_pos = 2  # Médio Desempenho
+    else:
+        perf_pos = 3  # Baixo Desempenho
     
-    print(f"DEBUG: nine_box_position calculado: {nine_box_position}")
+    # Determinar posição de Potencial (1-3)
+    if potential_9box >= 7:
+        pot_pos = 1  # Alto Potencial
+    elif potential_9box >= 4:
+        pot_pos = 2  # Médio Potencial
+    else:
+        pot_pos = 3  # Baixo Potencial
+    
+    # Calcular posição final na matriz 9-box (1-9)
+    # Matriz: (potencial - 1) * 3 + (4 - performance)
+    nine_box_position = (pot_pos - 1) * 3 + (4 - perf_pos)
     
     return nine_box_position
+
 
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
