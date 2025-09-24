@@ -219,7 +219,6 @@ def calculate_nine_box_position(performance, potential):
     
     return nine_box_position
 
-
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
     try:
