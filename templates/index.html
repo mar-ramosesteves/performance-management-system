@@ -524,8 +524,11 @@
                 // Limpar matriz
                 document.querySelectorAll('.nine-box-cell').forEach(cell => {
                     cell.classList.remove('occupied');
+                    // CORREÇÃO: Verificar se existe o elemento antes de acessar textContent
+                    const boxTitle = cell.querySelector('.box-title');
+                    const titleText = boxTitle ? boxTitle.textContent : '';
                     cell.innerHTML = `
-                        <div class="box-title">${cell.querySelector('.box-title').textContent}</div>
+                        <div class="box-title">${titleText}</div>
                     `;
                 });
                 
@@ -554,7 +557,6 @@
                 alert('Erro ao carregar matriz 9-box');
             }
         }
-
         async function startEvaluationForEmployee(employeeId) {
             try {
                 const response = await fetch('/api/employees');
