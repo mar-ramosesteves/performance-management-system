@@ -143,6 +143,99 @@
             font-weight: bold;
             color: #28a745;
         }
+        
+        /* Estilos da Matriz 9-Box */
+        .nine-box-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+        .nine-box-matrix {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 2px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .nine-box-cell {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 10px;
+            border: 2px solid #333;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+            position: relative;
+            min-height: 120px;
+        }
+        .nine-box-cell.occupied {
+            border-width: 3px;
+            border-color: #000;
+        }
+        .employee-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .employee-rating {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+        
+        /* Cores da Matriz 9-Box baseadas na imagem */
+        .box-1 { background-color: #90EE90; } /* Alto Potencial, Alto Desempenho */
+        .box-2 { background-color: #ADD8E6; } /* Médio Potencial, Alto Desempenho */
+        .box-3 { background-color: #FFC0CB; } /* Baixo Potencial, Alto Desempenho */
+        .box-4 { background-color: #90EE90; } /* Alto Potencial, Médio Desempenho */
+        .box-5 { background-color: #FFFFE0; } /* Médio Potencial, Médio Desempenho */
+        .box-6 { background-color: #FFDAB9; } /* Baixo Potencial, Médio Desempenho */
+        .box-7 { background-color: #FFA500; } /* Alto Potencial, Baixo Desempenho */
+        .box-8 { background-color: #FFDAB9; } /* Médio Potencial, Baixo Desempenho */
+        .box-9 { background-color: #FF0000; } /* Baixo Potencial, Baixo Desempenho */
+        
+        .matrix-labels {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 2px;
+            margin-bottom: 10px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .matrix-label {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .matrix-y-labels {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 360px;
+            margin-right: 10px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .matrix-y-label {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
     </style>
 </head>
 <body>
@@ -159,6 +252,9 @@
                         </button>
                         <button class="btn btn-outline-light btn-lg px-4" onclick="startEvaluation()">
                             <i class="fas fa-clipboard-check me-2"></i>Nova Avaliação
+                        </button>
+                        <button class="btn btn-outline-light btn-lg px-4" onclick="showNineBoxMatrix()">
+                            <i class="fas fa-th me-2"></i>Matriz 9-Box
                         </button>
                     </div>
                 </div>
@@ -209,6 +305,78 @@
                     <h2 class="text-center mb-5">Funcionários Cadastrados</h2>
                     <div id="employees-container" class="row">
                         <!-- Os funcionários serão carregados aqui -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Nine Box Matrix Section -->
+    <section class="py-5" id="nine-box-section" style="display: none;">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="text-center mb-5">Matriz 9-Box</h2>
+                    <div class="nine-box-container">
+                        <!-- Labels do eixo X (Desempenho) -->
+                        <div class="matrix-labels">
+                            <div class="matrix-label">Alto Desempenho</div>
+                            <div class="matrix-label">Médio Desempenho</div>
+                            <div class="matrix-label">Baixo Desempenho</div>
+                        </div>
+                        
+                        <!-- Matriz 9-Box -->
+                        <div class="nine-box-matrix">
+                            <div class="nine-box-cell box-1" data-position="1">
+                                <div class="box-title">Alto Potencial</div>
+                                <div class="box-title">Alto Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-2" data-position="2">
+                                <div class="box-title">Alto Potencial</div>
+                                <div class="box-title">Médio Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-3" data-position="3">
+                                <div class="box-title">Alto Potencial</div>
+                                <div class="box-title">Baixo Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-4" data-position="4">
+                                <div class="box-title">Médio Potencial</div>
+                                <div class="box-title">Alto Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-5" data-position="5">
+                                <div class="box-title">Médio Potencial</div>
+                                <div class="box-title">Médio Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-6" data-position="6">
+                                <div class="box-title">Médio Potencial</div>
+                                <div class="box-title">Baixo Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-7" data-position="7">
+                                <div class="box-title">Baixo Potencial</div>
+                                <div class="box-title">Alto Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-8" data-position="8">
+                                <div class="box-title">Baixo Potencial</div>
+                                <div class="box-title">Médio Desempenho</div>
+                            </div>
+                            <div class="nine-box-cell box-9" data-position="9">
+                                <div class="box-title">Baixo Potencial</div>
+                                <div class="box-title">Baixo Desempenho</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Labels do eixo Y (Potencial) -->
+                        <div class="text-center mt-3">
+                            <div class="d-inline-block me-3">
+                                <div class="matrix-y-label">Alto Potencial</div>
+                            </div>
+                            <div class="d-inline-block me-3">
+                                <div class="matrix-y-label">Médio Potencial</div>
+                            </div>
+                            <div class="d-inline-block">
+                                <div class="matrix-y-label">Baixo Potencial</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -354,6 +522,50 @@
             } catch (error) {
                 console.error('Erro ao carregar funcionários:', error);
                 alert('Erro ao carregar funcionários');
+            }
+        }
+
+        async function showNineBoxMatrix() {
+            try {
+                // Carregar avaliações
+                const response = await fetch('/api/evaluations');
+                const evaluations = await response.json();
+                
+                // Carregar funcionários
+                const employeesResponse = await fetch('/api/employees');
+                const employees = await employeesResponse.json();
+                
+                // Limpar matriz
+                document.querySelectorAll('.nine-box-cell').forEach(cell => {
+                    cell.classList.remove('occupied');
+                    cell.innerHTML = `
+                        <div class="box-title">${cell.querySelector('.box-title').textContent}</div>
+                    `;
+                });
+                
+                // Posicionar funcionários na matriz
+                evaluations.forEach(evaluation => {
+                    if (evaluation.nine_box_position && evaluation.nine_box_position >= 1 && evaluation.nine_box_position <= 9) {
+                        const employee = employees.find(emp => emp.id === evaluation.employee_id);
+                        if (employee) {
+                            const cell = document.querySelector(`[data-position="${evaluation.nine_box_position}"]`);
+                            if (cell) {
+                                cell.classList.add('occupied');
+                                cell.innerHTML = `
+                                    <div class="employee-name">${employee.nome}</div>
+                                    <div class="employee-rating">P: ${evaluation.performance_rating} | Pot: ${evaluation.potential_rating}</div>
+                                `;
+                            }
+                        }
+                    }
+                });
+                
+                document.getElementById('nine-box-section').style.display = 'block';
+                document.getElementById('nine-box-section').scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                console.error('Erro ao carregar matriz 9-box:', error);
+                alert('Erro ao carregar matriz 9-box');
             }
         }
 
