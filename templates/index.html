@@ -311,78 +311,64 @@
         </div>
     </section>
 
-    <!-- Nine Box Matrix Section -->
-    <section class="py-5" id="nine-box-section" style="display: none;">
-        <div class="container">
-            <div class="row">
-                <div class="col-12">
-                    <h2 class="text-center mb-5">Matriz 9-Box</h2>
-                    <div class="nine-box-container">
-                        <!-- Labels do eixo X (Desempenho) -->
-                        <div class="matrix-labels">
-                            <div class="matrix-label">Alto Desempenho</div>
-                            <div class="matrix-label">Médio Desempenho</div>
-                            <div class="matrix-label">Baixo Desempenho</div>
-                        </div>
-                        
-                        <!-- Matriz 9-Box -->
-                        <div class="nine-box-matrix">
-                            <div class="nine-box-cell box-1" data-position="1">
-                                <div class="box-title">Alto Potencial</div>
-                                <div class="box-title">Alto Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-2" data-position="2">
-                                <div class="box-title">Alto Potencial</div>
-                                <div class="box-title">Médio Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-3" data-position="3">
-                                <div class="box-title">Alto Potencial</div>
-                                <div class="box-title">Baixo Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-4" data-position="4">
-                                <div class="box-title">Médio Potencial</div>
-                                <div class="box-title">Alto Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-5" data-position="5">
-                                <div class="box-title">Médio Potencial</div>
-                                <div class="box-title">Médio Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-6" data-position="6">
-                                <div class="box-title">Médio Potencial</div>
-                                <div class="box-title">Baixo Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-7" data-position="7">
-                                <div class="box-title">Baixo Potencial</div>
-                                <div class="box-title">Alto Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-8" data-position="8">
-                                <div class="box-title">Baixo Potencial</div>
-                                <div class="box-title">Médio Desempenho</div>
-                            </div>
-                            <div class="nine-box-cell box-9" data-position="9">
-                                <div class="box-title">Baixo Potencial</div>
-                                <div class="box-title">Baixo Desempenho</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Labels do eixo Y (Potencial) -->
-                        <div class="text-center mt-3">
-                            <div class="d-inline-block me-3">
-                                <div class="matrix-y-label">Alto Potencial</div>
-                            </div>
-                            <div class="d-inline-block me-3">
-                                <div class="matrix-y-label">Médio Potencial</div>
-                            </div>
-                            <div class="d-inline-block">
-                                <div class="matrix-y-label">Baixo Potencial</div>
-                            </div>
-                        </div>
-                    </div>
+    <!-- Matriz 9-Box Corrigida -->
+    <section id="nine-box-section" style="display: none;">
+        <h2>�� Matriz 9-Box</h2>
+        
+        <div class="nine-box-container">
+            <!-- Headers de Performance (em cima) -->
+            <div class="performance-headers">
+                <div class="header-cell"></div>
+                <div class="header-cell">Alto Desempenho</div>
+                <div class="header-cell">Médio Desempenho</div>
+                <div class="header-cell">Baixo Desempenho</div>
+            </div>
+            
+            <!-- Linha 1: Alto Potencial -->
+            <div class="nine-box-row">
+                <div class="potential-header">Alto Potencial</div>
+                <div class="nine-box-cell" id="box-1" style="background-color: #90EE90;">
+                    <div class="employee-list"></div>
+                </div>
+                <div class="nine-box-cell" id="box-2" style="background-color: #87CEEB;">
+                    <div class="employee-list"></div>
+                </div>
+                <div class="nine-box-cell" id="box-3" style="background-color: #FFB6C1;">
+                    <div class="employee-list"></div>
+                </div>
+            </div>
+            
+            <!-- Linha 2: Médio Potencial -->
+            <div class="nine-box-row">
+                <div class="potential-header">Médio Potencial</div>
+                <div class="nine-box-cell" id="box-4" style="background-color: #98FB98;">
+                    <div class="employee-list"></div>
+                </div>
+                <div class="nine-box-cell" id="box-5" style="background-color: #FFFFE0;">
+                    <div class="employee-list"></div>
+                </div>
+                <div class="nine-box-cell" id="box-6" style="background-color: #FFE4B5;">
+                    <div class="employee-list"></div>
+                </div>
+            </div>
+            
+            <!-- Linha 3: Baixo Potencial -->
+            <div class="nine-box-row">
+                <div class="potential-header">Baixo Potencial</div>
+                <div class="nine-box-cell" id="box-7" style="background-color: #FFA500;">
+                    <div class="employee-list"></div>
+                </div>
+                <div class="nine-box-cell" id="box-8" style="background-color: #FFA07A;">
+                    <div class="employee-list"></div>
+                </div>
+                <div class="nine-box-cell" id="box-9" style="background-color: #FF6B6B;">
+                    <div class="employee-list"></div>
                 </div>
             </div>
         </div>
     </section>
 
+    
     <!-- Evaluation Section -->
     <section class="py-5" id="evaluation-section" style="display: none;">
         <div class="container">
