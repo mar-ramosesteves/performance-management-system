@@ -69,6 +69,11 @@ def update_evaluation_criteria(criteria_id):
 def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_weights):
     """Calcula as notas por dimensão e nota final"""
     try:
+        print(f"DEBUG: calculate_evaluation_scores chamada com evaluation_id={evaluation_id}")
+        print(f"DEBUG: responses={responses}")
+        print(f"DEBUG: goals_data={goals_data}")
+        print(f"DEBUG: dimension_weights={dimension_weights}")
+        
         # Buscar critérios para agrupar por dimensão
         criteria_response = supabase.table('evaluation_criteria').select('*').execute()
         criteria = {c['id']: c for c in criteria_response.data}
@@ -118,8 +123,35 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
         performance_rating = sum(performance_ratings) / len(performance_ratings) if performance_ratings else 0
         potential_rating = sum(potential_ratings) / len(potential_ratings) if potential_ratings else 0
         
+        print(f"DEBUG: performance_rating={performance_rating}, potential_rating={potential_rating}")
+        
         # Calcular posição na matriz 9-box usando a tabela de correlação
         nine_box_position = calculate_nine_box_position(performance_rating, potential_rating)
+        
+        # Converter os ratings para valores 9-box (1-9)
+        def rating_to_9box(rating):
+            """Converte rating (1-5) para 9-box (1-9) usando a tabela de correlação"""
+            rounded_rating = round(rating, 1)
+            correlation_table = {
+                1.0: 9.0, 1.1: 8.8, 1.2: 8.6, 1.3: 8.4, 1.4: 8.2, 1.5: 8.0,
+                1.6: 7.8, 1.7: 7.6, 1.8: 7.4, 1.9: 7.2, 2.0: 7.0, 2.1: 6.8,
+                2.2: 6.6, 2.3: 6.4, 2.4: 6.2, 2.5: 6.0, 2.6: 5.8, 2.7: 5.6,
+                2.8: 5.4, 2.9: 5.2, 3.0: 5.0, 3.1: 4.8, 3.2: 4.6, 3.3: 4.4,
+                3.4: 4.2, 3.5: 4.0, 3.6: 3.8, 3.7: 3.6, 3.8: 3.4, 3.9: 3.2,
+                4.0: 3.0, 4.1: 2.8, 4.2: 2.6, 4.3: 2.4, 4.4: 2.2, 4.5: 2.0,
+                4.6: 1.8, 4.7: 1.6, 4.8: 1.4, 4.9: 1.2, 5.0: 1.0
+            }
+            if rounded_rating in correlation_table:
+                return correlation_table[rounded_rating]
+            else:
+                return 10 - (rounded_rating * 2)
+        
+        # Converter para valores 9-box
+        performance_9box = rating_to_9box(performance_rating)
+        potential_9box = rating_to_9box(potential_rating)
+        
+        print(f"DEBUG: performance_rating convertido: {performance_rating} -> {performance_9box}")
+        print(f"DEBUG: potential_rating convertido: {potential_rating} -> {potential_9box}")
         
         return {
             'institucional_avg': round(institucional_avg, 2),
@@ -127,15 +159,14 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
             'individual_avg': round(individual_avg, 2),
             'metas_avg': round(metas_avg, 2),
             'final_rating': round(final_rating, 2),
-            'performance_rating': round(performance_rating, 2),
-            'potential_rating': round(potential_rating, 2),
+            'performance_rating': round(performance_9box, 2),  # Salvar valor convertido (1-9)
+            'potential_rating': round(potential_9box, 2),      # Salvar valor convertido (1-9)
             'nine_box_position': nine_box_position
         }
         
     except Exception as e:
         print(f"Erro ao calcular scores: {e}")
         return None
-
 
 def calculate_nine_box_position(performance, potential):
     """Calcula a posição na matriz 9-box baseada na tabela de correlação"""
