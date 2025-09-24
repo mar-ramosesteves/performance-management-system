@@ -145,50 +145,73 @@
         }
         
         /* Estilos da Matriz 9-Box */
+        
         .nine-box-container {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin: 20px 0;
-        }
-        .nine-box-matrix {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            grid-template-rows: 1fr 1fr 1fr;
-            gap: 2px;
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto;
+            grid-template-columns: 100px 120px 120px 120px;
+            grid-template-rows: 40px 80px 80px 80px;
+            gap: 5px;
+            margin: 20px auto;
+            max-width: 500px;
         }
+        
+        .performance-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 5px;
+        }
+        
+        .potential-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            padding: 5px;
+        }
+        
         .nine-box-cell {
-            aspect-ratio: 1;
+            border: 2px solid #333;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
-            text-align: center;
-            padding: 10px;
-            border: 2px solid #333;
-            font-size: 12px;
-            font-weight: bold;
-            color: #333;
-            position: relative;
-            min-height: 120px;
+            justify-content: center;
+            padding: 5px;
+            min-height: 80px;
+            max-height: 80px;
+            overflow: hidden;
         }
+        
         .nine-box-cell.occupied {
-            border-width: 3px;
-            border-color: #000;
+            background-color: rgba(255, 255, 255, 0.9);
         }
+        
         .employee-name {
-            font-size: 14px;
             font-weight: bold;
-            margin-bottom: 5px;
+            font-size: 12px;
+            text-align: center;
+            margin-bottom: 2px;
         }
+
         .employee-rating {
-            font-size: 11px;
-            opacity: 0.8;
+            font-size: 10px;
+            color: #666;
+            text-align: center;
         }
+        
+        .box-title {
+            font-size: 10px;
+            color: #999;
+            text-align: center;
+        }
+
         
         /* Cores da Matriz 9-Box baseadas na imagem */
         .box-1 { background-color: #90EE90; } /* Alto Potencial, Alto Desempenho */
