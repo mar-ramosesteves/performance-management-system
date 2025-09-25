@@ -498,11 +498,6 @@
                 
                 // Preparar dados para o gráfico
                 const chartData = [];
-                const colors = [
-                    '#90EE90', '#87CEEB', '#FFB6C1',  // Linha 1
-                    '#98FB98', '#FFFFE0', '#FFE4B5',  // Linha 2
-                    '#FFA500', '#FFA07A', '#FF6B6B'   // Linha 3
-                ];
                 
                 evaluations.forEach(evaluation => {
                     if (evaluation.nine_box_position && evaluation.nine_box_position >= 1 && evaluation.nine_box_position <= 9) {
@@ -518,8 +513,7 @@
                                 y: y,
                                 label: employee.nome,
                                 performance: evaluation.performance_rating,
-                                potential: evaluation.potential_rating,
-                                backgroundColor: colors[quadrant - 1]
+                                potential: evaluation.potential_rating
                             });
                         }
                     }
@@ -533,11 +527,11 @@
                         datasets: [{
                             label: 'Funcionários',
                             data: chartData,
-                            backgroundColor: chartData.map(point => point.backgroundColor),
+                            backgroundColor: '#FF6B6B',
                             borderColor: '#333',
                             borderWidth: 2,
-                            pointRadius: 8,
-                            pointHoverRadius: 12
+                            pointRadius: 15,
+                            pointHoverRadius: 20
                         }]
                     },
                     options: {
@@ -604,6 +598,9 @@
                 alert('Erro ao carregar matriz 9-box');
             }
         }
+
+
+        
         async function startEvaluationForEmployee(employeeId) {
             try {
                 const response = await fetch('/api/employees');
