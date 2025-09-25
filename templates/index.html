@@ -1121,12 +1121,6 @@
       const isEdit = Object.keys(evaluationData).length > 0;
       const actionText = isEdit ? 'atualizada' : 'salva';
     
-      // ... resto da função permanece igual ...
-    
-      // MODIFIQUE a mensagem de sucesso:
-      alert(`Avaliação ${actionText} com sucesso!`);
-    }
-    
       // ler metas do DOM (corrige transporte das metas)
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
@@ -1163,7 +1157,7 @@
         });
         if (!resp.ok) throw new Error('Erro HTTP');
     
-        alert('Avaliação salva com sucesso!');
+        alert(`Avaliação ${actionText} com sucesso!`);
         evaluationData = {};
         qs('#evaluation-section').style.display = 'none';
       } catch (e) {
