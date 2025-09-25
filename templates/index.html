@@ -655,7 +655,7 @@
                     <!-- Final Rating -->
                     <div class="final-rating">
                         <h4>Rating Final</h4>
-                        <div class="final-rating-value" id="final-rating-value">-</div>
+                        <div class="final-rating-value" id="final-rating">-</div>
                         <p class="mt-2">1 = Excelente | 2 = Superou | 3 = Atendeu | 4 = Não Atendeu | 5 = Insuficiente</p>
                     </div>
 
@@ -816,6 +816,7 @@
                     await loadEvaluationCriteria();
                     await loadGoals();
                     updateDimensionWeights();
+                    calculateFinalRating();
                     
                     document.getElementById('evaluation-section').style.display = 'block';
                     document.getElementById('evaluation-section').scrollIntoView({ behavior: 'smooth' });
@@ -947,6 +948,7 @@
                     });
                     
                     updateGoalsWeight();
+                    calculateFinalRating();
                 })
                 .catch(error => {
                     console.error('Erro ao carregar metas:', error);
