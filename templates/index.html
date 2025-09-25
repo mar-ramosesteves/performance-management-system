@@ -1117,41 +1117,50 @@
 
 
         function calculateFinalRating() {
-        // Calcular médias das dimensões
-        const institucionalAvg = calculateDimensionAverage('institucional');
-        const funcionalAvg = calculateDimensionAverage('funcional');
-        const individualAvg = calculateDimensionAverage('individual');
-        const metasAvg = calculateGoalsAverage();
-        
-        // Arredondar naturalmente
-        const institucionalRounded = Math.round(institucionalAvg);
-        const funcionalRounded = Math.round(funcionalAvg);
-        const individualRounded = Math.round(individualAvg);
-        const metasRounded = Math.round(metasAvg);
-        
-        // Atualizar exibição das médias
-        document.getElementById('avg-institucional').textContent = `Média: ${institucionalRounded}`;
-        document.getElementById('avg-funcional').textContent = `Média: ${funcionalRounded}`;
-        document.getElementById('avg-individual').textContent = `Média: ${individualRounded}`;
-        document.getElementById('avg-metas').textContent = `Média: ${metasRounded}`;
-        
-        // Calcular rating final
-        const weights = getDimensionWeights();
-        const finalRating = (
-            institucionalRounded * (weights.INSTITUCIONAL / 100) +
-            funcionalRounded * (weights.FUNCIONAL / 100) +
-            individualRounded * (weights.INDIVIDUAL / 100) +
-            metasRounded * (weights.METAS / 100)
-        );
-        
-        // Arredondar rating final
-        const finalRounded = Math.round(finalRating);
-        
-        // Exibir rating final
-        document.getElementById('final-rating').textContent = `Rating Final: ${finalRounded}`;
-        
-        return finalRounded;
-    }
+            console.log('=== DEBUG calculateFinalRating ===');
+            
+            // Calcular médias das dimensões
+            const institucionalAvg = calculateDimensionAverage('institucional');
+            const funcionalAvg = calculateDimensionAverage('funcional');
+            const individualAvg = calculateDimensionAverage('individual');
+            const metasAvg = calculateGoalsAverage();
+            
+            console.log('Médias calculadas:', {
+                institucional: institucionalAvg,
+                funcional: funcionalAvg,
+                individual: individualAvg,
+                metas: metasAvg
+            });
+            
+            // Arredondar naturalmente
+            const institucionalRounded = Math.round(institucionalAvg);
+            const funcionalRounded = Math.round(funcionalAvg);
+            const individualRounded = Math.round(individualAvg);
+            const metasRounded = Math.round(metasAvg);
+            
+            // Atualizar exibição das médias
+            document.getElementById('avg-institucional').textContent = `Média: ${institucionalRounded}`;
+            document.getElementById('avg-funcional').textContent = `Média: ${funcionalRounded}`;
+            document.getElementById('avg-individual').textContent = `Média: ${individualRounded}`;
+            document.getElementById('avg-metas').textContent = `Média: ${metasRounded}`;
+            
+            // Calcular rating final
+            const weights = getDimensionWeights();
+            const finalRating = (
+                institucionalRounded * (weights.INSTITUCIONAL / 100) +
+                funcionalRounded * (weights.FUNCIONAL / 100) +
+                individualRounded * (weights.INDIVIDUAL / 100) +
+                metasRounded * (weights.METAS / 100)
+            );
+            
+            // Arredondar rating final
+            const finalRounded = Math.round(finalRating);
+            
+            // Exibir rating final
+            document.getElementById('final-rating').textContent = `Rating Final: ${finalRounded}`;
+            
+            return finalRounded;
+        }
     
     function startEvaluation() {
         alert('Selecione um funcionário para avaliar');
