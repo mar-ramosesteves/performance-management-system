@@ -1166,15 +1166,7 @@
       }
     }
     
-    /* expõe algumas funções no escopo global (chamadas por HTML) */
-    window.loadEmployees = loadEmployees;
-    window.startEvaluation = startEvaluation;
-    window.editEmployee = editEmployee;
-    window.startEvaluationForEmployee = startEvaluationForEmployee;
-    window.showNineBoxMatrix = showNineBoxMatrix;
-    window.addGoal = addGoal;
-    window.saveGoals = saveGoals;
-    window.setRating = setRating;
+    
     
     
     /* =========================   VISUALIZAR AVALIAÇÃO    ========================= */
@@ -1228,9 +1220,7 @@
       }
     }
     
-    /* =========================
-       PREENCHER AVALIAÇÃO EXISTENTE
-    ========================= */
+    /* =========================       PREENCHER AVALIAÇÃO EXISTENTE    ========================= */
     async function populateExistingEvaluation(evaluation) {
       // Preencher ratings dos critérios
       if (evaluation.responses) {
@@ -1307,10 +1297,18 @@
       calculateFinalRating();
     }
     
-    /* =========================
-       EXPORTAÇÃO GLOBAL
-    ========================= */
-    // Adicione esta linha no final do script:
+    /* =========================       EXPORTAÇÃO GLOBAL    ========================= */
+    
+
+    /* expõe algumas funções no escopo global (chamadas por HTML) */
+    window.loadEmployees = loadEmployees;
+    window.startEvaluation = startEvaluation;
+    window.editEmployee = editEmployee;
+    window.startEvaluationForEmployee = startEvaluationForEmployee;
+    window.showNineBoxMatrix = showNineBoxMatrix;
+    window.addGoal = addGoal;
+    window.saveGoals = saveGoals;
+    window.setRating = setRating;
     window.viewEmployeeEvaluation = viewEmployeeEvaluation;
     
     </script>
