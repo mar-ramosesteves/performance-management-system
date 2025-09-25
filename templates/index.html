@@ -340,16 +340,30 @@
         <h2>📊 Matriz 9-Box</h2>
         
         <style>
+            /* Título da Matriz 9-Box - Centralizado e Bonito */
+            #nine-box-section h2 {
+                text-align: center;
+                font-size: 28px;
+                font-weight: bold;
+                color: #2c3e50;
+                margin: 30px 0;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+                letter-spacing: 1px;
+            }
+            
             .nine-box-table {
                 border-collapse: collapse;
                 margin: 20px auto;
                 font-family: Arial, sans-serif;
-                display: table; /* CORREÇÃO: forçar display de tabela */
-                width: auto; /* CORREÇÃO: largura automática */
+                display: table;
+                width: auto;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                border-radius: 8px;
+                overflow: hidden;
             }
             
             .nine-box-table tr {
-                display: table-row; /* CORREÇÃO: forçar linha de tabela */
+                display: table-row;
             }
             
             .nine-box-table td {
@@ -362,15 +376,30 @@
                 font-size: 11px;
                 line-height: 1.3;
                 overflow: hidden;
-                display: table-cell; /* CORREÇÃO: forçar célula de tabela */
+                display: table-cell;
             }
             
+            /* Headers das Colunas e Linhas - Mais Estreitos e Bonitos */
             .header-cell {
-                background-color: #f0f0f0;
+                background: linear-gradient(135deg, #34495e, #2c3e50);
+                color: white;
                 font-weight: bold;
-                font-size: 14px;
+                font-size: 16px; /* CORREÇÃO: Letras maiores */
                 vertical-align: middle;
-                display: table-cell; /* CORREÇÃO: forçar célula de tabela */
+                display: table-cell;
+                padding: 15px 8px; /* CORREÇÃO: Mais estreito */
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+                letter-spacing: 0.5px;
+            }
+            
+            /* Headers das Colunas (Desempenho) - Mais Estreitos */
+            .header-cell:first-child {
+                width: 120px; /* CORREÇÃO: Mais estreito */
+            }
+            
+            /* Headers das Linhas (Potencial) - Mais Estreitos */
+            .nine-box-table tr td:first-child {
+                width: 120px; /* CORREÇÃO: Mais estreito */
             }
             
             /* Cores dos quadrants - baseado na sua imagem */
@@ -383,6 +412,13 @@
             .box-7 { background-color: #FFA500; } /* Laranja - Baixo Potencial, Alto Desempenho */
             .box-8 { background-color: #FFA07A; } /* Salmão - Baixo Potencial, Médio Desempenho */
             .box-9 { background-color: #FF6B6B; } /* Vermelho - Baixo Potencial, Baixo Desempenho */
+            
+            /* Efeito hover nos quadrants */
+            .nine-box-cell:hover {
+                transform: scale(1.02);
+                transition: transform 0.2s ease;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            }
         </style>
         
         <table class="nine-box-table">
