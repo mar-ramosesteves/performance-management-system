@@ -1169,7 +1169,15 @@
     
     
     
-    /* ===== Helpers robustos (adicionei) ===== */
+        /* ===== Helpers robustos ===== */
+    function parseJSONish(val, fallback=null){
+      if (val == null) return fallback;
+      if (typeof val === 'object') return val;
+      if (typeof val === 'string') {
+        try { return JSON.parse(val); } catch { return fallback; }
+      }
+      return fallback;
+    }
     function pickLatestEvaluation(list){
       if (!Array.isArray(list) || !list.length) return null;
       const getDate = (ev) => ev.evaluation_date || ev.created_at || ev.updated_at || ev.inserted_at;
@@ -1177,12 +1185,11 @@
         .filter(ev => getDate(ev))
         .sort((a,b) => new Date(getDate(b)) - new Date(getDate(a)))[0] || list[0];
     }
-    
     function normalizeWeights(obj){
-      const o = obj || {};
+      const parsed = parseJSONish(obj, {});
       const up = (k)=>String(k||'').toUpperCase();
       const map = {};
-      Object.keys(o).forEach(k => map[up(k)] = o[k]);
+      Object.keys(parsed).forEach(k => map[up(k)] = parsed[k]);
       return {
         INSTITUCIONAL: Number(map.INSTITUCIONAL ?? 25),
         FUNCIONAL:     Number(map.FUNCIONAL ?? 25),
@@ -1190,37 +1197,49 @@
         METAS:         Number(map.METAS ?? 25),
       };
     }
-    
     function responsesToPairs(responses){
-      if (!responses) return [];
-      if (Array.isArray(responses)){
-        return responses
+      const data = parseJSONish(responses, responses) || {};
+      if (Array.isArray(data)){
+        return data
           .filter(x => x && (x.criteria_id!=null) && (x.rating!=null))
           .map(x => [String(x.criteria_id), Number(x.rating)]);
       }
-      return Object.entries(responses).map(([k,v]) => [String(k), Number(v)]);
+      return Object.entries(data).map(([k,v]) => [String(k), Number(v)]);
+    }
+    function hasAnyGoals(goals){
+      const arr = parseJSONish(goals, goals);
+      return Array.isArray(arr) && arr.length > 0;
     }
     
     /* =========================   VISUALIZAR AVALIAÇÃO    ========================= */
     async function viewEmployeeEvaluation(employeeId) {
       try {
+        console.log('[viewEmployeeEvaluation] employeeId=', employeeId);
+    
         // Buscar funcionário
         const resp = await fetch('/api/employees');
         const employees = await resp.json();
         const employee = employees.find(emp => Number(emp.id) === Number(employeeId));
         if (!employee) return alert('Funcionário não encontrado');
     
-        // Buscar avaliações do funcionário (filtra no servidor se possível)
+        // Buscar avaliações do funcionário (tenta filtrar no servidor)
         const evalResp = await fetch('/api/evaluations?employee_id=' + encodeURIComponent(employeeId));
-        const evaluationsAll = await evalResp.json();
+        let evaluationsAll = await evalResp.json();
+        if (!Array.isArray(evaluationsAll)) {
+          console.warn('Evaluations não veio como array, tentando parse:', evaluationsAll);
+          evaluationsAll = parseJSONish(evaluationsAll, []);
+        }
         const employeeEvaluations = (evaluationsAll || []).filter(ev => Number(ev.employee_id) === Number(employeeId));
+        console.log('[viewEmployeeEvaluation] qtd avals=', employeeEvaluations.length, employeeEvaluations);
+    
         if (!employeeEvaluations.length) {
           alert('Nenhuma avaliação encontrada para este funcionário');
           return;
         }
     
-        // Última avaliação (mais recente, robusto para diferentes campos de data)
-        const latestEvaluation = pickLatestEvaluation(employeeEvaluations);
+        // Última avaliação
+        const latestEvaluation = pickLatestEvaluation(employeeEvaluations) || employeeEvaluations[0];
+        console.log('[viewEmployeeEvaluation] latestEvaluation=', latestEvaluation);
     
         // Preencher dados do funcionário
         currentEmployee = employee;
@@ -1231,13 +1250,14 @@
         qs('#employee-hay').textContent = latestEvaluation.employee_hay || '—';
         qs('#employee-rating').textContent = latestEvaluation.final_rating ?? '-';
     
-        // 1) Carregar critérios (gera os botões no DOM)
+        // 1) Carrega critérios (gera os botões no DOM)
         await loadEvaluationCriteria();
     
-        // 2) Metas: se vieram na avaliação, desenha a partir dela; senão, carrega padrão
-        if (Array.isArray(latestEvaluation.goals) && latestEvaluation.goals.length > 0) {
+        // 2) Metas: usa as salvas se existirem (mesmo se vierem como string)
+        const goalsArr = parseJSONish(latestEvaluation.goals, latestEvaluation.goals);
+        if (hasAnyGoals(goalsArr)) {
           qs('#goals-container').innerHTML = '';
-          latestEvaluation.goals.forEach((goal, index) => {
+          goalsArr.forEach((goal, index) => {
             const wrap = document.createElement('div');
             wrap.className = 'goal-item';
             wrap.innerHTML = `
@@ -1270,7 +1290,7 @@
             qs('#goals-container').appendChild(wrap);
           });
     
-          // Eventos p/ recalcular
+          // liga eventos para recalcular
           qsa('[id^="goal-weight-"]').forEach(inp => {
             inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
             inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -1280,10 +1300,11 @@
           });
           updateGoalsWeight();
         } else {
-          await loadGoals(); // metas “virgens” apenas se a avaliação não tiver metas salvas
+          // Se não há metas salvas, só então carrega “virgens”
+          await loadGoals();
         }
     
-        // 3) Pesos das dimensões (normaliza chaves)
+        // 3) Pesos das dimensões (normaliza e aceita string JSON)
         const w = normalizeWeights(latestEvaluation.dimension_weights);
         qs('#weight-institucional').value = w.INSTITUCIONAL;
         qs('#weight-funcional').value     = w.FUNCIONAL;
@@ -1291,8 +1312,9 @@
         qs('#weight-metas').value         = w.METAS;
         initDimensionWeights();
     
-        // 4) Preencher respostas dos critérios
+        // 4) Respostas dos critérios (objeto/array/string)
         const pairs = responsesToPairs(latestEvaluation.responses);
+        console.log('[viewEmployeeEvaluation] responses pairs=', pairs);
         evaluationData = {};
         pairs.forEach(([criteriaId, rating]) => {
           qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
@@ -1313,11 +1335,8 @@
       }
     }
     
-    /* =========================   PREENCHER AVALIAÇÃO EXISTENTE    ========================= */
+    /* =========================   PREENCHER AVALIAÇÃO EXISTENTE (utilitária)   ========================= */
     async function populateExistingEvaluation(evaluation) {
-      // (Mantida como utilitária, caso você use em outro fluxo)
-    
-      // Ratings dos critérios
       const pairs = responsesToPairs(evaluation.responses);
       evaluationData = {};
       pairs.forEach(([criteriaId, rating]) => {
@@ -1326,7 +1345,6 @@
         if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
       });
     
-      // Pesos das dimensões
       const w = normalizeWeights(evaluation.dimension_weights);
       qs('#weight-institucional').value = w.INSTITUCIONAL;
       qs('#weight-funcional').value     = w.FUNCIONAL;
@@ -1334,10 +1352,10 @@
       qs('#weight-metas').value         = w.METAS;
       initDimensionWeights();
     
-      // Metas, se veio na avaliação e container está vazio
-      if (Array.isArray(evaluation.goals) && evaluation.goals.length && !document.querySelector('.goal-item')) {
+      const goalsArr = parseJSONish(evaluation.goals, evaluation.goals);
+      if (hasAnyGoals(goalsArr) && !document.querySelector('.goal-item')) {
         qs('#goals-container').innerHTML = '';
-        evaluation.goals.forEach((goal, index) => {
+        goalsArr.forEach((goal, index) => {
           const wrap = document.createElement('div');
           wrap.className = 'goal-item';
           wrap.innerHTML = `
@@ -1385,7 +1403,6 @@
     
     /* =========================       EXPORTAÇÃO GLOBAL    ========================= */
     
-    /* expõe algumas funções no escopo global (chamadas por HTML) */
     window.loadEmployees = loadEmployees;
     window.startEvaluation = startEvaluation;
     window.editEmployee = editEmployee;
@@ -1395,6 +1412,7 @@
     window.saveGoals = saveGoals;
     window.setRating = setRating;
     window.viewEmployeeEvaluation = viewEmployeeEvaluation;
+
     
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
