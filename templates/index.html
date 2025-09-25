@@ -1169,7 +1169,7 @@
     
     
     
-        /* ===== Helpers robustos ===== */
+    /* ===== Helpers robustos (auto-descoberta de campos) ===== */
     function parseJSONish(val, fallback=null){
       if (val == null) return fallback;
       if (typeof val === 'object') return val;
@@ -1185,11 +1185,65 @@
         .filter(ev => getDate(ev))
         .sort((a,b) => new Date(getDate(b)) - new Date(getDate(a)))[0] || list[0];
     }
-    function normalizeWeights(obj){
-      const parsed = parseJSONish(obj, {});
+    function firstNonEmpty(...vals){
+      for (const v of vals){
+        const parsed = parseJSONish(v, v);
+        if (parsed == null) continue;
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+        if (typeof parsed === 'object' && Object.keys(parsed).length) return parsed;
+      }
+      return null;
+    }
+    
+    /* --- Responses (critérios) --- */
+    function extractResponses(ev){
+      const cand =
+        firstNonEmpty(
+          ev?.responses,
+          ev?.answers,
+          ev?.criteria_ratings,
+          ev?.ratings,
+          ev?.scores,
+          ev?.score_map,
+          ev?.data?.responses,
+          ev?.payload?.responses,
+          ev?.data?.answers,
+          ev?.payload?.answers
+        ) || {};
+      const data = parseJSONish(cand, cand) || {};
+    
+      // objeto {id:rating}
+      if (!Array.isArray(data) && typeof data === 'object'){
+        return Object.entries(data).map(([k,v]) => [String(k), Number(v)]);
+      }
+      // array [{criteria_id, rating}] ou variações
+      if (Array.isArray(data)){
+        return data
+          .map(x => x || {})
+          .filter(x => (x.criteria_id!=null || x.criterion_id!=null || x.criteriaId!=null) && (x.rating!=null || x.score!=null))
+          .map(x => [
+            String(x.criteria_id ?? x.criterion_id ?? x.criteriaId),
+            Number(x.rating ?? x.score)
+          ]);
+      }
+      return [];
+    }
+    
+    /* --- Pesos por dimensão --- */
+    function extractWeights(ev){
+      const cand =
+        firstNonEmpty(
+          ev?.dimension_weights,
+          ev?.weights,
+          ev?.dimensionWeights,
+          ev?.data?.dimension_weights,
+          ev?.data?.weights,
+          ev?.payload?.dimension_weights
+        ) || {};
+      const obj = parseJSONish(cand, {}) || {};
       const up = (k)=>String(k||'').toUpperCase();
       const map = {};
-      Object.keys(parsed).forEach(k => map[up(k)] = parsed[k]);
+      Object.keys(obj).forEach(k => map[up(k)] = obj[k]);
       return {
         INSTITUCIONAL: Number(map.INSTITUCIONAL ?? 25),
         FUNCIONAL:     Number(map.FUNCIONAL ?? 25),
@@ -1197,40 +1251,45 @@
         METAS:         Number(map.METAS ?? 25),
       };
     }
-    function responsesToPairs(responses){
-      const data = parseJSONish(responses, responses) || {};
-      if (Array.isArray(data)){
-        return data
-          .filter(x => x && (x.criteria_id!=null) && (x.rating!=null))
-          .map(x => [String(x.criteria_id), Number(x.rating)]);
-      }
-      return Object.entries(data).map(([k,v]) => [String(k), Number(v)]);
+    
+    /* --- Metas --- */
+    function extractGoals(ev){
+      const cand =
+        firstNonEmpty(
+          ev?.goals,
+          ev?.individual_goals,
+          ev?.targets,
+          ev?.data?.goals,
+          ev?.payload?.goals,
+          ev?.data?.individual_goals
+        );
+      const arr = parseJSONish(cand, cand);
+      return Array.isArray(arr) ? arr : [];
     }
-    function hasAnyGoals(goals){
-      const arr = parseJSONish(goals, goals);
-      return Array.isArray(arr) && arr.length > 0;
-    }
+    
+    /* Pequenos atalhos */
+    function hasAnyGoalsArr(arr){ return Array.isArray(arr) && arr.length>0; }
     
     /* =========================   VISUALIZAR AVALIAÇÃO    ========================= */
     async function viewEmployeeEvaluation(employeeId) {
       try {
         console.log('[viewEmployeeEvaluation] employeeId=', employeeId);
     
-        // Buscar funcionário
+        // Funcionário
         const resp = await fetch('/api/employees');
         const employees = await resp.json();
         const employee = employees.find(emp => Number(emp.id) === Number(employeeId));
         if (!employee) return alert('Funcionário não encontrado');
     
-        // Buscar avaliações do funcionário (tenta filtrar no servidor)
+        // Avaliações do funcionário
         const evalResp = await fetch('/api/evaluations?employee_id=' + encodeURIComponent(employeeId));
         let evaluationsAll = await evalResp.json();
         if (!Array.isArray(evaluationsAll)) {
-          console.warn('Evaluations não veio como array, tentando parse:', evaluationsAll);
+          console.warn('Evaluations não-array, tentando parse:', evaluationsAll);
           evaluationsAll = parseJSONish(evaluationsAll, []);
         }
         const employeeEvaluations = (evaluationsAll || []).filter(ev => Number(ev.employee_id) === Number(employeeId));
-        console.log('[viewEmployeeEvaluation] qtd avals=', employeeEvaluations.length, employeeEvaluations);
+        console.log('[viewEmployeeEvaluation] qtd avals=', employeeEvaluations.length);
     
         if (!employeeEvaluations.length) {
           alert('Nenhuma avaliação encontrada para este funcionário');
@@ -1238,24 +1297,24 @@
         }
     
         // Última avaliação
-        const latestEvaluation = pickLatestEvaluation(employeeEvaluations) || employeeEvaluations[0];
-        console.log('[viewEmployeeEvaluation] latestEvaluation=', latestEvaluation);
+        const latest = pickLatestEvaluation(employeeEvaluations) || employeeEvaluations[0];
+        console.log('[viewEmployeeEvaluation] latestEvaluation keys=', Object.keys(latest||{}));
     
-        // Preencher dados do funcionário
+        // Cabeçalho
         currentEmployee = employee;
         qs('#employee-name').textContent = employee.nome;
         qs('#employee-position').textContent = employee.cargo;
         qs('#employee-company').textContent = employee.empresa;
-        qs('#employee-manager').textContent = latestEvaluation.evaluator_name || 'Gestor';
-        qs('#employee-hay').textContent = latestEvaluation.employee_hay || '—';
-        qs('#employee-rating').textContent = latestEvaluation.final_rating ?? '-';
+        qs('#employee-manager').textContent = latest.evaluator_name || 'Gestor';
+        qs('#employee-hay').textContent = latest.employee_hay || '—';
+        qs('#employee-rating').textContent = latest.final_rating ?? '-';
     
-        // 1) Carrega critérios (gera os botões no DOM)
+        // 1) Critérios (gera DOM)
         await loadEvaluationCriteria();
     
-        // 2) Metas: usa as salvas se existirem (mesmo se vierem como string)
-        const goalsArr = parseJSONish(latestEvaluation.goals, latestEvaluation.goals);
-        if (hasAnyGoals(goalsArr)) {
+        // 2) Metas: usa as salvas se existirem
+        const goalsArr = extractGoals(latest);
+        if (hasAnyGoalsArr(goalsArr)) {
           qs('#goals-container').innerHTML = '';
           goalsArr.forEach((goal, index) => {
             const wrap = document.createElement('div');
@@ -1289,8 +1348,7 @@
               </div>`;
             qs('#goals-container').appendChild(wrap);
           });
-    
-          // liga eventos para recalcular
+          // eventos metas
           qsa('[id^="goal-weight-"]').forEach(inp => {
             inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
             inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -1300,20 +1358,19 @@
           });
           updateGoalsWeight();
         } else {
-          // Se não há metas salvas, só então carrega “virgens”
-          await loadGoals();
+          await loadGoals(); // só carrega “virgens” se não houver metas salvas
         }
     
-        // 3) Pesos das dimensões (normaliza e aceita string JSON)
-        const w = normalizeWeights(latestEvaluation.dimension_weights);
+        // 3) Pesos
+        const w = extractWeights(latest);
         qs('#weight-institucional').value = w.INSTITUCIONAL;
         qs('#weight-funcional').value     = w.FUNCIONAL;
         qs('#weight-individual').value    = w.INDIVIDUAL;
         qs('#weight-metas').value         = w.METAS;
         initDimensionWeights();
     
-        // 4) Respostas dos critérios (objeto/array/string)
-        const pairs = responsesToPairs(latestEvaluation.responses);
+        // 4) Responses
+        const pairs = extractResponses(latest); // <— ponto crítico
         console.log('[viewEmployeeEvaluation] responses pairs=', pairs);
         evaluationData = {};
         pairs.forEach(([criteriaId, rating]) => {
@@ -1322,7 +1379,7 @@
           if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
         });
     
-        // 5) Calcular e exibir
+        // 5) Calcular/exibir
         calculateFinalRating();
     
         // Mostrar seção
@@ -1337,23 +1394,15 @@
     
     /* =========================   PREENCHER AVALIAÇÃO EXISTENTE (utilitária)   ========================= */
     async function populateExistingEvaluation(evaluation) {
-      const pairs = responsesToPairs(evaluation.responses);
-      evaluationData = {};
-      pairs.forEach(([criteriaId, rating]) => {
-        qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
-        const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
-        if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
-      });
-    
-      const w = normalizeWeights(evaluation.dimension_weights);
+      const w = extractWeights(evaluation);
       qs('#weight-institucional').value = w.INSTITUCIONAL;
       qs('#weight-funcional').value     = w.FUNCIONAL;
       qs('#weight-individual').value    = w.INDIVIDUAL;
       qs('#weight-metas').value         = w.METAS;
       initDimensionWeights();
     
-      const goalsArr = parseJSONish(evaluation.goals, evaluation.goals);
-      if (hasAnyGoals(goalsArr) && !document.querySelector('.goal-item')) {
+      const goalsArr = extractGoals(evaluation);
+      if (hasAnyGoalsArr(goalsArr) && !document.querySelector('.goal-item')) {
         qs('#goals-container').innerHTML = '';
         goalsArr.forEach((goal, index) => {
           const wrap = document.createElement('div');
@@ -1361,8 +1410,7 @@
           wrap.innerHTML = `
             <div class="goal-header">
               <h4>Meta ${index + 1}</h4>
-              <input type="number" id="goal-weight-${index}" min="0" max="100"
-                     value="${goal.weight ?? 0}" placeholder="Peso %" />
+              <input type="number" id="goal-weight-${index}" min="0" max="100" value="${goal.weight ?? 0}" placeholder="Peso %">
             </div>
             <div class="goal-content">
               <input type="text" id="goal-name-${index}" value="${goal.name || goal.goal_name || ''}" placeholder="Nome da Meta">
@@ -1387,7 +1435,6 @@
             </div>`;
           qs('#goals-container').appendChild(wrap);
         });
-    
         qsa('[id^="goal-weight-"]').forEach(inp => {
           inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
           inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -1398,11 +1445,18 @@
         updateGoalsWeight();
       }
     
+      const pairs = extractResponses(evaluation);
+      evaluationData = {};
+      pairs.forEach(([criteriaId, rating]) => {
+        qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
+        const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+        if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
+      });
+    
       calculateFinalRating();
     }
     
     /* =========================       EXPORTAÇÃO GLOBAL    ========================= */
-    
     window.loadEmployees = loadEmployees;
     window.startEvaluation = startEvaluation;
     window.editEmployee = editEmployee;
