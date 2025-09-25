@@ -635,7 +635,6 @@
                             <!-- As metas serão carregadas aqui -->
                         </div>
 
-
                         
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="d-flex gap-2">
@@ -901,7 +900,7 @@
                         goalDiv.innerHTML = `
                             <div class="goal-header">
                                 <h4>Meta ${index + 1}</h4>
-                                <input type="number" id="goal-weight-${index}" min="0" max="100" value="${goal.weight || 0}" placeholder="Peso %">
+                                <input type="number" id="goal-weight-${index}" min="0" max="100" value="${goal.weight || 0}" placeholder="Peso %" onchange="updateGoalsWeight()">
                             </div>
                             <div class="goal-content">
                                 <input type="text" id="goal-name-${index}" value="${goal.goal_name || ''}" placeholder="Nome da Meta">
@@ -934,7 +933,7 @@
                             </div>
                             <div class="goal-rating">
                                 <label>Rating Atual:</label>
-                                <select id="goal-rating-${index}" required>
+                                <select id="goal-rating-${index}" required onchange="calculateFinalRating()">
                                     <option value="">Selecione</option>
                                     <option value="1" ${goal.rating === 1 ? 'selected' : ''}>1 - Excelente</option>
                                     <option value="2" ${goal.rating === 2 ? 'selected' : ''}>2 - Bom</option>
@@ -1116,179 +1115,179 @@
             calculateFinalRating();
         }
 
+
         function calculateFinalRating() {
-            // Calcular médias das dimensões
-            const institucionalAvg = calculateDimensionAverage('institucional');
-            const funcionalAvg = calculateDimensionAverage('funcional');
-            const individualAvg = calculateDimensionAverage('individual');
-            const metasAvg = calculateGoalsAverage();
-            
-            // Arredondar naturalmente
-            const institucionalRounded = Math.round(institucionalAvg);
-            const funcionalRounded = Math.round(funcionalAvg);
-            const individualRounded = Math.round(individualAvg);
-            const metasRounded = Math.round(metasAvg);
-            
-            // Atualizar exibição das médias
-            document.getElementById('avg-institucional').textContent = `Média: ${institucionalRounded}`;
-            document.getElementById('avg-funcional').textContent = `Média: ${funcionalRounded}`;
-            document.getElementById('avg-individual').textContent = `Média: ${individualRounded}`;
-            document.getElementById('avg-metas').textContent = `Média: ${metasRounded}`;
-            
-            // Calcular rating final
-            const weights = getDimensionWeights();
-            const finalRating = (
-                institucionalRounded * (weights.INSTITUCIONAL / 100) +
-                funcionalRounded * (weights.FUNCIONAL / 100) +
-                individualRounded * (weights.INDIVIDUAL / 100) +
-                metasRounded * (weights.METAS / 100)
-            );
-            
-            // Arredondar rating final
-            const finalRounded = Math.round(finalRating);
-            
-            // Exibir rating final
-            document.getElementById('final-rating').textContent = `Rating Final: ${finalRounded}`;
-            
-            return finalRounded;
+        // Calcular médias das dimensões
+        const institucionalAvg = calculateDimensionAverage('institucional');
+        const funcionalAvg = calculateDimensionAverage('funcional');
+        const individualAvg = calculateDimensionAverage('individual');
+        const metasAvg = calculateGoalsAverage();
+        
+        // Arredondar naturalmente
+        const institucionalRounded = Math.round(institucionalAvg);
+        const funcionalRounded = Math.round(funcionalAvg);
+        const individualRounded = Math.round(individualAvg);
+        const metasRounded = Math.round(metasAvg);
+        
+        // Atualizar exibição das médias
+        document.getElementById('avg-institucional').textContent = `Média: ${institucionalRounded}`;
+        document.getElementById('avg-funcional').textContent = `Média: ${funcionalRounded}`;
+        document.getElementById('avg-individual').textContent = `Média: ${individualRounded}`;
+        document.getElementById('avg-metas').textContent = `Média: ${metasRounded}`;
+        
+        // Calcular rating final
+        const weights = getDimensionWeights();
+        const finalRating = (
+            institucionalRounded * (weights.INSTITUCIONAL / 100) +
+            funcionalRounded * (weights.FUNCIONAL / 100) +
+            individualRounded * (weights.INDIVIDUAL / 100) +
+            metasRounded * (weights.METAS / 100)
+        );
+        
+        // Arredondar rating final
+        const finalRounded = Math.round(finalRating);
+        
+        // Exibir rating final
+        document.getElementById('final-rating').textContent = `Rating Final: ${finalRounded}`;
+        
+        return finalRounded;
+    }
+    
+    function startEvaluation() {
+        alert('Selecione um funcionário para avaliar');
+    }
+    
+    function editEmployee(id) {
+        alert(`Editar funcionário ID: ${id} (funcionalidade em desenvolvimento)`);
+    }
+    
+    async function submitEvaluation() {
+        if (!currentEmployee) {
+            alert('Nenhum funcionário selecionado');
+            return;
         }
         
-        function startEvaluation() {
-            alert('Selecione um funcionário para avaliar');
+        if (Object.keys(evaluationData).length === 0) {
+            alert('Preencha pelo menos um critério');
+            return;
         }
-
-        function editEmployee(id) {
-            alert(`Editar funcionário ID: ${id} (funcionalidade em desenvolvimento)`);
-        }
-
-        async function submitEvaluation() {
-            if (!currentEmployee) {
-                alert('Nenhum funcionário selecionado');
-                return;
-            }
+        
+        try {
+            const evaluation = {
+                employee_id: currentEmployee.id,
+                evaluator_id: 1, // ID do gestor (hardcoded por enquanto)
+                evaluation_year: 2025,
+                responses: evaluationData,
+                goals: goalsData.filter(g => g.rating !== null),
+                dimension_weights: dimensionWeights
+            };
             
-            if (Object.keys(evaluationData).length === 0) {
-                alert('Preencha pelo menos um critério');
-                return;
-            }
+            const response = await fetch('/api/evaluations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(evaluation)
+            });
             
-            try {
-                const evaluation = {
-                    employee_id: currentEmployee.id,
-                    evaluator_id: 1, // ID do gestor (hardcoded por enquanto)
-                    evaluation_year: 2025,
-                    responses: evaluationData,
-                    goals: goalsData.filter(g => g.rating !== null),
-                    dimension_weights: dimensionWeights
-                };
-                
-                const response = await fetch('/api/evaluations', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(evaluation)
-                });
-                
-                if (response.ok) {
-                    alert('Avaliação salva com sucesso!');
-                    evaluationData = {};
-                    goalsData = [];
-                    document.getElementById('evaluation-section').style.display = 'none';
-                } else {
-                    alert('Erro ao salvar avaliação');
-                }
-            } catch (error) {
-                console.error('Erro ao salvar avaliação:', error);
+            if (response.ok) {
+                alert('Avaliação salva com sucesso!');
+                evaluationData = {};
+                goalsData = [];
+                document.getElementById('evaluation-section').style.display = 'none';
+            } else {
                 alert('Erro ao salvar avaliação');
             }
+        } catch (error) {
+            console.error('Erro ao salvar avaliação:', error);
+            alert('Erro ao salvar avaliação');
         }
-
-        function saveGoals() {
-            const goals = [];
-            const goalItems = document.querySelectorAll('.goal-item');
-            
-            goalItems.forEach((item, index) => {
-                const goal = {
-                    index: index + 1,
-                    name: document.getElementById(`goal-name-${index}`).value,
-                    description: document.getElementById(`goal-description-${index}`).value,
-                    weight: parseFloat(document.getElementById(`goal-weight-${index}`).value) || 0,
-                    rating: parseInt(document.getElementById(`goal-rating-${index}`).value) || null,
-                    rating_1_criteria: document.getElementById(`goal-rating1-${index}`).value,
-                    rating_2_criteria: document.getElementById(`goal-rating2-${index}`).value,
-                    rating_3_criteria: document.getElementById(`goal-rating3-${index}`).value,
-                    rating_4_criteria: document.getElementById(`goal-rating4-${index}`).value,
-                    rating_5_criteria: document.getElementById(`goal-rating5-${index}`).value
-                };
-                goals.push(goal);
-            });
-            
-            // Validar se todos os critérios estão preenchidos
-            const missingCriteria = goals.some(goal => 
-                !goal.rating_1_criteria || !goal.rating_2_criteria || 
-                !goal.rating_3_criteria || !goal.rating_4_criteria || !goal.rating_5_criteria
-            );
-            
-            if (missingCriteria) {
-                alert('Por favor, preencha todos os critérios de avaliação (Rating 1 a 5) para todas as metas.');
-                return;
-            }
-            
-            // Salvar no localStorage para uso na avaliação
-            localStorage.setItem('individual_goals', JSON.stringify(goals));
-            
-            alert('Metas salvas com sucesso!');
-            updateGoalsWeight();
-        }    
-
-        function calculateDimensionAverage(dimension) {
-            const criteria = document.querySelectorAll(`[data-dimension="${dimension}"]`);
-            let total = 0;
-            let count = 0;
-            
-            criteria.forEach(criterion => {
-                const rating = criterion.querySelector('.rating-btn.selected');
-                if (rating) {
-                    total += parseInt(rating.dataset.rating);
-                    count++;
-                }
-            });
-            
-            return count > 0 ? total / count : 0;
-        }
+    }
+    
+    function saveGoals() {
+        const goals = [];
+        const goalItems = document.querySelectorAll('.goal-item');
         
-        function calculateGoalsAverage() {
-            const goals = document.querySelectorAll('.goal-item');
-            let total = 0;
-            let count = 0;
-            
-            goals.forEach((goal, index) => {
-                const rating = document.getElementById(`goal-rating-${index}`);
-                if (rating && rating.value) {
-                    total += parseInt(rating.value);
-                    count++;
-                }
-            });
-            
-            return count > 0 ? total / count : 0;
-        }
-        
-        function getDimensionWeights() {
-            return {
-                'INSTITUCIONAL': parseFloat(document.getElementById('weight-institucional').value) || 0,
-                'FUNCIONAL': parseFloat(document.getElementById('weight-funcional').value) || 0,
-                'INDIVIDUAL': parseFloat(document.getElementById('weight-individual').value) || 0,
-                'METAS': parseFloat(document.getElementById('weight-metas').value) || 0
+        goalItems.forEach((item, index) => {
+            const goal = {
+                index: index + 1,
+                name: document.getElementById(`goal-name-${index}`).value,
+                description: document.getElementById(`goal-description-${index}`).value,
+                weight: parseFloat(document.getElementById(`goal-weight-${index}`).value) || 0,
+                rating: parseInt(document.getElementById(`goal-rating-${index}`).value) || null,
+                rating_1_criteria: document.getElementById(`goal-rating1-${index}`).value,
+                rating_2_criteria: document.getElementById(`goal-rating2-${index}`).value,
+                rating_3_criteria: document.getElementById(`goal-rating3-${index}`).value,
+                rating_4_criteria: document.getElementById(`goal-rating4-${index}`).value,
+                rating_5_criteria: document.getElementById(`goal-rating5-${index}`).value
             };
-        }
-
-        function updateTotalWeight() {
-            updateGoalsWeight();
-            updateDimensionWeights();
+            goals.push(goal);
+        });
+        
+        // Validar se todos os critérios estão preenchidos
+        const missingCriteria = goals.some(goal => 
+            !goal.rating_1_criteria || !goal.rating_2_criteria || 
+            !goal.rating_3_criteria || !goal.rating_4_criteria || !goal.rating_5_criteria
+        );
+        
+        if (missingCriteria) {
+            alert('Por favor, preencha todos os critérios de avaliação (Rating 1 a 5) para todas as metas.');
+            return;
         }
         
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</body>
-</html>
+        // Salvar no localStorage para uso na avaliação
+        localStorage.setItem('individual_goals', JSON.stringify(goals));
+        
+        alert('Metas salvas com sucesso!');
+        updateGoalsWeight();
+    }
+    
+    function calculateDimensionAverage(dimension) {
+        const criteria = document.querySelectorAll(`[data-dimension="${dimension}"]`);
+        let total = 0;
+        let count = 0;
+        
+        criteria.forEach(criterion => {
+            const rating = criterion.querySelector('.rating-btn.selected');
+            if (rating) {
+                total += parseInt(rating.dataset.rating);
+                count++;
+            }
+        });
+        
+        return count > 0 ? total / count : 0;
+    }
+    
+    function calculateGoalsAverage() {
+        const goals = document.querySelectorAll('.goal-item');
+        let total = 0;
+        let count = 0;
+        
+        goals.forEach((goal, index) => {
+            const rating = document.getElementById(`goal-rating-${index}`);
+            if (rating && rating.value) {
+                total += parseInt(rating.value);
+                count++;
+            }
+        });
+        
+        return count > 0 ? total / count : 0;
+    }
+    
+    function getDimensionWeights() {
+        return {
+            'INSTITUCIONAL': parseFloat(document.getElementById('weight-institucional').value) || 0,
+            'FUNCIONAL': parseFloat(document.getElementById('weight-funcional').value) || 0,
+            'INDIVIDUAL': parseFloat(document.getElementById('weight-individual').value) || 0,
+            'METAS': parseFloat(document.getElementById('weight-metas').value) || 0
+        };
+    }
+    
+    function updateTotalWeight() {
+        updateGoalsWeight();
+        updateDimensionWeights();
+    }
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    </body>
+    </html>
