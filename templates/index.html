@@ -713,13 +713,16 @@
               <p><strong>Empresa:</strong> ${employee.empresa}</p>
               <p><strong>Salário:</strong> R$ ${Number(employee.salario||0).toLocaleString('pt-BR')}</p>
               <div class="d-flex gap-2">
-                <button class="btn btn-primary btn-sm" onclick="editEmployee(${employee.id})">
-                  <i class="fas fa-edit me-1"></i>Editar
-                </button>
-                <button class="btn btn-success btn-sm" onclick="startEvaluationForEmployee(${employee.id})">
-                  <i class="fas fa-clipboard-check me-1"></i>Avaliar
-                </button>
-              </div>
+                    <button class="btn btn-primary btn-sm" onclick="editEmployee(${employee.id})">
+                        <i class="fas fa-edit me-1"></i>Editar
+                    </button>
+                    <button class="btn btn-success btn-sm" onclick="startEvaluationForEmployee(${employee.id})">
+                        <i class="fas fa-clipboard-check me-1"></i>Avaliar
+                    </button>
+                    <button class="btn btn-info btn-sm" onclick="viewEmployeeEvaluation(${employee.id})">
+                        <i class="fas fa-eye me-1"></i>Ver Avaliação
+                    </button>
+                </div>
             </div>`;
           container.appendChild(col);
         });
@@ -1114,6 +1117,16 @@
     async function submitEvaluation() {
       if (!currentEmployee) return alert('Nenhum funcionário selecionado');
     
+      // Verificar se é uma edição (se já existe evaluationData preenchido)
+      const isEdit = Object.keys(evaluationData).length > 0;
+      const actionText = isEdit ? 'atualizada' : 'salva';
+    
+      // ... resto da função permanece igual ...
+    
+      // MODIFIQUE a mensagem de sucesso:
+      alert(`Avaliação ${actionText} com sucesso!`);
+    }
+    
       // ler metas do DOM (corrige transporte das metas)
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
@@ -1168,6 +1181,144 @@
     window.addGoal = addGoal;
     window.saveGoals = saveGoals;
     window.setRating = setRating;
+    
+    
+    /* =========================   VISUALIZAR AVALIAÇÃO    ========================= */
+    async function viewEmployeeEvaluation(employeeId) {
+      try {
+        // Buscar funcionário
+        const resp = await fetch('/api/employees');
+        const employees = await resp.json();
+        const employee = employees.find(emp => emp.id === employeeId);
+        if (!employee) return alert('Funcionário não encontrado');
+    
+        // Buscar avaliações do funcionário
+        const evalResp = await fetch('/api/evaluations');
+        const evaluations = await evalResp.json();
+        const employeeEvaluations = evaluations.filter(ev => ev.employee_id === employeeId);
+        
+        if (employeeEvaluations.length === 0) {
+          alert('Nenhuma avaliação encontrada para este funcionário');
+          return;
+        }
+    
+        // Pegar a última avaliação (mais recente)
+        const latestEvaluation = employeeEvaluations.sort((a, b) => 
+          new Date(b.evaluation_date || b.created_at) - new Date(a.evaluation_date || a.created_at)
+        )[0];
+    
+        // Preencher dados do funcionário
+        currentEmployee = employee;
+        qs('#employee-name').textContent = employee.nome;
+        qs('#employee-position').textContent = employee.cargo;
+        qs('#employee-company').textContent = employee.empresa;
+        qs('#employee-manager').textContent = 'Gestor Exemplo';
+        qs('#employee-hay').textContent = '51,2%';
+        qs('#employee-rating').textContent = latestEvaluation.final_rating || '-';
+    
+        // Carregar critérios e metas
+        await loadEvaluationCriteria();
+        await loadGoals();
+        initDimensionWeights();
+    
+        // Preencher avaliação existente
+        await populateExistingEvaluation(latestEvaluation);
+    
+        // Mostrar seção de avaliação
+        qs('#evaluation-section').style.display = 'block';
+        qs('#evaluation-section').scrollIntoView({behavior:'smooth'});
+    
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar avaliação');
+      }
+    }
+    
+    /* =========================
+       PREENCHER AVALIAÇÃO EXISTENTE
+    ========================= */
+    async function populateExistingEvaluation(evaluation) {
+      // Preencher ratings dos critérios
+      if (evaluation.responses) {
+        Object.entries(evaluation.responses).forEach(([criteriaId, rating]) => {
+          const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+          if (btn) {
+            btn.classList.add('selected');
+            evaluationData[criteriaId] = rating;
+          }
+        });
+      }
+    
+      // Preencher pesos das dimensões
+      if (evaluation.dimension_weights) {
+        qs('#weight-institucional').value = evaluation.dimension_weights.INSTITUCIONAL || 25;
+        qs('#weight-funcional').value = evaluation.dimension_weights.FUNCIONAL || 25;
+        qs('#weight-individual').value = evaluation.dimension_weights.INDIVIDUAL || 25;
+        qs('#weight-metas').value = evaluation.dimension_weights.METAS || 25;
+        updateDimensionWeights();
+      }
+    
+      // Preencher metas (se existirem)
+      if (evaluation.goals && evaluation.goals.length > 0) {
+        // Limpar metas existentes
+        qs('#goals-container').innerHTML = '';
+        
+        evaluation.goals.forEach((goal, index) => {
+          const wrap = document.createElement('div');
+          wrap.className = 'goal-item';
+          wrap.innerHTML = `
+            <div class="goal-header">
+              <h4>Meta ${index + 1}</h4>
+              <input type="number" id="goal-weight-${index}" min="0" max="100"
+                     value="${goal.weight || 0}" placeholder="Peso %" />
+            </div>
+            <div class="goal-content">
+              <input type="text" id="goal-name-${index}" value="${goal.name || ''}" placeholder="Nome da Meta">
+              <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || ''}</textarea>
+            </div>
+            <div class="goal-criteria">
+              <h5>Critérios de Avaliação:</h5>
+              <div class="criteria-grid">
+                ${[1,2,3,4,5].map(n => `
+                  <div class="criteria-item">
+                    <label>Rating ${n}:</label>
+                    <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required>${goal[`rating_${n}_criteria`] || ''}</textarea>
+                  </div>`).join('')}
+              </div>
+            </div>
+            <div class="goal-rating">
+              <label>Rating Atual:</label>
+              <select id="goal-rating-${index}">
+                <option value="">Selecione</option>
+                ${[1,2,3,4,5].map(n => `<option value="${n}" ${(goal.rating===n)?'selected':''}>${n}</option>`).join('')}
+              </select>
+            </div>`;
+          
+          qs('#goals-container').appendChild(wrap);
+        });
+    
+        // Ligar eventos das metas
+        qsa('[id^="goal-weight-"]').forEach(inp => {
+          inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+          inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+        });
+        qsa('[id^="goal-rating-"]').forEach(sel => {
+          sel.addEventListener('change', () => calculateFinalRating());
+        });
+    
+        updateGoalsWeight();
+      }
+    
+      // Calcular rating final
+      calculateFinalRating();
+    }
+    
+    /* =========================
+       EXPORTAÇÃO GLOBAL
+    ========================= */
+    // Adicione esta linha no final do script:
+    window.viewEmployeeEvaluation = viewEmployeeEvaluation;
+    
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </body>
