@@ -946,7 +946,7 @@
                         container.appendChild(goalDiv);
                     });
                     
-                    updateTotalWeight();
+                    updateGoalsWeight();
                 })
                 .catch(error => {
                     console.error('Erro ao carregar metas:', error);
@@ -1237,8 +1237,8 @@
             localStorage.setItem('individual_goals', JSON.stringify(goals));
             
             alert('Metas salvas com sucesso!');
-            updateTotalWeight();
-        }
+            updateGoalsWeight();
+        }    
 
         function calculateDimensionAverage(dimension) {
             const criteria = document.querySelectorAll(`[data-dimension="${dimension}"]`);
@@ -1279,6 +1279,11 @@
                 'INDIVIDUAL': parseFloat(document.getElementById('weight-individual').value) || 0,
                 'METAS': parseFloat(document.getElementById('weight-metas').value) || 0
             };
+        }
+
+        function updateTotalWeight() {
+            updateGoalsWeight();
+            updateDimensionWeights();
         }
         
     </script>
