@@ -671,632 +671,504 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentEmployee = null;
-        let evaluationData = {};
-        let goalsData = [];
-        let dimensionWeights = {
-            'INSTITUCIONAL': 15,
-            'FUNCIONAL': 15,
-            'INDIVIDUAL': 30,
-            'METAS': 40
-        };
-
-        async function loadEmployees() {
-            try {
-                const response = await fetch('/api/employees');
-                const employees = await response.json();
-                
-                const container = document.getElementById('employees-container');
-                const section = document.getElementById('employees-section');
-                
-                container.innerHTML = '';
-                
-                employees.forEach(employee => {
-                    const employeeCard = document.createElement('div');
-                    employeeCard.className = 'col-md-4';
-                    employeeCard.innerHTML = `
-                        <div class="employee-card">
-                            <h5>${employee.nome}</h5>
-                            <p><strong>Cargo:</strong> ${employee.cargo}</p>
-                            <p><strong>Empresa:</strong> ${employee.empresa}</p>
-                            <p><strong>Salário:</strong> R$ ${employee.salario.toLocaleString('pt-BR')}</p>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary btn-sm" onclick="editEmployee(${employee.id})">
-                                    <i class="fas fa-edit me-1"></i>Editar
-                                </button>
-                                <button class="btn btn-success btn-sm" onclick="startEvaluationForEmployee(${employee.id})">
-                                    <i class="fas fa-clipboard-check me-1"></i>Avaliar
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    container.appendChild(employeeCard);
-                });
-                
-                section.style.display = 'block';
-                section.scrollIntoView({ behavior: 'smooth' });
-                
-            } catch (error) {
-                console.error('Erro ao carregar funcionários:', error);
-                alert('Erro ao carregar funcionários');
-            }
-        }
-
-        async function showNineBoxMatrix() {
-            try {
-                // Carregar avaliações
-                const response = await fetch('/api/evaluations');
-                const evaluations = await response.json();
-                
-                // Carregar funcionários
-                const employeesResponse = await fetch('/api/employees');
-                const employees = await employeesResponse.json();
-                
-                // Limpar todos os quadrants
-                document.querySelectorAll('.nine-box-cell').forEach(cell => {
-                    cell.innerHTML = '';
-                });
-                
-                // Agrupar funcionários por quadrante (exatamente como no VBA)
-                const quadrantEmployees = {};
-                for (let i = 1; i <= 9; i++) {
-                    quadrantEmployees[i] = [];
-                }
-                
-                // Processar cada avaliação (lógica do VBA)
-                evaluations.forEach(evaluation => {
-                    const employee = employees.find(emp => emp.id === evaluation.employee_id);
-                    if (employee && evaluation.performance_rating && evaluation.potential_rating) {
-                        // CORREÇÃO: Arredondar os valores para inteiros
-                        const potencial = Math.round(evaluation.potential_rating);
-                        const desempenho = Math.round(evaluation.performance_rating);
-                        
-                        // Determinar linha e coluna (exatamente como no VBA)
-                        let linha, coluna;
-                        
-                        // Potencial (linha) - baseado na tabela de correlação
-                        if (potencial >= 7) {
-                            linha = 1; // Alto Potencial
-                        } else if (potencial >= 4) {
-                            linha = 2; // Médio Potencial
-                        } else {
-                            linha = 3; // Baixo Potencial
-                        }
-                        
-                        // Desempenho (coluna) - baseado na tabela de correlação
-                        if (desempenho >= 7) {
-                            coluna = 1; // Alto Desempenho
-                        } else if (desempenho >= 4) {
-                            coluna = 2; // Médio Desempenho
-                        } else {
-                            coluna = 3; // Baixo Desempenho
-                        }
-                        
-                        // Calcular posição (1-9)
-                        const position = (linha - 1) * 3 + coluna;
-                        
-                        if (position >= 1 && position <= 9) {
-                            quadrantEmployees[position].push(employee.nome);
-                        }
-                    }
-                });
-                
-                // Preencher os quadrants (nomes separados por vírgula)
-                for (let i = 1; i <= 9; i++) {
-                    const cell = document.querySelector(`[data-position="${i}"]`);
-                    if (cell && quadrantEmployees[i].length > 0) {
-                        // Juntar nomes com vírgula (exatamente como no VBA)
-                        cell.innerHTML = quadrantEmployees[i].join(', ');
-                    }
-                }
-                
-                document.getElementById('nine-box-section').style.display = 'block';
-                
-            } catch (error) {
-                console.error('Erro ao carregar matriz 9-box:', error);
-                alert('Erro ao carregar matriz 9-box');
-            }
-        }
-        
-        async function startEvaluationForEmployee(employeeId) {
-            try {
-                const response = await fetch('/api/employees');
-                const employees = await response.json();
-                currentEmployee = employees.find(emp => emp.id === employeeId);
-                
-                if (currentEmployee) {
-                    document.getElementById('employee-name').textContent = currentEmployee.nome;
-                    document.getElementById('employee-position').textContent = currentEmployee.cargo;
-                    document.getElementById('employee-company').textContent = currentEmployee.empresa;
-                    document.getElementById('employee-manager').textContent = 'Gestor Exemplo';
-                    document.getElementById('employee-hay').textContent = '51,2%';
-                    document.getElementById('employee-rating').textContent = '-';
-                    
-                    await loadEvaluationCriteria();
-                    await loadGoals();
-                    updateDimensionWeights();
-                    calculateFinalRating();
-                    
-                    document.getElementById('evaluation-section').style.display = 'block';
-                    document.getElementById('evaluation-section').scrollIntoView({ behavior: 'smooth' });
-                }
-            } catch (error) {
-                console.error('Erro ao iniciar avaliação:', error);
-                alert('Erro ao iniciar avaliação');
-            }
-        }
-
-        async function loadEvaluationCriteria() {
-            try {
-                const response = await fetch('/api/evaluation-criteria');
-                const criteria = await response.json();
-                
-                const container = document.getElementById('evaluation-criteria');
-                container.innerHTML = '';
-                
-                // Agrupar por dimensão
-                const dimensions = {};
-                criteria.forEach(criterion => {
-                    if (!dimensions[criterion.dimension]) {
-                        dimensions[criterion.dimension] = [];
-                    }
-                    dimensions[criterion.dimension].push(criterion);
-                });
-                
-                // Criar seções para cada dimensão
-                Object.keys(dimensions).forEach(dimension => {
-                    const dimensionSection = document.createElement('div');
-                    dimensionSection.className = 'evaluation-section';
-                    
-                    let html = `
-                        <div class="dimension-header">
-                            <h4>DIMENSÃO ${dimension}</h4>
-                        </div>
-                    `;
-                    
-                    dimensions[dimension].forEach(criterion => {
-                        html += `
-                            <div class="criteria-card" data-dimension="${dimension}">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex align-items-center gap-2 mb-2">
-                                            <span class="type-badge type-${criterion.type.toLowerCase()}">${criterion.type}</span>
-                                            <strong>${criterion.name}</strong>
-                                        </div>
-                                        <p class="text-muted mb-3">${criterion.description}</p>
-                                    </div>
-                                    <div class="rating-buttons">
-                                        ${[1,2,3,4,5].map(rating => `
-                                            <button class="rating-btn" onclick="setRating(${criterion.id}, ${rating})" data-criteria="${criterion.id}" data-rating="${rating}">
-                                                ${rating}
-                                            </button>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    dimensionSection.innerHTML = html;
-                    container.appendChild(dimensionSection);
-                });
-                
-            } catch (error) {
-                console.error('Erro ao carregar critérios:', error);
-                alert('Erro ao carregar critérios de avaliação');
-            }
-        }
-
-        function loadGoals() {
-            fetch('/api/individual-goals')
-                .then(response => response.json())
-                .then(goals => {
-                    const container = document.getElementById('goals-container');
-                    container.innerHTML = '';
-                    
-                    goals.forEach((goal, index) => {
-                        const goalDiv = document.createElement('div');
-                        goalDiv.className = 'goal-item';
-                        goalDiv.innerHTML = `
-                            <div class="goal-header">
-                                <h4>Meta ${index + 1}</h4>
-                                <input type="number" id="goal-weight-${index}" min="0" max="100" value="${goal.weight || 0}" placeholder="Peso %" onchange="updateGoalsWeight()">
-                            </div>
-                            <div class="goal-content">
-                                <input type="text" id="goal-name-${index}" value="${goal.goal_name || ''}" placeholder="Nome da Meta">
-                                <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.goal_description || ''}</textarea>
-                            </div>
-                            <div class="goal-criteria">
-                                <h5>Critérios de Avaliação:</h5>
-                                <div class="criteria-grid">
-                                    <div class="criteria-item">
-                                        <label>Rating 1:</label>
-                                        <textarea id="goal-rating1-${index}" placeholder="Descrição do Rating 1" required>${goal.rating_1_criteria || ''}</textarea>
-                                    </div>
-                                    <div class="criteria-item">
-                                        <label>Rating 2:</label>
-                                        <textarea id="goal-rating2-${index}" placeholder="Descrição do Rating 2" required>${goal.rating_2_criteria || ''}</textarea>
-                                    </div>
-                                    <div class="criteria-item">
-                                        <label>Rating 3:</label>
-                                        <textarea id="goal-rating3-${index}" placeholder="Descrição do Rating 3" required>${goal.rating_3_criteria || ''}</textarea>
-                                    </div>
-                                    <div class="criteria-item">
-                                        <label>Rating 4:</label>
-                                        <textarea id="goal-rating4-${index}" placeholder="Descrição do Rating 4" required>${goal.rating_4_criteria || ''}</textarea>
-                                    </div>
-                                    <div class="criteria-item">
-                                        <label>Rating 5:</label>
-                                        <textarea id="goal-rating5-${index}" placeholder="Descrição do Rating 5" required>${goal.rating_5_criteria || ''}</textarea>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="goal-rating">
-                                <label>Rating Atual:</label>
-                                <select id="goal-rating-${index}" required onchange="calculateFinalRating()">
-                                    <option value="">Selecione</option>
-                                    <option value="1" ${goal.rating === 1 ? 'selected' : ''}>1 - Excelente</option>
-                                    <option value="2" ${goal.rating === 2 ? 'selected' : ''}>2 - Bom</option>
-                                    <option value="3" ${goal.rating === 3 ? 'selected' : ''}>3 - Satisfatório</option>
-                                    <option value="4" ${goal.rating === 4 ? 'selected' : ''}>4 - Insatisfatório</option>
-                                    <option value="5" ${goal.rating === 5 ? 'selected' : ''}>5 - Insuficiente</option>
-                                </select>
-                            </div>
-                        `;
-                        container.appendChild(goalDiv);
-                    });
-                    
-                    updateGoalsWeight();
-                    calculateFinalRating();
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar metas:', error);
-                });
-        }
-
-        
-        function addGoal(index = null) {
-            if (goalsData.length >= 5) {
-                alert('Máximo de 5 metas permitidas');
-                return;
-            }
-            
-            const goalIndex = index || goalsData.length + 1;
-            const container = document.getElementById('goals-container');
-            
-            const goalCard = document.createElement('div');
-            goalCard.className = 'goal-item';
-            goalCard.innerHTML = `
-                <div class="goal-header">
-                    <h4>Meta ${goalIndex}</h4>
-                    <input type="number" id="goal-weight-${goalIndex - 1}" min="0" max="100" value="33.33" placeholder="Peso %" onchange="updateGoalsWeight()">
-                </div>
-                <div class="goal-content">
-                    <input type="text" id="goal-name-${goalIndex - 1}" placeholder="Nome da Meta">
-                    <textarea id="goal-description-${goalIndex - 1}" placeholder="Descrição da Meta"></textarea>
-                </div>
-                <div class="goal-criteria">
-                    <h5>Critérios de Avaliação:</h5>
-                    <div class="criteria-grid">
-                        <div class="criteria-item">
-                            <label>Rating 1:</label>
-                            <textarea id="goal-rating1-${goalIndex - 1}" placeholder="Descrição do Rating 1" required></textarea>
-                        </div>
-                        <div class="criteria-item">
-                            <label>Rating 2:</label>
-                            <textarea id="goal-rating2-${goalIndex - 1}" placeholder="Descrição do Rating 2" required></textarea>
-                        </div>
-                        <div class="criteria-item">
-                            <label>Rating 3:</label>
-                            <textarea id="goal-rating3-${goalIndex - 1}" placeholder="Descrição do Rating 3" required></textarea>
-                        </div>
-                        <div class="criteria-item">
-                            <label>Rating 4:</label>
-                            <textarea id="goal-rating4-${goalIndex - 1}" placeholder="Descrição do Rating 4" required></textarea>
-                        </div>
-                        <div class="criteria-item">
-                            <label>Rating 5:</label>
-                            <textarea id="goal-rating5-${goalIndex - 1}" placeholder="Descrição do Rating 5" required></textarea>
-                        </div>
-                    </div>
-                </div>
-                <div class="goal-rating">
-                    <label>Rating Atual:</label>
-                    <select id="goal-rating-${goalIndex - 1}" required onchange="calculateFinalRating()">
-                        <option value="">Selecione</option>
-                        <option value="1">1 - Excelente</option>
-                        <option value="2">2 - Bom</option>
-                        <option value="3">3 - Satisfatório</option>
-                        <option value="4">4 - Insatisfatório</option>
-                        <option value="5">5 - Insuficiente</option>
-                    </select>
-                </div>
-            `;
-            
-            container.appendChild(goalCard);
-            goalsData.push({
-                index: goalIndex,
-                name: '',
-                description: '',
-                weight: 33.33,
-                rating: null
-            });
-            
-            updateGoalsWeight();
-        }
-
-        
-        function updateDimensionWeights() {
-            const inputs = ['weight-institucional', 'weight-funcional', 'weight-individual', 'weight-metas'];
-            let total = 0;
-            
-            inputs.forEach(inputId => {
-                const input = document.getElementById(inputId);
-                const value = parseFloat(input.value) || 0;
-                total += value;
-                
-                input.addEventListener('input', function() {
-                    updateDimensionWeights();
-                    calculateFinalRating();
-                });
-            });
-            
-            const totalElement = document.getElementById('total-weight');
-            totalElement.textContent = `Total: ${total.toFixed(2)}%`;
-            
-            if (Math.abs(total - 100) < 0.01) {
-                totalElement.classList.remove('invalid');
-            } else {
-                totalElement.classList.add('invalid');
-            }
-            
-            // Atualizar objeto de pesos
-            dimensionWeights = {
-                'INSTITUCIONAL': parseFloat(document.getElementById('weight-institucional').value) || 0,
-                'FUNCIONAL': parseFloat(document.getElementById('weight-funcional').value) || 0,
-                'INDIVIDUAL': parseFloat(document.getElementById('weight-individual').value) || 0,
-                'METAS': parseFloat(document.getElementById('weight-metas').value) || 0
-            };
-        }
-
-        
-        function updateGoalsWeight() {
-            let total = 0;
-            const goalInputs = document.querySelectorAll('[id^="goal-"][id$="-weight"]');
-            
-            goalInputs.forEach(input => {
-                const value = parseFloat(input.value) || 0;
-                total += value;
-            });
-            
-            const totalElement = document.getElementById('total-goals-weight');
-            totalElement.textContent = `Total: ${total.toFixed(2)}%`;
-            
-            if (Math.abs(total - 100) < 0.01) {
-                totalElement.classList.remove('invalid');
-            } else {
-                totalElement.classList.add('invalid');
-            }
-        }
-
-        
-        function setRating(criteriaId, rating) {
-            // Remover seleção anterior
-            document.querySelectorAll(`[data-criteria="${criteriaId}"]`).forEach(btn => {
-                btn.classList.remove('selected');
-            });
-            
-            // Selecionar novo rating
-            document.querySelector(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`).classList.add('selected');
-            
-            // Salvar no objeto de dados
-            evaluationData[criteriaId] = rating;
-            
-            // Calcular rating final
-            calculateFinalRating();
-        }
-
-        function setGoalRating(goalIndex, rating) {
-            // Remover seleção anterior
-            document.querySelectorAll(`[data-goal="${goalIndex}"]`).forEach(btn => {
-                btn.classList.remove('selected');
-            });
-            
-            // Selecionar novo rating
-            document.querySelector(`[data-goal="${goalIndex}"][data-rating="${rating}"]`).classList.add('selected');
-            
-            // Atualizar dados da meta
-            const goal = goalsData.find(g => g.index === goalIndex);
-            if (goal) {
-                goal.rating = rating;
-            }
-            
-            // Calcular rating final
-            calculateFinalRating();
-        }
-
-
-        function calculateFinalRating() {
-            console.log('=== DEBUG calculateFinalRating ===');
-            
-            // Calcular médias das dimensões
-            const institucionalAvg = calculateDimensionAverage('institucional');
-            const funcionalAvg = calculateDimensionAverage('funcional');
-            const individualAvg = calculateDimensionAverage('individual');
-            const metasAvg = calculateGoalsAverage();
-            
-            console.log('Médias calculadas:', {
-                institucional: institucionalAvg,
-                funcional: funcionalAvg,
-                individual: individualAvg,
-                metas: metasAvg
-            });
-            
-            // Arredondar naturalmente
-            const institucionalRounded = Math.round(institucionalAvg);
-            const funcionalRounded = Math.round(funcionalAvg);
-            const individualRounded = Math.round(individualAvg);
-            const metasRounded = Math.round(metasAvg);
-            
-            // Atualizar exibição das médias
-            document.getElementById('avg-institucional').textContent = `Média: ${institucionalRounded}`;
-            document.getElementById('avg-funcional').textContent = `Média: ${funcionalRounded}`;
-            document.getElementById('avg-individual').textContent = `Média: ${individualRounded}`;
-            document.getElementById('avg-metas').textContent = `Média: ${metasRounded}`;
-            
-            // Calcular rating final
-            const weights = getDimensionWeights();
-            const finalRating = (
-                institucionalRounded * (weights.INSTITUCIONAL / 100) +
-                funcionalRounded * (weights.FUNCIONAL / 100) +
-                individualRounded * (weights.INDIVIDUAL / 100) +
-                metasRounded * (weights.METAS / 100)
-            );
-            
-            // Arredondar rating final
-            const finalRounded = Math.round(finalRating);
-            
-            // Exibir rating final
-            document.getElementById('final-rating').textContent = `Rating Final: ${finalRounded}`;
-            
-            return finalRounded;
-        }
+    /* =========================
+       Estado
+    ========================= */
+    let currentEmployee = null;
+    let evaluationData = {};       // { [criteriaId]: rating }
+    let dimensionWeights = {
+      'INSTITUCIONAL': 15,
+      'FUNCIONAL': 15,
+      'INDIVIDUAL': 30,
+      'METAS': 40
+    };
+    
+    /* =========================
+       Utilitários
+    ========================= */
+    function qs(sel, el=document){ return el.querySelector(sel); }
+    function qsa(sel, el=document){ return [...el.querySelectorAll(sel)]; }
+    function toNumber(v, d=0){ const n = parseFloat(v); return isNaN(n) ? d : n; }
+    function round(n){ return Math.round(n); }
+    
+    /* =========================
+       Funcionários
+    ========================= */
+    async function loadEmployees() {
+      try {
+        const response = await fetch('/api/employees');
+        const employees = await response.json();
+    
+        const container = qs('#employees-container');
+        const section = qs('#employees-section');
+        container.innerHTML = '';
+    
+        employees.forEach(employee => {
+          const col = document.createElement('div');
+          col.className = 'col-md-4';
+          col.innerHTML = `
+            <div class="employee-card">
+              <h5>${employee.nome}</h5>
+              <p><strong>Cargo:</strong> ${employee.cargo}</p>
+              <p><strong>Empresa:</strong> ${employee.empresa}</p>
+              <p><strong>Salário:</strong> R$ ${Number(employee.salario||0).toLocaleString('pt-BR')}</p>
+              <div class="d-flex gap-2">
+                <button class="btn btn-primary btn-sm" onclick="editEmployee(${employee.id})">
+                  <i class="fas fa-edit me-1"></i>Editar
+                </button>
+                <button class="btn btn-success btn-sm" onclick="startEvaluationForEmployee(${employee.id})">
+                  <i class="fas fa-clipboard-check me-1"></i>Avaliar
+                </button>
+              </div>
+            </div>`;
+          container.appendChild(col);
+        });
+    
+        section.style.display = 'block';
+        section.scrollIntoView({behavior:'smooth'});
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar funcionários');
+      }
+    }
     
     function startEvaluation() {
-        alert('Selecione um funcionário para avaliar');
+      alert('Selecione um funcionário para avaliar');
     }
     
     function editEmployee(id) {
-        alert(`Editar funcionário ID: ${id} (funcionalidade em desenvolvimento)`);
+      alert(`Editar funcionário ID: ${id} (em desenvolvimento)`);
     }
     
-    async function submitEvaluation() {
-        if (!currentEmployee) {
-            alert('Nenhum funcionário selecionado');
-            return;
+    /* =========================
+       NINE-BOX
+    ========================= */
+    async function showNineBoxMatrix() {
+      try {
+        const respEval = await fetch('/api/evaluations');
+        const evaluations = await respEval.json();
+        const respEmp = await fetch('/api/employees');
+        const employees = await respEmp.json();
+    
+        qsa('.nine-box-cell').forEach(c => c.innerHTML = '');
+    
+        const byPos = {1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[],9:[]};
+    
+        evaluations.forEach(ev => {
+          const emp = employees.find(e => e.id === ev.employee_id);
+          if (!emp) return;
+          if (!ev.performance_rating || !ev.potential_rating) return;
+    
+          const potencial = Math.round(ev.potential_rating);
+          const desempenho = Math.round(ev.performance_rating);
+    
+          let linha = (potencial >= 7) ? 1 : (potencial >= 4) ? 2 : 3;
+          let coluna = (desempenho >= 7) ? 1 : (desempenho >= 4) ? 2 : 3;
+    
+          const pos = (linha - 1) * 3 + coluna;
+          if (pos >= 1 && pos <= 9) byPos[pos].push(emp.nome);
+        });
+    
+        for (let i=1;i<=9;i++){
+          const cell = qs(`[data-position="${i}"]`);
+          if (cell && byPos[i].length) cell.textContent = byPos[i].join(', ');
         }
-        
-        if (Object.keys(evaluationData).length === 0) {
-            alert('Preencha pelo menos um critério');
-            return;
-        }
-        
-        try {
-            const evaluation = {
-                employee_id: currentEmployee.id,
-                evaluator_id: 1, // ID do gestor (hardcoded por enquanto)
-                evaluation_year: 2025,
-                responses: evaluationData,
-                goals: goalsData.filter(g => g.rating !== null),
-                dimension_weights: dimensionWeights
-            };
-            
-            const response = await fetch('/api/evaluations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(evaluation)
-            });
-            
-            if (response.ok) {
-                alert('Avaliação salva com sucesso!');
-                evaluationData = {};
-                goalsData = [];
-                document.getElementById('evaluation-section').style.display = 'none';
-            } else {
-                alert('Erro ao salvar avaliação');
-            }
-        } catch (error) {
-            console.error('Erro ao salvar avaliação:', error);
-            alert('Erro ao salvar avaliação');
-        }
+    
+        qs('#nine-box-section').style.display = 'block';
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar matriz 9-box');
+      }
+    }
+    
+    /* =========================
+       Avaliação
+    ========================= */
+    async function startEvaluationForEmployee(employeeId) {
+      try {
+        const resp = await fetch('/api/employees');
+        const employees = await resp.json();
+        currentEmployee = employees.find(emp => emp.id === employeeId);
+        if (!currentEmployee) return;
+    
+        qs('#employee-name').textContent = currentEmployee.nome;
+        qs('#employee-position').textContent = currentEmployee.cargo;
+        qs('#employee-company').textContent = currentEmployee.empresa;
+        qs('#employee-manager').textContent = 'Gestor Exemplo';
+        qs('#employee-hay').textContent = '51,2%';
+        qs('#employee-rating').textContent = '-';
+    
+        await loadEvaluationCriteria();
+        await loadGoals();          // carrega metas e liga eventos
+        initDimensionWeights();     // liga eventos dos pesos das dimensões
+        calculateFinalRating();     // primeira passada
+    
+        qs('#evaluation-section').style.display = 'block';
+        qs('#evaluation-section').scrollIntoView({behavior:'smooth'});
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao iniciar avaliação');
+      }
+    }
+    
+    async function loadEvaluationCriteria() {
+      try {
+        const response = await fetch('/api/evaluation-criteria');
+        const criteria = await response.json();
+        const container = qs('#evaluation-criteria');
+        container.innerHTML = '';
+    
+        // Agrupar por dimensão (mantendo MAIÚSCULO)
+        const dimensions = {};
+        criteria.forEach(c => {
+          const dim = (c.dimension || '').toUpperCase();
+          if (!dimensions[dim]) dimensions[dim] = [];
+          dimensions[dim].push(c);
+        });
+    
+        Object.keys(dimensions).forEach(dimension => {
+          const section = document.createElement('div');
+          section.className = 'evaluation-section';
+    
+          let html = `
+            <div class="dimension-header">
+              <h4>DIMENSÃO ${dimension}</h4>
+            </div>`;
+    
+          dimensions[dimension].forEach(c => {
+            const typeClass = `type-${(c.type||'').toLowerCase()}`;
+            html += `
+              <div class="criteria-card" data-dimension="${dimension}">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <span class="type-badge ${typeClass}">${c.type}</span>
+                      <strong>${c.name}</strong>
+                    </div>
+                    <p class="text-muted mb-3">${c.description||''}</p>
+                  </div>
+                  <div class="rating-buttons">
+                    ${[1,2,3,4,5].map(r => `
+                      <button class="rating-btn" onclick="setRating(${c.id}, ${r})"
+                              data-criteria="${c.id}" data-rating="${r}">
+                        ${r}
+                      </button>`).join('')}
+                  </div>
+                </div>
+              </div>`;
+          });
+    
+          section.innerHTML = html;
+          container.appendChild(section);
+        });
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar critérios de avaliação');
+      }
+    }
+    
+    /* -------- Metas -------- */
+    async function loadGoals() {
+      try {
+        const goals = await (await fetch('/api/individual-goals')).json();
+        const container = qs('#goals-container');
+        container.innerHTML = '';
+    
+        goals.forEach((goal, index) => {
+          const wrap = document.createElement('div');
+          wrap.className = 'goal-item';
+          wrap.innerHTML = `
+            <div class="goal-header">
+              <h4>Meta ${index + 1}</h4>
+              <input type="number" id="goal-weight-${index}" min="0" max="100"
+                     value="${goal.weight ?? 0}" placeholder="Peso %" />
+            </div>
+            <div class="goal-content">
+              <input type="text" id="goal-name-${index}" value="${goal.goal_name || ''}" placeholder="Nome da Meta">
+              <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.goal_description || ''}</textarea>
+            </div>
+            <div class="goal-criteria">
+              <h5>Critérios de Avaliação:</h5>
+              <div class="criteria-grid">
+                ${[1,2,3,4,5].map(n => `
+                  <div class="criteria-item">
+                    <label>Rating ${n}:</label>
+                    <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required>${goal[`rating_${n}_criteria`] || ''}</textarea>
+                  </div>`).join('')}
+              </div>
+            </div>
+            <div class="goal-rating">
+              <label>Rating Atual:</label>
+              <select id="goal-rating-${index}">
+                <option value="">Selecione</option>
+                ${[1,2,3,4,5].map(n => `<option value="${n}" ${(goal.rating===n)?'selected':''}>${n}</option>`).join('')}
+              </select>
+            </div>`;
+    
+          container.appendChild(wrap);
+        });
+    
+        // Liga eventos (peso e rating) após render
+        qsa('[id^="goal-weight-"]').forEach(inp => {
+          inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+          inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+        });
+        qsa('[id^="goal-rating-"]').forEach(sel => {
+          sel.addEventListener('change', () => calculateFinalRating());
+        });
+    
+        updateGoalsWeight();
+        calculateFinalRating();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    
+    function addGoal() {
+      const container = qs('#goals-container');
+      const index = qsa('.goal-item').length;   // próximo índice
+      const el = document.createElement('div');
+      el.className = 'goal-item';
+      el.innerHTML = `
+        <div class="goal-header">
+          <h4>Meta ${index + 1}</h4>
+          <input type="number" id="goal-weight-${index}" min="0" max="100" value="33.33" placeholder="Peso %">
+        </div>
+        <div class="goal-content">
+          <input type="text" id="goal-name-${index}" placeholder="Nome da Meta">
+          <textarea id="goal-description-${index}" placeholder="Descrição da Meta"></textarea>
+        </div>
+        <div class="goal-criteria">
+          <h5>Critérios de Avaliação:</h5>
+          <div class="criteria-grid">
+            ${[1,2,3,4,5].map(n => `
+              <div class="criteria-item">
+                <label>Rating ${n}:</label>
+                <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required></textarea>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="goal-rating">
+          <label>Rating Atual:</label>
+          <select id="goal-rating-${index}">
+            <option value="">Selecione</option>
+            ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+          </select>
+        </div>`;
+      container.appendChild(el);
+    
+      // eventos do novo item
+      qs(`#goal-weight-${index}`).addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+      qs(`#goal-weight-${index}`).addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+      qs(`#goal-rating-${index}`).addEventListener('change', () => calculateFinalRating());
+    
+      updateGoalsWeight();
     }
     
     function saveGoals() {
-        const goals = [];
-        const goalItems = document.querySelectorAll('.goal-item');
-        
-        goalItems.forEach((item, index) => {
-            const goal = {
-                index: index + 1,
-                name: document.getElementById(`goal-name-${index}`).value,
-                description: document.getElementById(`goal-description-${index}`).value,
-                weight: parseFloat(document.getElementById(`goal-weight-${index}`).value) || 0,
-                rating: parseInt(document.getElementById(`goal-rating-${index}`).value) || null,
-                rating_1_criteria: document.getElementById(`goal-rating1-${index}`).value,
-                rating_2_criteria: document.getElementById(`goal-rating2-${index}`).value,
-                rating_3_criteria: document.getElementById(`goal-rating3-${index}`).value,
-                rating_4_criteria: document.getElementById(`goal-rating4-${index}`).value,
-                rating_5_criteria: document.getElementById(`goal-rating5-${index}`).value
-            };
-            goals.push(goal);
-        });
-        
-        // Validar se todos os critérios estão preenchidos
-        const missingCriteria = goals.some(goal => 
-            !goal.rating_1_criteria || !goal.rating_2_criteria || 
-            !goal.rating_3_criteria || !goal.rating_4_criteria || !goal.rating_5_criteria
-        );
-        
-        if (missingCriteria) {
-            alert('Por favor, preencha todos os critérios de avaliação (Rating 1 a 5) para todas as metas.');
-            return;
-        }
-        
-        // Salvar no localStorage para uso na avaliação
-        localStorage.setItem('individual_goals', JSON.stringify(goals));
-        
-        alert('Metas salvas com sucesso!');
-        updateGoalsWeight();
+      const { goals, missingCriteria } = readGoalsFromDOM();
+      if (missingCriteria) {
+        alert('Preencha todos os critérios (Rating 1 a 5) de todas as metas.');
+        return;
+      }
+      localStorage.setItem('individual_goals', JSON.stringify(goals));
+      alert('Metas salvas com sucesso!');
+      updateGoalsWeight();
     }
     
-    function calculateDimensionAverage(dimension) {
-        const criteria = document.querySelectorAll(`[data-dimension="${dimension}"]`);
-        let total = 0;
-        let count = 0;
-        
-        criteria.forEach(criterion => {
-            const rating = criterion.querySelector('.rating-btn.selected');
-            if (rating) {
-                total += parseInt(rating.dataset.rating);
-                count++;
-            }
-        });
-        
-        return count > 0 ? total / count : 0;
-    }
+    /* Lê metas direto do DOM (corrige envio para Supabase) */
+    function readGoalsFromDOM() {
+      const items = qsa('.goal-item');
+      const goals = [];
+      let missingCriteria = false;
     
-    function calculateGoalsAverage() {
-        const goals = document.querySelectorAll('.goal-item');
-        let total = 0;
-        let count = 0;
-        
-        goals.forEach((goal, index) => {
-            const rating = document.getElementById(`goal-rating-${index}`);
-            if (rating && rating.value) {
-                total += parseInt(rating.value);
-                count++;
-            }
-        });
-        
-        return count > 0 ? total / count : 0;
-    }
-    
-    function getDimensionWeights() {
-        return {
-            'INSTITUCIONAL': parseFloat(document.getElementById('weight-institucional').value) || 0,
-            'FUNCIONAL': parseFloat(document.getElementById('weight-funcional').value) || 0,
-            'INDIVIDUAL': parseFloat(document.getElementById('weight-individual').value) || 0,
-            'METAS': parseFloat(document.getElementById('weight-metas').value) || 0
+      items.forEach((item, idx) => {
+        const goal = {
+          index: idx + 1,
+          name: qs(`#goal-name-${idx}`)?.value || '',
+          description: qs(`#goal-description-${idx}`)?.value || '',
+          weight: toNumber(qs(`#goal-weight-${idx}`)?.value, 0),
+          rating: toNumber(qs(`#goal-rating-${idx}`)?.value, null),
         };
+        // critérios 1..5
+        for (let n=1;n<=5;n++){
+          const t = qs(`#goal-rating${n}-${idx}`);
+          const key = `rating_${n}_criteria`;
+          goal[key] = t ? t.value : '';
+          if (!goal[key]) missingCriteria = true;
+        }
+        goals.push(goal);
+      });
+    
+      // médias/total auxiliares
+      const sumWeights = goals.reduce((s,g)=>s+toNumber(g.weight,0),0);
+      const ratings = goals.map(g=>g.rating).filter(v=>!!v);
+      const avgRating = ratings.length ? ratings.reduce((s,v)=>s+v,0)/ratings.length : 0;
+    
+      return { goals, sumWeights, avgRating, missingCriteria };
     }
     
-    function updateTotalWeight() {
-        updateGoalsWeight();
-        updateDimensionWeights();
+    /* -------- Pesos por dimensão -------- */
+    function initDimensionWeights() {
+      ['weight-institucional','weight-funcional','weight-individual','weight-metas'].forEach(id => {
+        const input = qs('#'+id);
+        input.addEventListener('input', () => { updateDimensionWeights(); calculateFinalRating(); });
+        input.addEventListener('change', () => { updateDimensionWeights(); calculateFinalRating(); });
+      });
+      updateDimensionWeights();
     }
-        </script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    function updateDimensionWeights() {
+      const wInst = toNumber(qs('#weight-institucional').value);
+      const wFunc = toNumber(qs('#weight-funcional').value);
+      const wInd  = toNumber(qs('#weight-individual').value);
+      const wMet  = toNumber(qs('#weight-metas').value);
+    
+      const total = wInst + wFunc + wInd + wMet;
+    
+      // atualiza apenas o número dentro do span
+      const span = qs('#total-weight'); // este é o <span id="total-weight">
+      span.textContent = total.toFixed(2);
+    
+      // valida no wrapper (div .total-weight)
+      const wrapper = span.closest('.total-weight');
+      if (Math.abs(total - 100) < 0.01) wrapper.classList.remove('invalid');
+      else wrapper.classList.add('invalid');
+    
+      dimensionWeights = {
+        'INSTITUCIONAL': wInst,
+        'FUNCIONAL': wFunc,
+        'INDIVIDUAL': wInd,
+        'METAS': wMet
+      };
+    }
+    
+    /* -------- Pesos das metas -------- */
+    function updateGoalsWeight() {
+      let total = 0;
+      qsa('[id^="goal-weight-"]').forEach(input => total += toNumber(input.value));
+      const box = qs('#total-goals-weight'); // é um DIV .total-weight
+      box.textContent = `Total: ${total.toFixed(2)}%`;
+      if (Math.abs(total - 100) < 0.01) box.classList.remove('invalid');
+      else box.classList.add('invalid');
+    }
+    
+    /* -------- Ratings -------- */
+    function setRating(criteriaId, rating) {
+      qsa(`[data-criteria="${criteriaId}"]`).forEach(btn => btn.classList.remove('selected'));
+      const sel = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+      if (sel) sel.classList.add('selected');
+      evaluationData[criteriaId] = rating;
+      calculateFinalRating();
+    }
+    
+    /* Médias por dimensão (agora case-insensitive) */
+    function calculateDimensionAverage(dimensionKey) {
+      const key = (dimensionKey || '').toUpperCase();
+      const cards = qsa(`[data-dimension="${key}"]`);
+      let total = 0, count = 0;
+      cards.forEach(card => {
+        const btn = card.querySelector('.rating-btn.selected');
+        if (btn) { total += toNumber(btn.dataset.rating); count++; }
+      });
+      return count ? (total / count) : 0;
+    }
+    
+    /* Média das metas (do DOM) */
+    function calculateGoalsAverage() {
+      const { avgRating } = readGoalsFromDOM();
+      return avgRating || 0;
+    }
+    
+    /* Cálculo geral + atualização visual */
+    function calculateFinalRating() {
+      // médias
+      const institucionalAvg = calculateDimensionAverage('INSTITUCIONAL');
+      const funcionalAvg     = calculateDimensionAverage('FUNCIONAL');
+      const individualAvg    = calculateDimensionAverage('INDIVIDUAL');
+      const metasAvg         = calculateGoalsAverage();
+    
+      // mostrar médias (arredondadas) nos badges
+      qs('#avg-institucional').textContent = `Média: ${round(institucionalAvg) || '-'}`;
+      qs('#avg-funcional').textContent     = `Média: ${round(funcionalAvg) || '-'}`;
+      qs('#avg-individual').textContent    = `Média: ${round(individualAvg) || '-'}`;
+      qs('#avg-metas').textContent         = `Média: ${round(metasAvg) || '-'}`;
+    
+      // pesos
+      const w = dimensionWeights;
+      const final =
+        (institucionalAvg * (w.INSTITUCIONAL/100)) +
+        (funcionalAvg     * (w.FUNCIONAL/100)) +
+        (individualAvg    * (w.INDIVIDUAL/100)) +
+        (metasAvg         * (w.METAS/100));
+    
+      const finalRounded = round(final || 0);
+    
+      // exibir apenas o número (se preferir)
+      qs('#final-rating').textContent = finalRounded ? finalRounded : '-';
+    
+      return finalRounded;
+    }
+    
+    /* Envio (inclui médias/dados para o Supabase via seu /api) */
+    async function submitEvaluation() {
+      if (!currentEmployee) return alert('Nenhum funcionário selecionado');
+    
+      // ler metas do DOM (corrige transporte das metas)
+      const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
+      if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
+      if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
+    
+      const finalRating = calculateFinalRating();
+    
+      // construir médias por dimensão (não-arredondadas para maior precisão)
+      const dimensionAverages = {
+        INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
+        FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
+        INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
+        METAS:         metasAvg
+      };
+    
+      // payload completo
+      const payload = {
+        employee_id: currentEmployee.id,
+        evaluator_id: 1,
+        evaluation_year: 2025,
+        responses: evaluationData,             // { criteriaId: rating }
+        goals,                                  // metas detalhadas
+        goals_average: metasAvg,                // média de metas (vai para o Supabase)
+        dimension_weights: dimensionWeights,    // pesos
+        dimension_averages: dimensionAverages,  // médias por dimensão
+        final_rating: finalRating               // rating final consolidado
+      };
+    
+      try {
+        const resp = await fetch('/api/evaluations', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) throw new Error('Erro HTTP');
+    
+        alert('Avaliação salva com sucesso!');
+        evaluationData = {};
+        qs('#evaluation-section').style.display = 'none';
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar avaliação');
+      }
+    }
+    
+    /* expõe algumas funções no escopo global (chamadas por HTML) */
+    window.loadEmployees = loadEmployees;
+    window.startEvaluation = startEvaluation;
+    window.editEmployee = editEmployee;
+    window.startEvaluationForEmployee = startEvaluationForEmployee;
+    window.showNineBoxMatrix = showNineBoxMatrix;
+    window.addGoal = addGoal;
+    window.saveGoals = saveGoals;
+    window.setRating = setRating;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </body>
     </html>
