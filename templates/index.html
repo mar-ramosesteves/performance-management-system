@@ -1168,14 +1168,12 @@
     
     
     
-    
-    /* ===== Helpers robustos (auto-descoberta de campos) ===== */
+        
+    /* ===== Helpers ===== */
     function parseJSONish(val, fallback=null){
       if (val == null) return fallback;
       if (typeof val === 'object') return val;
-      if (typeof val === 'string') {
-        try { return JSON.parse(val); } catch { return fallback; }
-      }
+      if (typeof val === 'string') { try { return JSON.parse(val); } catch { return fallback; } }
       return fallback;
     }
     function pickLatestEvaluation(list){
@@ -1185,92 +1183,66 @@
         .filter(ev => getDate(ev))
         .sort((a,b) => new Date(getDate(b)) - new Date(getDate(a)))[0] || list[0];
     }
-    function firstNonEmpty(...vals){
-      for (const v of vals){
-        const parsed = parseJSONish(v, v);
-        if (parsed == null) continue;
-        if (Array.isArray(parsed) && parsed.length) return parsed;
-        if (typeof parsed === 'object' && Object.keys(parsed).length) return parsed;
-      }
-      return null;
-    }
+    function qs(s){ return document.querySelector(s); }
+    function qsa(s){ return document.querySelectorAll(s); }
     
-    /* --- Responses (critérios) --- */
-    function extractResponses(ev){
-      const cand =
-        firstNonEmpty(
-          ev?.responses,
-          ev?.answers,
-          ev?.criteria_ratings,
-          ev?.ratings,
-          ev?.scores,
-          ev?.score_map,
-          ev?.data?.responses,
-          ev?.payload?.responses,
-          ev?.data?.answers,
-          ev?.payload?.answers
-        ) || {};
-      const data = parseJSONish(cand, cand) || {};
-    
-      // objeto {id:rating}
-      if (!Array.isArray(data) && typeof data === 'object'){
-        return Object.entries(data).map(([k,v]) => [String(k), Number(v)]);
+    /* Extrai pesos de várias formas (JSON na avaliação ou colunas soltas) */
+    function extractWeightsFromEvaluation(ev){
+      // 1) JSON comum
+      const wJSON = parseJSONish(
+        ev.dimension_weights || ev.weights || ev.dimensionWeights || ev.data?.dimension_weights,
+        null
+      );
+      if (wJSON && typeof wJSON === 'object'){
+        const up = (k)=>String(k||'').toUpperCase();
+        const map = {}; Object.keys(wJSON).forEach(k => map[up(k)] = wJSON[k]);
+        return {
+          INSTITUCIONAL: Number(map.INSTITUCIONAL ?? 25),
+          FUNCIONAL:     Number(map.FUNCIONAL ?? 25),
+          INDIVIDUAL:    Number(map.INDIVIDUAL ?? 25),
+          METAS:         Number(map.METAS ?? 25),
+        };
       }
-      // array [{criteria_id, rating}] ou variações
-      if (Array.isArray(data)){
-        return data
-          .map(x => x || {})
-          .filter(x => (x.criteria_id!=null || x.criterion_id!=null || x.criteriaId!=null) && (x.rating!=null || x.score!=null))
-          .map(x => [
-            String(x.criteria_id ?? x.criterion_id ?? x.criteriaId),
-            Number(x.rating ?? x.score)
-          ]);
-      }
-      return [];
-    }
-    
-    /* --- Pesos por dimensão --- */
-    function extractWeights(ev){
-      const cand =
-        firstNonEmpty(
-          ev?.dimension_weights,
-          ev?.weights,
-          ev?.dimensionWeights,
-          ev?.data?.dimension_weights,
-          ev?.data?.weights,
-          ev?.payload?.dimension_weights
-        ) || {};
-      const obj = parseJSONish(cand, {}) || {};
-      const up = (k)=>String(k||'').toUpperCase();
-      const map = {};
-      Object.keys(obj).forEach(k => map[up(k)] = obj[k]);
+      // 2) Colunas soltas na avaliação (fallback)
       return {
-        INSTITUCIONAL: Number(map.INSTITUCIONAL ?? 25),
-        FUNCIONAL:     Number(map.FUNCIONAL ?? 25),
-        INDIVIDUAL:    Number(map.INDIVIDUAL ?? 25),
-        METAS:         Number(map.METAS ?? 25),
+        INSTITUCIONAL: Number(ev.weight_institucional ?? 25),
+        FUNCIONAL:     Number(ev.weight_funcional ?? 25),
+        INDIVIDUAL:    Number(ev.weight_individual ?? 25),
+        METAS:         Number(ev.weight_metas ?? 25),
       };
     }
     
-    /* --- Metas --- */
-    function extractGoals(ev){
-      const cand =
-        firstNonEmpty(
-          ev?.goals,
-          ev?.individual_goals,
-          ev?.targets,
-          ev?.data?.goals,
-          ev?.payload?.goals,
-          ev?.data?.individual_goals
-        );
-      const arr = parseJSONish(cand, cand);
-      return Array.isArray(arr) ? arr : [];
+    /* Tenta obter metas de várias formas (JSON em evaluations ou endpoint opcional) */
+    async function extractGoalsForEvaluation(ev){
+      // 1) JSON na própria avaliação
+      const arrLocal = parseJSONish(ev.goals || ev.individual_goals || ev.data?.goals, null);
+      if (Array.isArray(arrLocal) && arrLocal.length) return arrLocal;
+    
+      // 2) Endpoint opcional (se existir no seu backend)
+      try{
+        const r = await fetch('/api/evaluation-goals?evaluation_id=' + encodeURIComponent(ev.id));
+        if (r.ok){
+          const g = await r.json();
+          if (Array.isArray(g) && g.length) return g;
+        }
+      }catch(_){}
+      return []; // sem metas salvas: front vai mostrar "virgens"
     }
     
-    /* Pequenos atalhos */
-    function hasAnyGoalsArr(arr){ return Array.isArray(arr) && arr.length>0; }
+    /* Mapeia evaluation_responses -> pares [criteriaId, rating] */
+    function rowsToResponsePairs(rows){
+      // aceita coluna criteria_id/criterion_id/criteriaId + rating/score
+      return (rows||[])
+        .map(x => x || {})
+        .filter(x => (x.criteria_id!=null || x.criterion_id!=null || x.criteriaId!=null) &&
+                     (x.rating!=null || x.score!=null))
+        .map(x => [
+          String(x.criteria_id ?? x.criterion_id ?? x.criteriaId),
+          Number(x.rating ?? x.score)
+        ]);
+    }
     
-    /* =========================   VISUALIZAR AVALIAÇÃO    ========================= */
+    /* =========================   VISUALIZAR AVALIAÇÃO (JOIN evaluations + evaluation_responses)   ========================= */
     async function viewEmployeeEvaluation(employeeId) {
       try {
         console.log('[viewEmployeeEvaluation] employeeId=', employeeId);
@@ -1284,10 +1256,7 @@
         // Avaliações do funcionário
         const evalResp = await fetch('/api/evaluations?employee_id=' + encodeURIComponent(employeeId));
         let evaluationsAll = await evalResp.json();
-        if (!Array.isArray(evaluationsAll)) {
-          console.warn('Evaluations não-array, tentando parse:', evaluationsAll);
-          evaluationsAll = parseJSONish(evaluationsAll, []);
-        }
+        if (!Array.isArray(evaluationsAll)) evaluationsAll = parseJSONish(evaluationsAll, []);
         const employeeEvaluations = (evaluationsAll || []).filter(ev => Number(ev.employee_id) === Number(employeeId));
         console.log('[viewEmployeeEvaluation] qtd avals=', employeeEvaluations.length);
     
@@ -1298,7 +1267,7 @@
     
         // Última avaliação
         const latest = pickLatestEvaluation(employeeEvaluations) || employeeEvaluations[0];
-        console.log('[viewEmployeeEvaluation] latestEvaluation keys=', Object.keys(latest||{}));
+        console.log('[DEBUG latestEvaluation raw]=', JSON.stringify(latest, null, 2));
     
         // Cabeçalho
         currentEmployee = employee;
@@ -1312,9 +1281,22 @@
         // 1) Critérios (gera DOM)
         await loadEvaluationCriteria();
     
-        // 2) Metas: usa as salvas se existirem
-        const goalsArr = extractGoals(latest);
-        if (hasAnyGoalsArr(goalsArr)) {
+        // 2) Responses: BUSCA NA TABELA FILHA (evaluation_responses)
+        let responsePairs = [];
+        try{
+          const rr = await fetch('/api/evaluation-responses?evaluation_id=' + encodeURIComponent(latest.id));
+          if (rr.ok){
+            const rows = await rr.json(); // esperado: array de linhas {evaluation_id, criteria_id, rating, ...}
+            responsePairs = rowsToResponsePairs(rows);
+            console.log('[evaluation_responses] rows=', rows);
+          } else {
+            console.warn('GET /api/evaluation-responses falhou:', rr.status);
+          }
+        }catch(e){ console.warn('Erro ao buscar evaluation-responses:', e); }
+    
+        // 3) Metas: tenta carregamento salvo; se não tiver, carrega “virgens”
+        const goalsArr = await extractGoalsForEvaluation(latest);
+        if (Array.isArray(goalsArr) && goalsArr.length){
           qs('#goals-container').innerHTML = '';
           goalsArr.forEach((goal, index) => {
             const wrap = document.createElement('div');
@@ -1348,7 +1330,6 @@
               </div>`;
             qs('#goals-container').appendChild(wrap);
           });
-          // eventos metas
           qsa('[id^="goal-weight-"]').forEach(inp => {
             inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
             inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -1358,28 +1339,26 @@
           });
           updateGoalsWeight();
         } else {
-          await loadGoals(); // só carrega “virgens” se não houver metas salvas
+          await loadGoals(); // sem metas salvas
         }
     
-        // 3) Pesos
-        const w = extractWeights(latest);
+        // 4) Pesos
+        const w = extractWeightsFromEvaluation(latest);
         qs('#weight-institucional').value = w.INSTITUCIONAL;
         qs('#weight-funcional').value     = w.FUNCIONAL;
         qs('#weight-individual').value    = w.INDIVIDUAL;
         qs('#weight-metas').value         = w.METAS;
         initDimensionWeights();
     
-        // 4) Responses
-        const pairs = extractResponses(latest); // <— ponto crítico
-        console.log('[viewEmployeeEvaluation] responses pairs=', pairs);
+        // 5) Aplicar responses (seleciona botões)
         evaluationData = {};
-        pairs.forEach(([criteriaId, rating]) => {
+        responsePairs.forEach(([criteriaId, rating]) => {
           qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
           const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
           if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
         });
     
-        // 5) Calcular/exibir
+        // 6) Calcular e exibir
         calculateFinalRating();
     
         // Mostrar seção
@@ -1392,17 +1371,19 @@
       }
     }
     
-    /* =========================   PREENCHER AVALIAÇÃO EXISTENTE (utilitária)   ========================= */
+    /* =========================   PREENCHER AVALIAÇÃO EXISTENTE (caso você use noutro fluxo)   ========================= */
     async function populateExistingEvaluation(evaluation) {
-      const w = extractWeights(evaluation);
+      // Pesos
+      const w = extractWeightsFromEvaluation(evaluation);
       qs('#weight-institucional').value = w.INSTITUCIONAL;
       qs('#weight-funcional').value     = w.FUNCIONAL;
       qs('#weight-individual').value    = w.INDIVIDUAL;
       qs('#weight-metas').value         = w.METAS;
       initDimensionWeights();
     
-      const goalsArr = extractGoals(evaluation);
-      if (hasAnyGoalsArr(goalsArr) && !document.querySelector('.goal-item')) {
+      // Metas (se existirem no objeto)
+      const goalsArr = await extractGoalsForEvaluation(evaluation);
+      if (Array.isArray(goalsArr) && goalsArr.length && !document.querySelector('.goal-item')) {
         qs('#goals-container').innerHTML = '';
         goalsArr.forEach((goal, index) => {
           const wrap = document.createElement('div');
@@ -1445,13 +1426,20 @@
         updateGoalsWeight();
       }
     
-      const pairs = extractResponses(evaluation);
-      evaluationData = {};
-      pairs.forEach(([criteriaId, rating]) => {
-        qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
-        const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
-        if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
-      });
+      // Responses: se quiser reusar aqui, faça uma chamada ao endpoint de responses com evaluation.id
+      try{
+        const rr = await fetch('/api/evaluation-responses?evaluation_id=' + encodeURIComponent(evaluation.id));
+        if (rr.ok){
+          const rows = await rr.json();
+          const pairs = rowsToResponsePairs(rows);
+          evaluationData = {};
+          pairs.forEach(([criteriaId, rating]) => {
+            qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
+            const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+            if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
+          });
+        }
+      }catch(_){}
     
       calculateFinalRating();
     }
@@ -1466,6 +1454,7 @@
     window.saveGoals = saveGoals;
     window.setRating = setRating;
     window.viewEmployeeEvaluation = viewEmployeeEvaluation;
+
 
     
     </script>
