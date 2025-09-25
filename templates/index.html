@@ -335,14 +335,73 @@
     </section>
 
     <!-- Matriz 9-Box Corrigida -->
-    <!-- Gráfico 9-Box -->
+    <!-- Matriz 9-Box - Exatamente como no Excel -->
     <section id="nine-box-section" style="display: none;">
         <h2>📊 Matriz 9-Box</h2>
         
-        <div style="width: 100%; max-width: 800px; margin: 20px auto;">
-            <canvas id="nineBoxChart" width="800" height="600"></canvas>
-        </div>
+        <style>
+            .nine-box-table {
+                border-collapse: collapse;
+                margin: 20px auto;
+                font-family: Arial, sans-serif;
+            }
+            
+            .nine-box-table td {
+                width: 200px;
+                height: 120px;
+                border: 2px solid #333;
+                text-align: center;
+                vertical-align: middle;
+                padding: 10px;
+                font-size: 12px;
+            }
+            
+            .header-cell {
+                background-color: #f0f0f0;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            
+            /* Cores dos quadrants - baseado na sua imagem */
+            .box-1 { background-color: #90EE90; } /* Verde - Alto Potencial, Alto Desempenho */
+            .box-2 { background-color: #87CEEB; } /* Azul - Alto Potencial, Médio Desempenho */
+            .box-3 { background-color: #FFB6C1; } /* Rosa - Alto Potencial, Baixo Desempenho */
+            .box-4 { background-color: #98FB98; } /* Verde Claro - Médio Potencial, Alto Desempenho */
+            .box-5 { background-color: #FFFFE0; } /* Amarelo - Médio Potencial, Médio Desempenho */
+            .box-6 { background-color: #FFE4B5; } /* Laranja Claro - Médio Potencial, Baixo Desempenho */
+            .box-7 { background-color: #FFA500; } /* Laranja - Baixo Potencial, Alto Desempenho */
+            .box-8 { background-color: #FFA07A; } /* Salmão - Baixo Potencial, Médio Desempenho */
+            .box-9 { background-color: #FF6B6B; } /* Vermelho - Baixo Potencial, Baixo Desempenho */
+        </style>
+        
+        <table class="nine-box-table">
+            <tr>
+                <td class="header-cell"></td>
+                <td class="header-cell">Alto Desempenho</td>
+                <td class="header-cell">Médio Desempenho</td>
+                <td class="header-cell">Baixo Desempenho</td>
+            </tr>
+            <tr>
+                <td class="header-cell">Alto Potencial</td>
+                <td class="nine-box-cell box-1" data-position="1"></td>
+                <td class="nine-box-cell box-2" data-position="2"></td>
+                <td class="nine-box-cell box-3" data-position="3"></td>
+            </tr>
+            <tr>
+                <td class="header-cell">Médio Potencial</td>
+                <td class="nine-box-cell box-4" data-position="4"></td>
+                <td class="nine-box-cell box-5" data-position="5"></td>
+                <td class="nine-box-cell box-6" data-position="6"></td>
+            </tr>
+            <tr>
+                <td class="header-cell">Baixo Potencial</td>
+                <td class="nine-box-cell box-7" data-position="7"></td>
+                <td class="nine-box-cell box-8" data-position="8"></td>
+                <td class="nine-box-cell box-9" data-position="9"></td>
+            </tr>
+        </table>
     </section>
+
     
     <!-- Evaluation Section -->
     <section class="py-5" id="evaluation-section" style="display: none;">
@@ -496,100 +555,62 @@
                 const employeesResponse = await fetch('/api/employees');
                 const employees = await employeesResponse.json();
                 
-                // Preparar dados para o gráfico
-                const chartData = [];
+                // Limpar todos os quadrants
+                document.querySelectorAll('.nine-box-cell').forEach(cell => {
+                    cell.innerHTML = '';
+                });
                 
+                // Agrupar funcionários por quadrante (exatamente como no VBA)
+                const quadrantEmployees = {};
+                for (let i = 1; i <= 9; i++) {
+                    quadrantEmployees[i] = [];
+                }
+                
+                // Processar cada avaliação (lógica do VBA)
                 evaluations.forEach(evaluation => {
-                    if (evaluation.nine_box_position && evaluation.nine_box_position >= 1 && evaluation.nine_box_position <= 9) {
-                        const employee = employees.find(emp => emp.id === evaluation.employee_id);
-                        if (employee) {
-                            // Calcular posição X e Y baseada no quadrante
-                            const quadrant = evaluation.nine_box_position;
-                            const x = ((quadrant - 1) % 3) + 1; // 1, 2, 3
-                            const y = Math.ceil(quadrant / 3);   // 1, 2, 3
-                            
-                            chartData.push({
-                                x: x,
-                                y: y,
-                                label: employee.nome,
-                                performance: evaluation.performance_rating,
-                                potential: evaluation.potential_rating
-                            });
+                    const employee = employees.find(emp => emp.id === evaluation.employee_id);
+                    if (employee && evaluation.performance_rating && evaluation.potential_rating) {
+                        const potencial = evaluation.potential_rating;
+                        const desempenho = evaluation.performance_rating;
+                        
+                        // Determinar linha e coluna (exatamente como no VBA)
+                        let linha, coluna;
+                        
+                        // Potencial (linha)
+                        if (potencial >= 7) {
+                            linha = 1; // Alto Potencial
+                        } else if (potencial >= 4) {
+                            linha = 2; // Médio Potencial
+                        } else {
+                            linha = 3; // Baixo Potencial
+                        }
+                        
+                        // Desempenho (coluna)
+                        if (desempenho >= 7) {
+                            coluna = 1; // Alto Desempenho
+                        } else if (desempenho >= 4) {
+                            coluna = 2; // Médio Desempenho
+                        } else {
+                            coluna = 3; // Baixo Desempenho
+                        }
+                        
+                        // Calcular posição (1-9)
+                        const position = (linha - 1) * 3 + coluna;
+                        
+                        if (position >= 1 && position <= 9) {
+                            quadrantEmployees[position].push(employee.nome);
                         }
                     }
                 });
                 
-                // Criar gráfico
-                const ctx = document.getElementById('nineBoxChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [{
-                            label: 'Funcionários',
-                            data: chartData,
-                            backgroundColor: '#FF6B6B',
-                            borderColor: '#333',
-                            borderWidth: 2,
-                            pointRadius: 15,
-                            pointHoverRadius: 20
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: 'Matriz 9-Box - Performance vs Potencial'
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const point = context.raw;
-                                        return [
-                                            `Nome: ${point.label}`,
-                                            `Performance: ${point.performance}`,
-                                            `Potencial: ${point.potential}`
-                                        ];
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                type: 'linear',
-                                position: 'bottom',
-                                min: 0.5,
-                                max: 3.5,
-                                ticks: {
-                                    stepSize: 1,
-                                    callback: function(value) {
-                                        const labels = ['', 'Alto Desempenho', 'Médio Desempenho', 'Baixo Desempenho'];
-                                        return labels[value] || '';
-                                    }
-                                },
-                                grid: {
-                                    color: '#333',
-                                    lineWidth: 2
-                                }
-                            },
-                            y: {
-                                min: 0.5,
-                                max: 3.5,
-                                ticks: {
-                                    stepSize: 1,
-                                    callback: function(value) {
-                                        const labels = ['', 'Alto Potencial', 'Médio Potencial', 'Baixo Potencial'];
-                                        return labels[value] || '';
-                                    }
-                                },
-                                grid: {
-                                    color: '#333',
-                                    lineWidth: 2
-                                }
-                            }
-                        }
+                // Preencher os quadrants (exatamente como no VBA)
+                for (let i = 1; i <= 9; i++) {
+                    const cell = document.querySelector(`[data-position="${i}"]`);
+                    if (cell && quadrantEmployees[i].length > 0) {
+                        // Juntar nomes com vírgula (como no VBA)
+                        cell.innerHTML = quadrantEmployees[i].join(', ');
                     }
-                });
+                }
                 
                 document.getElementById('nine-box-section').style.display = 'block';
                 
@@ -598,7 +619,6 @@
                 alert('Erro ao carregar matriz 9-box');
             }
         }
-
 
         
         async function startEvaluationForEmployee(employeeId) {
