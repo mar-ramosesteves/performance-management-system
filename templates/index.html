@@ -1169,48 +1169,141 @@
     
     
     
+    /* ===== Helpers robustos (adicionei) ===== */
+    function pickLatestEvaluation(list){
+      if (!Array.isArray(list) || !list.length) return null;
+      const getDate = (ev) => ev.evaluation_date || ev.created_at || ev.updated_at || ev.inserted_at;
+      return [...list]
+        .filter(ev => getDate(ev))
+        .sort((a,b) => new Date(getDate(b)) - new Date(getDate(a)))[0] || list[0];
+    }
+    
+    function normalizeWeights(obj){
+      const o = obj || {};
+      const up = (k)=>String(k||'').toUpperCase();
+      const map = {};
+      Object.keys(o).forEach(k => map[up(k)] = o[k]);
+      return {
+        INSTITUCIONAL: Number(map.INSTITUCIONAL ?? 25),
+        FUNCIONAL:     Number(map.FUNCIONAL ?? 25),
+        INDIVIDUAL:    Number(map.INDIVIDUAL ?? 25),
+        METAS:         Number(map.METAS ?? 25),
+      };
+    }
+    
+    function responsesToPairs(responses){
+      if (!responses) return [];
+      if (Array.isArray(responses)){
+        return responses
+          .filter(x => x && (x.criteria_id!=null) && (x.rating!=null))
+          .map(x => [String(x.criteria_id), Number(x.rating)]);
+      }
+      return Object.entries(responses).map(([k,v]) => [String(k), Number(v)]);
+    }
+    
     /* =========================   VISUALIZAR AVALIAÇÃO    ========================= */
     async function viewEmployeeEvaluation(employeeId) {
       try {
         // Buscar funcionário
         const resp = await fetch('/api/employees');
         const employees = await resp.json();
-        const employee = employees.find(emp => emp.id === employeeId);
+        const employee = employees.find(emp => Number(emp.id) === Number(employeeId));
         if (!employee) return alert('Funcionário não encontrado');
     
-        // Buscar avaliações do funcionário
-        const evalResp = await fetch('/api/evaluations');
-        const evaluations = await evalResp.json();
-        const employeeEvaluations = evaluations.filter(ev => ev.employee_id === employeeId);
-        
-        if (employeeEvaluations.length === 0) {
+        // Buscar avaliações do funcionário (filtra no servidor se possível)
+        const evalResp = await fetch('/api/evaluations?employee_id=' + encodeURIComponent(employeeId));
+        const evaluationsAll = await evalResp.json();
+        const employeeEvaluations = (evaluationsAll || []).filter(ev => Number(ev.employee_id) === Number(employeeId));
+        if (!employeeEvaluations.length) {
           alert('Nenhuma avaliação encontrada para este funcionário');
           return;
         }
     
-        // Pegar a última avaliação (mais recente)
-        const latestEvaluation = employeeEvaluations.sort((a, b) => 
-          new Date(b.evaluation_date || b.created_at) - new Date(a.evaluation_date || a.created_at)
-        )[0];
+        // Última avaliação (mais recente, robusto para diferentes campos de data)
+        const latestEvaluation = pickLatestEvaluation(employeeEvaluations);
     
         // Preencher dados do funcionário
         currentEmployee = employee;
         qs('#employee-name').textContent = employee.nome;
         qs('#employee-position').textContent = employee.cargo;
         qs('#employee-company').textContent = employee.empresa;
-        qs('#employee-manager').textContent = 'Gestor Exemplo';
-        qs('#employee-hay').textContent = '51,2%';
-        qs('#employee-rating').textContent = latestEvaluation.final_rating || '-';
+        qs('#employee-manager').textContent = latestEvaluation.evaluator_name || 'Gestor';
+        qs('#employee-hay').textContent = latestEvaluation.employee_hay || '—';
+        qs('#employee-rating').textContent = latestEvaluation.final_rating ?? '-';
     
-        // Carregar critérios e metas
+        // 1) Carregar critérios (gera os botões no DOM)
         await loadEvaluationCriteria();
-        await loadGoals();
+    
+        // 2) Metas: se vieram na avaliação, desenha a partir dela; senão, carrega padrão
+        if (Array.isArray(latestEvaluation.goals) && latestEvaluation.goals.length > 0) {
+          qs('#goals-container').innerHTML = '';
+          latestEvaluation.goals.forEach((goal, index) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'goal-item';
+            wrap.innerHTML = `
+              <div class="goal-header">
+                <h4>Meta ${index + 1}</h4>
+                <input type="number" id="goal-weight-${index}" min="0" max="100"
+                       value="${goal.weight ?? 0}" placeholder="Peso %" />
+              </div>
+              <div class="goal-content">
+                <input type="text" id="goal-name-${index}" value="${goal.name || goal.goal_name || ''}" placeholder="Nome da Meta">
+                <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || goal.goal_description || ''}</textarea>
+              </div>
+              <div class="goal-criteria">
+                <h5>Critérios de Avaliação:</h5>
+                <div class="criteria-grid">
+                  ${[1,2,3,4,5].map(n => `
+                    <div class="criteria-item">
+                      <label>Rating ${n}:</label>
+                      <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required>${goal[`rating_${n}_criteria`] || ''}</textarea>
+                    </div>`).join('')}
+                </div>
+              </div>
+              <div class="goal-rating">
+                <label>Rating Atual:</label>
+                <select id="goal-rating-${index}">
+                  <option value="">Selecione</option>
+                  ${[1,2,3,4,5].map(n => `<option value="${n}" ${(Number(goal.rating)===n)?'selected':''}>${n}</option>`).join('')}
+                </select>
+              </div>`;
+            qs('#goals-container').appendChild(wrap);
+          });
+    
+          // Eventos p/ recalcular
+          qsa('[id^="goal-weight-"]').forEach(inp => {
+            inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+            inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+          });
+          qsa('[id^="goal-rating-"]').forEach(sel => {
+            sel.addEventListener('change', () => calculateFinalRating());
+          });
+          updateGoalsWeight();
+        } else {
+          await loadGoals(); // metas “virgens” apenas se a avaliação não tiver metas salvas
+        }
+    
+        // 3) Pesos das dimensões (normaliza chaves)
+        const w = normalizeWeights(latestEvaluation.dimension_weights);
+        qs('#weight-institucional').value = w.INSTITUCIONAL;
+        qs('#weight-funcional').value     = w.FUNCIONAL;
+        qs('#weight-individual').value    = w.INDIVIDUAL;
+        qs('#weight-metas').value         = w.METAS;
         initDimensionWeights();
     
-        // Preencher avaliação existente
-        await populateExistingEvaluation(latestEvaluation);
+        // 4) Preencher respostas dos critérios
+        const pairs = responsesToPairs(latestEvaluation.responses);
+        evaluationData = {};
+        pairs.forEach(([criteriaId, rating]) => {
+          qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
+          const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+          if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
+        });
     
-        // Mostrar seção de avaliação
+        // 5) Calcular e exibir
+        calculateFinalRating();
+    
+        // Mostrar seção
         qs('#evaluation-section').style.display = 'block';
         qs('#evaluation-section').scrollIntoView({behavior:'smooth'});
     
@@ -1220,33 +1313,30 @@
       }
     }
     
-    /* =========================       PREENCHER AVALIAÇÃO EXISTENTE    ========================= */
+    /* =========================   PREENCHER AVALIAÇÃO EXISTENTE    ========================= */
     async function populateExistingEvaluation(evaluation) {
-      // Preencher ratings dos critérios
-      if (evaluation.responses) {
-        Object.entries(evaluation.responses).forEach(([criteriaId, rating]) => {
-          const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
-          if (btn) {
-            btn.classList.add('selected');
-            evaluationData[criteriaId] = rating;
-          }
-        });
-      }
+      // (Mantida como utilitária, caso você use em outro fluxo)
     
-      // Preencher pesos das dimensões
-      if (evaluation.dimension_weights) {
-        qs('#weight-institucional').value = evaluation.dimension_weights.INSTITUCIONAL || 25;
-        qs('#weight-funcional').value = evaluation.dimension_weights.FUNCIONAL || 25;
-        qs('#weight-individual').value = evaluation.dimension_weights.INDIVIDUAL || 25;
-        qs('#weight-metas').value = evaluation.dimension_weights.METAS || 25;
-        updateDimensionWeights();
-      }
+      // Ratings dos critérios
+      const pairs = responsesToPairs(evaluation.responses);
+      evaluationData = {};
+      pairs.forEach(([criteriaId, rating]) => {
+        qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
+        const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+        if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
+      });
     
-      // Preencher metas (se existirem)
-      if (evaluation.goals && evaluation.goals.length > 0) {
-        // Limpar metas existentes
+      // Pesos das dimensões
+      const w = normalizeWeights(evaluation.dimension_weights);
+      qs('#weight-institucional').value = w.INSTITUCIONAL;
+      qs('#weight-funcional').value     = w.FUNCIONAL;
+      qs('#weight-individual').value    = w.INDIVIDUAL;
+      qs('#weight-metas').value         = w.METAS;
+      initDimensionWeights();
+    
+      // Metas, se veio na avaliação e container está vazio
+      if (Array.isArray(evaluation.goals) && evaluation.goals.length && !document.querySelector('.goal-item')) {
         qs('#goals-container').innerHTML = '';
-        
         evaluation.goals.forEach((goal, index) => {
           const wrap = document.createElement('div');
           wrap.className = 'goal-item';
@@ -1254,11 +1344,11 @@
             <div class="goal-header">
               <h4>Meta ${index + 1}</h4>
               <input type="number" id="goal-weight-${index}" min="0" max="100"
-                     value="${goal.weight || 0}" placeholder="Peso %" />
+                     value="${goal.weight ?? 0}" placeholder="Peso %" />
             </div>
             <div class="goal-content">
-              <input type="text" id="goal-name-${index}" value="${goal.name || ''}" placeholder="Nome da Meta">
-              <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || ''}</textarea>
+              <input type="text" id="goal-name-${index}" value="${goal.name || goal.goal_name || ''}" placeholder="Nome da Meta">
+              <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || goal.goal_description || ''}</textarea>
             </div>
             <div class="goal-criteria">
               <h5>Critérios de Avaliação:</h5>
@@ -1274,14 +1364,12 @@
               <label>Rating Atual:</label>
               <select id="goal-rating-${index}">
                 <option value="">Selecione</option>
-                ${[1,2,3,4,5].map(n => `<option value="${n}" ${(goal.rating===n)?'selected':''}>${n}</option>`).join('')}
+                ${[1,2,3,4,5].map(n => `<option value="${n}" ${(Number(goal.rating)===n)?'selected':''}>${n}</option>`).join('')}
               </select>
             </div>`;
-          
           qs('#goals-container').appendChild(wrap);
         });
     
-        // Ligar eventos das metas
         qsa('[id^="goal-weight-"]').forEach(inp => {
           inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
           inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -1289,17 +1377,14 @@
         qsa('[id^="goal-rating-"]').forEach(sel => {
           sel.addEventListener('change', () => calculateFinalRating());
         });
-    
         updateGoalsWeight();
       }
     
-      // Calcular rating final
       calculateFinalRating();
     }
     
     /* =========================       EXPORTAÇÃO GLOBAL    ========================= */
     
-
     /* expõe algumas funções no escopo global (chamadas por HTML) */
     window.loadEmployees = loadEmployees;
     window.startEvaluation = startEvaluation;
