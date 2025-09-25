@@ -581,13 +581,14 @@
                 evaluations.forEach(evaluation => {
                     const employee = employees.find(emp => emp.id === evaluation.employee_id);
                     if (employee && evaluation.performance_rating && evaluation.potential_rating) {
-                        const potencial = evaluation.potential_rating;
-                        const desempenho = evaluation.performance_rating;
+                        // CORREÇÃO: Arredondar os valores para inteiros
+                        const potencial = Math.round(evaluation.potential_rating);
+                        const desempenho = Math.round(evaluation.performance_rating);
                         
                         // Determinar linha e coluna (exatamente como no VBA)
                         let linha, coluna;
                         
-                        // Potencial (linha)
+                        // Potencial (linha) - baseado na tabela de correlação
                         if (potencial >= 7) {
                             linha = 1; // Alto Potencial
                         } else if (potencial >= 4) {
@@ -596,7 +597,7 @@
                             linha = 3; // Baixo Potencial
                         }
                         
-                        // Desempenho (coluna)
+                        // Desempenho (coluna) - baseado na tabela de correlação
                         if (desempenho >= 7) {
                             coluna = 1; // Alto Desempenho
                         } else if (desempenho >= 4) {
@@ -614,11 +615,11 @@
                     }
                 });
                 
-                // Preencher os quadrants (CORREÇÃO: nomes separados por vírgula)
+                // Preencher os quadrants (nomes separados por vírgula)
                 for (let i = 1; i <= 9; i++) {
                     const cell = document.querySelector(`[data-position="${i}"]`);
                     if (cell && quadrantEmployees[i].length > 0) {
-                        // CORREÇÃO: Juntar nomes com vírgula (exatamente como no VBA)
+                        // Juntar nomes com vírgula (exatamente como no VBA)
                         cell.innerHTML = quadrantEmployees[i].join(', ');
                     }
                 }
