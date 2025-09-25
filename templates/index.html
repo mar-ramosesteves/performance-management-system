@@ -213,6 +213,7 @@
         }
 
         
+        
         /* Cores da Matriz 9-Box baseadas na imagem */
         .box-1 { background-color: #90EE90; } /* Alto Potencial, Alto Desempenho */
         .box-2 { background-color: #ADD8E6; } /* Médio Potencial, Alto Desempenho */
@@ -259,6 +260,118 @@
             writing-mode: vertical-rl;
             text-orientation: mixed;
         }
+        
+        /* Estilo para as médias das dimensões */
+        .dimension-average {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 10px;
+            font-size: 12px;
+        }
+        
+        .weight-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        
+        .weight-item label {
+            min-width: 100px;
+            font-weight: bold;
+        }
+
+        
+        /* Estilo para as metas */
+        .goal-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .goal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .goal-header h4 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        
+        .goal-content {
+            margin-bottom: 15px;
+        }
+        
+        .goal-content input,
+        .goal-content textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .goal-criteria {
+            margin-bottom: 15px;
+        }
+        
+        .goal-criteria h5 {
+            margin-bottom: 10px;
+            color: #34495e;
+        }
+        
+        .criteria-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .criteria-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .criteria-item label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        
+        .criteria-item textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .goal-rating {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .goal-rating label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .goal-rating select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+
+        
     </style>
 </head>
 <body>
@@ -478,27 +591,35 @@
 
                     <!-- Dimension Weights -->
                     <div class="dimension-weights">
-                        <h4><i class="fas fa-balance-scale me-2"></i>Pesos das Dimensões</h4>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <label class="form-label">Institucional</label>
-                                <input type="number" class="form-control weight-input" id="weight-institucional" value="15" min="0" max="100" step="0.01">
+                        <h3>Dimension Weights</h3>
+                        <div class="weight-inputs">
+                            <div class="weight-item">
+                                <label>INSTITUCIONAL:</label>
+                                <input type="number" id="weight-institucional" min="0" max="100" value="25">
+                                <span>%</span>
+                                <span class="dimension-average" id="avg-institucional">-</span>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Funcional</label>
-                                <input type="number" class="form-control weight-input" id="weight-funcional" value="15" min="0" max="100" step="0.01">
+                            <div class="weight-item">
+                                <label>FUNCIONAL:</label>
+                                <input type="number" id="weight-funcional" min="0" max="100" value="25">
+                                <span>%</span>
+                                <span class="dimension-average" id="avg-funcional">-</span>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Individual</label>
-                                <input type="number" class="form-control weight-input" id="weight-individual" value="30" min="0" max="100" step="0.01">
+                            <div class="weight-item">
+                                <label>INDIVIDUAL:</label>
+                                <input type="number" id="weight-individual" min="0" max="100" value="25">
+                                <span>%</span>
+                                <span class="dimension-average" id="avg-individual">-</span>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Metas</label>
-                                <input type="number" class="form-control weight-input" id="weight-metas" value="40" min="0" max="100" step="0.01">
+                            <div class="weight-item">
+                                <label>METAS:</label>
+                                <input type="number" id="weight-metas" min="0" max="100" value="25">
+                                <span>%</span>
+                                <span class="dimension-average" id="avg-metas">-</span>
                             </div>
                         </div>
-                        <div class="total-weight mt-3" id="total-dimensions-weight">
-                            Total: 100%
+                        <div class="total-weight">
+                            <strong>Total: <span id="total-weight">100</span>%</strong>
                         </div>
                     </div>
 
@@ -513,10 +634,18 @@
                         <div id="goals-container">
                             <!-- As metas serão carregadas aqui -->
                         </div>
+
+
+                        
                         <div class="d-flex justify-content-between align-items-center mt-3">
-                            <button class="btn btn-success btn-sm" onclick="addGoal()">
-                                <i class="fas fa-plus me-1"></i>Adicionar Meta
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success btn-sm" onclick="addGoal()">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Meta
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="saveGoals()">
+                                    <i class="fas fa-save me-1"></i>Salvar Metas
+                                </button>
+                            </div>
                             <div class="total-weight" id="total-goals-weight">
                                 Total: 0%
                             </div>
@@ -727,7 +856,7 @@
                     
                     dimensions[dimension].forEach(criterion => {
                         html += `
-                            <div class="criteria-card">
+                            <div class="criteria-card" data-dimension="${dimension}">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div class="flex-grow-1">
                                         <div class="d-flex align-items-center gap-2 mb-2">
@@ -758,16 +887,73 @@
             }
         }
 
-        async function loadGoals() {
-            const container = document.getElementById('goals-container');
-            container.innerHTML = '';
-            
-            // Criar 3 metas padrão
-            for (let i = 1; i <= 3; i++) {
-                addGoal(i);
-            }
+        function loadGoals() {
+            fetch('/api/individual-goals')
+                .then(response => response.json())
+                .then(goals => {
+                    const container = document.getElementById('goals-container');
+                    container.innerHTML = '';
+                    
+                    goals.forEach((goal, index) => {
+                        const goalDiv = document.createElement('div');
+                        goalDiv.className = 'goal-item';
+                        goalDiv.innerHTML = `
+                            <div class="goal-header">
+                                <h4>Meta ${index + 1}</h4>
+                                <input type="number" id="goal-weight-${index}" min="0" max="100" value="${goal.weight || 0}" placeholder="Peso %">
+                            </div>
+                            <div class="goal-content">
+                                <input type="text" id="goal-name-${index}" value="${goal.goal_name || ''}" placeholder="Nome da Meta">
+                                <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.goal_description || ''}</textarea>
+                            </div>
+                            <div class="goal-criteria">
+                                <h5>Critérios de Avaliação:</h5>
+                                <div class="criteria-grid">
+                                    <div class="criteria-item">
+                                        <label>Rating 1:</label>
+                                        <textarea id="goal-rating1-${index}" placeholder="Descrição do Rating 1" required>${goal.rating_1_criteria || ''}</textarea>
+                                    </div>
+                                    <div class="criteria-item">
+                                        <label>Rating 2:</label>
+                                        <textarea id="goal-rating2-${index}" placeholder="Descrição do Rating 2" required>${goal.rating_2_criteria || ''}</textarea>
+                                    </div>
+                                    <div class="criteria-item">
+                                        <label>Rating 3:</label>
+                                        <textarea id="goal-rating3-${index}" placeholder="Descrição do Rating 3" required>${goal.rating_3_criteria || ''}</textarea>
+                                    </div>
+                                    <div class="criteria-item">
+                                        <label>Rating 4:</label>
+                                        <textarea id="goal-rating4-${index}" placeholder="Descrição do Rating 4" required>${goal.rating_4_criteria || ''}</textarea>
+                                    </div>
+                                    <div class="criteria-item">
+                                        <label>Rating 5:</label>
+                                        <textarea id="goal-rating5-${index}" placeholder="Descrição do Rating 5" required>${goal.rating_5_criteria || ''}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="goal-rating">
+                                <label>Rating Atual:</label>
+                                <select id="goal-rating-${index}" required>
+                                    <option value="">Selecione</option>
+                                    <option value="1" ${goal.rating === 1 ? 'selected' : ''}>1 - Excelente</option>
+                                    <option value="2" ${goal.rating === 2 ? 'selected' : ''}>2 - Bom</option>
+                                    <option value="3" ${goal.rating === 3 ? 'selected' : ''}>3 - Satisfatório</option>
+                                    <option value="4" ${goal.rating === 4 ? 'selected' : ''}>4 - Insatisfatório</option>
+                                    <option value="5" ${goal.rating === 5 ? 'selected' : ''}>5 - Insuficiente</option>
+                                </select>
+                            </div>
+                        `;
+                        container.appendChild(goalDiv);
+                    });
+                    
+                    updateTotalWeight();
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar metas:', error);
+                });
         }
 
+        
         function addGoal(index = null) {
             if (goalsData.length >= 5) {
                 alert('Máximo de 5 metas permitidas');
@@ -778,28 +964,51 @@
             const container = document.getElementById('goals-container');
             
             const goalCard = document.createElement('div');
-            goalCard.className = 'goal-card';
+            goalCard.className = 'goal-item';
             goalCard.innerHTML = `
-                <div class="row">
-                    <div class="col-md-8">
-                        <label class="form-label">Meta ${goalIndex}</label>
-                        <input type="text" class="form-control" placeholder="Descrição da meta" id="goal-${goalIndex}-name">
-                        <textarea class="form-control mt-2" rows="2" placeholder="Critérios de avaliação" id="goal-${goalIndex}-description"></textarea>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Peso (%)</label>
-                        <input type="number" class="form-control weight-input" id="goal-${goalIndex}-weight" value="33.33" min="0" max="100" step="0.01" onchange="updateGoalsWeight()">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Rating</label>
-                        <div class="rating-buttons">
-                            ${[1,2,3,4,5].map(rating => `
-                                <button class="rating-btn" onclick="setGoalRating(${goalIndex}, ${rating})" data-goal="${goalIndex}" data-rating="${rating}">
-                                    ${rating}
-                                </button>
-                            `).join('')}
+                <div class="goal-header">
+                    <h4>Meta ${goalIndex}</h4>
+                    <input type="number" id="goal-weight-${goalIndex - 1}" min="0" max="100" value="33.33" placeholder="Peso %" onchange="updateGoalsWeight()">
+                </div>
+                <div class="goal-content">
+                    <input type="text" id="goal-name-${goalIndex - 1}" placeholder="Nome da Meta">
+                    <textarea id="goal-description-${goalIndex - 1}" placeholder="Descrição da Meta"></textarea>
+                </div>
+                <div class="goal-criteria">
+                    <h5>Critérios de Avaliação:</h5>
+                    <div class="criteria-grid">
+                        <div class="criteria-item">
+                            <label>Rating 1:</label>
+                            <textarea id="goal-rating1-${goalIndex - 1}" placeholder="Descrição do Rating 1" required></textarea>
+                        </div>
+                        <div class="criteria-item">
+                            <label>Rating 2:</label>
+                            <textarea id="goal-rating2-${goalIndex - 1}" placeholder="Descrição do Rating 2" required></textarea>
+                        </div>
+                        <div class="criteria-item">
+                            <label>Rating 3:</label>
+                            <textarea id="goal-rating3-${goalIndex - 1}" placeholder="Descrição do Rating 3" required></textarea>
+                        </div>
+                        <div class="criteria-item">
+                            <label>Rating 4:</label>
+                            <textarea id="goal-rating4-${goalIndex - 1}" placeholder="Descrição do Rating 4" required></textarea>
+                        </div>
+                        <div class="criteria-item">
+                            <label>Rating 5:</label>
+                            <textarea id="goal-rating5-${goalIndex - 1}" placeholder="Descrição do Rating 5" required></textarea>
                         </div>
                     </div>
+                </div>
+                <div class="goal-rating">
+                    <label>Rating Atual:</label>
+                    <select id="goal-rating-${goalIndex - 1}" required onchange="calculateFinalRating()">
+                        <option value="">Selecione</option>
+                        <option value="1">1 - Excelente</option>
+                        <option value="2">2 - Bom</option>
+                        <option value="3">3 - Satisfatório</option>
+                        <option value="4">4 - Insatisfatório</option>
+                        <option value="5">5 - Insuficiente</option>
+                    </select>
                 </div>
             `;
             
@@ -815,6 +1024,7 @@
             updateGoalsWeight();
         }
 
+        
         function updateDimensionWeights() {
             const inputs = ['weight-institucional', 'weight-funcional', 'weight-individual', 'weight-metas'];
             let total = 0;
@@ -830,7 +1040,7 @@
                 });
             });
             
-            const totalElement = document.getElementById('total-dimensions-weight');
+            const totalElement = document.getElementById('total-weight');
             totalElement.textContent = `Total: ${total.toFixed(2)}%`;
             
             if (Math.abs(total - 100) < 0.01) {
@@ -848,6 +1058,7 @@
             };
         }
 
+        
         function updateGoalsWeight() {
             let total = 0;
             const goalInputs = document.querySelectorAll('[id^="goal-"][id$="-weight"]');
@@ -867,6 +1078,7 @@
             }
         }
 
+        
         function setRating(criteriaId, rating) {
             // Remover seleção anterior
             document.querySelectorAll(`[data-criteria="${criteriaId}"]`).forEach(btn => {
@@ -903,68 +1115,42 @@
         }
 
         function calculateFinalRating() {
-            // Calcular média por dimensão
-            const dimensionAverages = {};
+            // Calcular médias das dimensões
+            const institucionalAvg = calculateDimensionAverage('institucional');
+            const funcionalAvg = calculateDimensionAverage('funcional');
+            const individualAvg = calculateDimensionAverage('individual');
+            const metasAvg = calculateGoalsAverage();
             
-            // Agrupar critérios por dimensão
-            const criteriaByDimension = {};
-            Object.keys(evaluationData).forEach(criteriaId => {
-                // Aqui você precisaria buscar a dimensão do critério
-                // Por simplicidade, vamos usar uma lógica básica
-                const rating = evaluationData[criteriaId];
-                if (!criteriaByDimension['INSTITUCIONAL']) criteriaByDimension['INSTITUCIONAL'] = [];
-                if (!criteriaByDimension['FUNCIONAL']) criteriaByDimension['FUNCIONAL'] = [];
-                if (!criteriaByDimension['INDIVIDUAL']) criteriaByDimension['INDIVIDUAL'] = [];
-                
-                // Distribuir ratings entre dimensões (lógica simplificada)
-                if (Object.keys(evaluationData).indexOf(criteriaId) < 3) {
-                    criteriaByDimension['INSTITUCIONAL'].push(rating);
-                } else if (Object.keys(evaluationData).indexOf(criteriaId) < 8) {
-                    criteriaByDimension['FUNCIONAL'].push(rating);
-                } else {
-                    criteriaByDimension['INDIVIDUAL'].push(rating);
-                }
-            });
+            // Arredondar naturalmente
+            const institucionalRounded = Math.round(institucionalAvg);
+            const funcionalRounded = Math.round(funcionalAvg);
+            const individualRounded = Math.round(individualAvg);
+            const metasRounded = Math.round(metasAvg);
             
-            // Calcular médias
-            Object.keys(criteriaByDimension).forEach(dimension => {
-                const ratings = criteriaByDimension[dimension];
-                if (ratings.length > 0) {
-                    dimensionAverages[dimension] = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-                } else {
-                    dimensionAverages[dimension] = 0;
-                }
-            });
+            // Atualizar exibição das médias
+            document.getElementById('avg-institucional').textContent = `Média: ${institucionalRounded}`;
+            document.getElementById('avg-funcional').textContent = `Média: ${funcionalRounded}`;
+            document.getElementById('avg-individual').textContent = `Média: ${individualRounded}`;
+            document.getElementById('avg-metas').textContent = `Média: ${metasRounded}`;
             
-            // Calcular média das metas
-            const goalRatings = goalsData.filter(g => g.rating !== null).map(g => g.rating);
-            if (goalRatings.length > 0) {
-                dimensionAverages['METAS'] = goalRatings.reduce((a, b) => a + b, 0) / goalRatings.length;
-            } else {
-                dimensionAverages['METAS'] = 0;
-            }
+            // Calcular rating final
+            const weights = getDimensionWeights();
+            const finalRating = (
+                institucionalRounded * (weights.INSTITUCIONAL / 100) +
+                funcionalRounded * (weights.FUNCIONAL / 100) +
+                individualRounded * (weights.INDIVIDUAL / 100) +
+                metasRounded * (weights.METAS / 100)
+            );
             
-            // Calcular rating final ponderado
-            let finalRating = 0;
-            let totalWeight = 0;
-            
-            Object.keys(dimensionAverages).forEach(dimension => {
-                const average = dimensionAverages[dimension];
-                const weight = dimensionWeights[dimension] || 0;
-                finalRating += average * (weight / 100);
-                totalWeight += weight;
-            });
+            // Arredondar rating final
+            const finalRounded = Math.round(finalRating);
             
             // Exibir rating final
-            const finalRatingElement = document.getElementById('final-rating-value');
-            if (totalWeight > 0 && finalRating > 0) {
-                finalRatingElement.textContent = finalRating.toFixed(2);
-                document.getElementById('employee-rating').textContent = finalRating.toFixed(2);
-            } else {
-                finalRatingElement.textContent = '-';
-            }
+            document.getElementById('final-rating').textContent = `Rating Final: ${finalRounded}`;
+            
+            return finalRounded;
         }
-
+        
         function startEvaluation() {
             alert('Selecione um funcionário para avaliar');
         }
@@ -1015,6 +1201,86 @@
                 alert('Erro ao salvar avaliação');
             }
         }
+
+        function saveGoals() {
+            const goals = [];
+            const goalItems = document.querySelectorAll('.goal-item');
+            
+            goalItems.forEach((item, index) => {
+                const goal = {
+                    index: index + 1,
+                    name: document.getElementById(`goal-name-${index}`).value,
+                    description: document.getElementById(`goal-description-${index}`).value,
+                    weight: parseFloat(document.getElementById(`goal-weight-${index}`).value) || 0,
+                    rating: parseInt(document.getElementById(`goal-rating-${index}`).value) || null,
+                    rating_1_criteria: document.getElementById(`goal-rating1-${index}`).value,
+                    rating_2_criteria: document.getElementById(`goal-rating2-${index}`).value,
+                    rating_3_criteria: document.getElementById(`goal-rating3-${index}`).value,
+                    rating_4_criteria: document.getElementById(`goal-rating4-${index}`).value,
+                    rating_5_criteria: document.getElementById(`goal-rating5-${index}`).value
+                };
+                goals.push(goal);
+            });
+            
+            // Validar se todos os critérios estão preenchidos
+            const missingCriteria = goals.some(goal => 
+                !goal.rating_1_criteria || !goal.rating_2_criteria || 
+                !goal.rating_3_criteria || !goal.rating_4_criteria || !goal.rating_5_criteria
+            );
+            
+            if (missingCriteria) {
+                alert('Por favor, preencha todos os critérios de avaliação (Rating 1 a 5) para todas as metas.');
+                return;
+            }
+            
+            // Salvar no localStorage para uso na avaliação
+            localStorage.setItem('individual_goals', JSON.stringify(goals));
+            
+            alert('Metas salvas com sucesso!');
+            updateTotalWeight();
+        }
+
+        function calculateDimensionAverage(dimension) {
+            const criteria = document.querySelectorAll(`[data-dimension="${dimension}"]`);
+            let total = 0;
+            let count = 0;
+            
+            criteria.forEach(criterion => {
+                const rating = criterion.querySelector('.rating-btn.selected');
+                if (rating) {
+                    total += parseInt(rating.dataset.rating);
+                    count++;
+                }
+            });
+            
+            return count > 0 ? total / count : 0;
+        }
+        
+        function calculateGoalsAverage() {
+            const goals = document.querySelectorAll('.goal-item');
+            let total = 0;
+            let count = 0;
+            
+            goals.forEach((goal, index) => {
+                const rating = document.getElementById(`goal-rating-${index}`);
+                if (rating && rating.value) {
+                    total += parseInt(rating.value);
+                    count++;
+                }
+            });
+            
+            return count > 0 ? total / count : 0;
+        }
+        
+        function getDimensionWeights() {
+            return {
+                'INSTITUCIONAL': parseFloat(document.getElementById('weight-institucional').value) || 0,
+                'FUNCIONAL': parseFloat(document.getElementById('weight-funcional').value) || 0,
+                'INDIVIDUAL': parseFloat(document.getElementById('weight-individual').value) || 0,
+                'METAS': parseFloat(document.getElementById('weight-metas').value) || 0
+            };
+        }
+        
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </body>
