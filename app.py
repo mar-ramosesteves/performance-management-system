@@ -681,5 +681,87 @@ document.addEventListener('DOMContentLoaded', ()=>{
     return html
 
 # ===================== Exec =====================
+
+# ========= Employees: obter/atualizar um funcionário =========
+@app.route('/api/employees/<int:employee_id>', methods=['GET'])
+def get_employee(employee_id):
+    try:
+        r = (
+            supabase.table('employees')
+            .select('*')
+            .eq('id', employee_id)
+            .single()
+            .execute()
+        )
+        if not r.data:
+            return jsonify({'error': 'Funcionário não encontrado'}), 404
+        return jsonify(r.data), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employees/<int:employee_id>', methods=['PUT'])
+def update_employee(employee_id):
+    try:
+        payload = request.get_json(force=True) or {}
+
+        # Campos que permitimos atualizar
+        allowed = {
+            'nome','cargo','empresa','salario',              # já existentes
+            'manager_name','admission_date','birth_date',    # novos
+            'company_name','branch_name','department_name',
+            'employment_status','leave_reason'
+        }
+        data = {k: v for k, v in payload.items() if k in allowed}
+
+        if not data:
+            return jsonify({'error': 'Nenhum campo válido informado'}), 400
+
+        supabase.table('employees').update(data).eq('id', employee_id).execute()
+        return jsonify({'updated': True, 'employee_id': employee_id}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ========= Movimentações salariais (histórico) =========
+@app.route('/api/employees/<int:employee_id>/movements', methods=['GET'])
+def list_salary_movements(employee_id):
+    try:
+        r = (
+            supabase.table('salary_movements')
+            .select('*')
+            .eq('employee_id', employee_id)
+            .order('movement_date', desc=True)
+            .execute()
+        )
+        return jsonify(r.data or []), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employees/<int:employee_id>/movements', methods=['POST'])
+def add_salary_movement(employee_id):
+    try:
+        payload = request.get_json(force=True) or {}
+
+        if not payload.get('movement_date') or payload.get('salary_value') is None:
+            return jsonify({'error': 'Informe movement_date e salary_value'}), 400
+
+        row = {
+            'employee_id':  employee_id,
+            'movement_date': payload['movement_date'],   # 'YYYY-MM-DD'
+            'role_title':    payload.get('role_title'),
+            'salary_value':  float(payload['salary_value']),
+            'notes':         payload.get('notes')
+        }
+        supabase.table('salary_movements').insert(row).execute()
+        return jsonify({'created': True}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
