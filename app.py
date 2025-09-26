@@ -511,5 +511,27 @@ def update_dimension_weights():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+from datetime import datetime
+
+@app.route('/api/current-period', methods=['GET'])
+def get_current_period():
+    try:
+        now = datetime.utcnow().isoformat()
+        response = supabase.table('evaluation_periods')\
+            .select('*')\
+            .lte('start_at', now)\
+            .gte('end_at', now)\
+            .eq('is_open', True)\
+            .limit(1)\
+            .execute()
+        
+        if response.data:
+            return jsonify(response.data[0])
+        else:
+            return jsonify({'error': 'Nenhum período aberto no momento'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True)
