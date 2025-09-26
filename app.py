@@ -240,9 +240,9 @@ def _get_latest_evaluation(employee_id: int):
     return data[0] if data else None
 
 def _get_responses_rows(evaluation_id: int):
-    """Retorna linhas de evaluation_responses normalizando rating/score."""
+    """Retorna linhas de evaluation_responses usando apenas 'rating' (sem 'score')."""
     r = (supabase.table('evaluation_responses')
-         .select('evaluation_id, criteria_id, rating, score')
+         .select('evaluation_id, criteria_id, rating')   # ⬅️ score removido
          .eq('evaluation_id', evaluation_id)
          .order('criteria_id', desc=False)
          .execute())
@@ -250,8 +250,9 @@ def _get_responses_rows(evaluation_id: int):
     return [{
         'evaluation_id': x.get('evaluation_id'),
         'criteria_id': x.get('criteria_id'),
-        'rating': x.get('rating') if x.get('rating') is not None else x.get('score')
+        'rating': x.get('rating')   # ⬅️ só rating
     } for x in rows]
+
 
 def _extract_weights(ev: dict):
     """Extrai pesos das dimensões (aceita JSON na coluna ou colunas soltas)."""
@@ -312,7 +313,7 @@ def api_evaluations_latest():
         # 2) responses
         try:
             r_resp = (supabase.table('evaluation_responses')
-                      .select('evaluation_id, criteria_id, rating, score')
+                      .select('evaluation_id, criteria_id, rating')  # ⬅️ score removido
                       .eq('evaluation_id', ev['id'])
                       .order('criteria_id', desc=False)
                       .execute())
@@ -320,14 +321,14 @@ def api_evaluations_latest():
             responses = [{
                 'evaluation_id': x.get('evaluation_id'),
                 'criteria_id': x.get('criteria_id'),
-                'rating': x.get('rating') if x.get('rating') is not None else x.get('score')
+                'rating': x.get('rating')
             } for x in rows]
         except Exception as e:
-            # NÃO quebra a rota: volta sem responses, mas mostrando o erro
             return jsonify({
                 'error': 'erro_ao_buscar_responses',
                 'detail': str(e)
             }), 500
+
 
         # 3) pesos/metas (se tiver)
         import json as _json
