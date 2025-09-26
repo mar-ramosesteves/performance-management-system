@@ -1143,7 +1143,7 @@
         evaluation_year: 2025,
         responses: evaluationData,             // { criteriaId: rating }
         goals,                                  // metas detalhadas
-        goals_average: metasAvg,                // média de metas (vai para o Supabase)
+        goals_average: metasAvg,                // média de metas
         dimension_weights: dimensionWeights,    // pesos
         dimension_averages: dimensionAverages,  // médias por dimensão
         final_rating: finalRating               // rating final consolidado
@@ -1155,7 +1155,28 @@
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify(payload)
         });
-        if (!resp.ok) throw new Error('Erro HTTP');
+    
+        if (!resp.ok) {
+          // tenta extrair mensagem específica do backend
+          let msg = 'Erro ao salvar avaliação';
+          try {
+            const j = await resp.json();
+            if (j && (j.error || j.detail)) {
+              msg = j.error || j.detail;
+            }
+          } catch (_) {
+            // se não for JSON, tenta texto
+            try { msg = await resp.text(); } catch(__) {}
+          }
+    
+          // mensagens mais amigáveis para bloqueio de janela
+          if (resp.status === 403) {
+            // se o backend mandou texto técnico, trocamos por mensagem amigável
+            msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.';
+          }
+          alert(msg);
+          return;
+        }
     
         alert(`Avaliação ${actionText} com sucesso!`);
         evaluationData = {};
@@ -1165,10 +1186,7 @@
         alert('Erro ao salvar avaliação');
       }
     }
-    
-    
-    
-        
+
     /* ===== Helpers ===== */
     function parseJSONish(val, fallback=null){
       if (val == null) return fallback;
