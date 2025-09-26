@@ -582,21 +582,7 @@ def get_window_row():
         # Devolve exceção para a rota exibir (temporariamente, só para diagnóstico)
         raise RuntimeError(f'Erro ao ler evaluation_windows_status: {e}')
 
-@app.route('/api/evaluations/window', methods=['GET'])
-def api_get_window():
-    try:
-        w = get_window_row()
-        return jsonify({
-            'period': EVAL_PERIOD,
-            'open': bool(w and w.get('is_open')),
-            'start_at': (w or {}).get('start_at'),
-            'end_at':   (w or {}).get('end_at'),
-            # incluir w bruto ajuda a depurar (remova depois)
-            'debug_row': w
-        }), 200
-    except Exception as e:
-        # MOSTRAR O ERRO EXATO no navegador (temporário, para debug)
-        return jsonify({'error': str(e)}), 500
+
 
 
 # =====================  ADMIN PAINEL SIMPLES  =====================
