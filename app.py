@@ -569,6 +569,187 @@ def api_get_window():
         return jsonify({'error': str(e)}), 500
 
 
+# =====================  ADMIN PAINEL SIMPLES  =====================
+# Página /admin para abrir/fechar período de avaliações (janela)
+# Usa a rota já existente: PUT /api/evaluations/window (com ADMIN_WINDOW_CODE)
+
+@app.route('/admin', methods=['GET'])
+def admin_panel():
+    # HTML simples, sem template, entrega a página do painel
+    html = """
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Painel de Avaliações — Admin</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;line-height:1.5;margin:0;background:#f7f7fb;color:#111}
+  .wrap{max-width:780px;margin:0 auto;padding:28px}
+  h1{font-size:22px;margin:0 0 8px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:16px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label{display:block;font-size:12px;color:#555;margin-bottom:6px}
+  input,button{font:inherit}
+  input[type=text], input[type=datetime-local]{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px}
+  .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+  .btn.primary{background:#2563eb;color:#fff}
+  .btn.ghost{background:#f3f4f6}
+  .muted{color:#6b7280;font-size:13px}
+  .status-pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .ok{background:#e7f9ee;color:#0a7b31;border:1px solid #b7efc8}
+  .warn{background:#fff6e6;color:#a15c00;border:1px solid #ffe2ae}
+  .err{background:#ffecec;color:#a10000;border:1px solid #ffbaba}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .footer{margin-top:18px;display:flex;gap:8px;align-items:center}
+  code{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:2px 6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Painel de Avaliações — Admin</h1>
+    <p class="muted">Abra ou feche a janela de avaliações. Use o <strong>código do RH</strong> para confirmar a alteração.</p>
+
+    <div class="card" id="status">
+      <div><strong>Status atual</strong></div>
+      <div id="status-content" class="muted">Carregando…</div>
+    </div>
+
+    <div class="card">
+      <div style="margin-bottom:10px"><strong>Atualizar janela</strong></div>
+      <div class="grid2">
+        <div>
+          <label>Período (ex.: 2025H2 ou 082025)</label>
+          <input type="text" id="period" placeholder="ex.: 2025H2" />
+        </div>
+        <div>
+          <label>Código RH (ADMIN_WINDOW_CODE)</label>
+          <input type="text" id="code" placeholder="ex.: RH-2025-OK" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div>
+          <label>Início (fuso local — será convertido p/ UTC)</label>
+          <input type="datetime-local" id="startAt" />
+        </div>
+        <div>
+          <label>Fim (fuso local — será convertido p/ UTC)</label>
+          <input type="datetime-local" id="endAt" />
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn primary" id="saveBtn">Salvar janela</button>
+        <button class="btn ghost" id="reloadBtn">Recarregar status</button>
+        <span id="msg" class="muted"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div><strong>Dicas</strong></div>
+      <ul class="muted">
+        <li><strong>Período</strong> é só uma etiqueta (texto): ex. <code>2025H2</code> ou <code>2025-10</code>.</li>
+        <li>Datas são salvas em <strong>UTC</strong>. Os campos acima convertem automaticamente do seu horário local para UTC.</li>
+        <li>Se a janela estiver “fechada”, salvamentos no front são bloqueados, a menos que você envie o Código RH no body.</li>
+      </ul>
+    </div>
+  </div>
+
+<script>
+  const $ = (sel) => document.querySelector(sel);
+
+  function fmtDate(iso) {
+    if (!iso) return '-';
+    try { return new Date(iso).toLocaleString(); } catch(e) { return iso; }
+  }
+
+  async function loadStatus() {
+    $('#status-content').textContent = 'Carregando…';
+    try {
+      const r = await fetch('/api/evaluations/window');
+      const j = await r.json();
+      if (r.ok) {
+        const pill = j.open
+          ? '<span class="status-pill ok">ABERTA</span>'
+          : '<span class="status-pill warn">FECHADA</span>';
+        $('#status-content').innerHTML = `
+          ${pill}<br>
+          <strong>Período:</strong> ${j.period || '-'}<br>
+          <strong>Início:</strong> ${fmtDate(j.start_at)}<br>
+          <strong>Fim:</strong> ${fmtDate(j.end_at)}
+        `;
+        // preenche campos com valores atuais (se houver)
+        if (j.period) $('#period').value = j.period;
+        if (j.start_at) {
+          const d = new Date(j.start_at);
+          $('#startAt').value = d.toISOString().slice(0,16); // yyyy-MM-ddTHH:mm
+        }
+        if (j.end_at) {
+          const d = new Date(j.end_at);
+          $('#endAt').value = d.toISOString().slice(0,16);
+        }
+      } else {
+        $('#status-content').innerHTML = '<span class="status-pill err">ERRO</span> ' + (j.error || 'Falha ao carregar status');
+      }
+    } catch (e) {
+      $('#status-content').innerHTML = '<span class="status-pill err">ERRO</span> ' + e;
+    }
+  }
+
+  function toUTCStringLocal(datetimeLocal) {
+    if (!datetimeLocal) return null;
+    // datetime-local vem sem timezone; interpretamos como local e convertemos para UTC ISO
+    const d = new Date(datetimeLocal);
+    return d.toISOString(); // ISO com 'Z'
+  }
+
+  async function saveWindow() {
+    $('#msg').textContent = 'Salvando…';
+    try {
+      const period = $('#period').value.trim();
+      const code = $('#code').value.trim();
+      const startAtLocal = $('#startAt').value;
+      const endAtLocal = $('#endAt').value;
+      if (!period || !code || !startAtLocal || !endAtLocal) {
+        $('#msg').textContent = 'Preencha período, código, início e fim.';
+        return;
+      }
+      // envia para variável de ambiente do backend (EVAL_PERIOD) usando um truque simples:
+      // primeiro salvamos as datas; depois você ajusta EVAL_PERIOD no Render se quiser fixar lá também.
+      // Mas aqui, como a API /api/evaluations/window usa EVAL_PERIOD do servidor, vamos apenas salvar as datas para o período já configurado no servidor.
+      // Se quiser alterar o período no servidor, atualize a env var EVAL_PERIOD no Render.
+      const payload = {
+        code: code,
+        start_at: toUTCStringLocal(startAtLocal),
+        end_at: toUTCStringLocal(endAtLocal)
+      };
+      const r = await fetch('/api/evaluations/window', {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const j = await r.json();
+      if (r.ok) {
+        $('#msg').textContent = 'Janela atualizada com sucesso.';
+        await loadStatus();
+      } else {
+        $('#msg').textContent = 'Erro: ' + (j.error || 'falha ao salvar');
+      }
+    } catch (e) {
+      $('#msg').textContent = 'Erro: ' + e;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadStatus();
+    $('#saveBtn').addEventListener('click', saveWindow);
+    $('#reloadBtn').addEventListener('click', loadStatus);
+  });
+</script>
+</body>
+</html>
+    """
+    return html
+# =====================  /ADMIN PAINEL  =====================
 
 
 if __name__ == '__main__':
