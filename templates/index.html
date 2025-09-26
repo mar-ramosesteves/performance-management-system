@@ -573,21 +573,86 @@
                     <h2 class="text-center mb-5">Avaliação de Desempenho 2025</h2>
                     
                     <!-- Employee Info -->
-                    <div class="evaluation-section">
-                        <h4>Informações do Avaliado</h4>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Nome:</strong> <span id="employee-name">-</span></p>
-                                <p><strong>Cargo:</strong> <span id="employee-position">-</span></p>
-                                <p><strong>Empresa:</strong> <span id="employee-company">-</span></p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Gestor Imediato:</strong> <span id="employee-manager">-</span></p>
-                                <p><strong>% HAY (MED):</strong> <span id="employee-hay">-</span></p>
-                                <p><strong>RATING 2025:</strong> <span id="employee-rating">-</span></p>
-                            </div>
+                    <!-- Employee Info (cabeçalho completo) -->
+                    <div class="evaluation-section" id="employee-header">
+                      <h4>Informações do Avaliado</h4>
+                    
+                      <style>
+                        .emp-grid{
+                          display:grid;gap:10px;
+                          grid-template-columns: repeat(6, 1fr);
+                        }
+                        @media (max-width: 992px){ .emp-grid{grid-template-columns: repeat(2, 1fr);} }
+                        .emp-cell{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px}
+                        .emp-label{font-size:12px;color:#6b7280;margin-bottom:4px}
+                        .emp-value{font-weight:700;color:#111;word-break:break-word}
+                        .emp-title{grid-column: 1 / -1; text-align:center; font-size:18px; font-weight:800; padding:8px 0}
+                      </style>
+                    
+                      <div class="emp-grid">
+                        <div class="emp-cell emp-title" id="emp-title">-</div>
+                    
+                        <div class="emp-cell">
+                          <div class="emp-label">ID</div>
+                          <div class="emp-value" id="employee-id">-</div>
                         </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Nome</div>
+                          <div class="emp-value" id="employee-name">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Cargo</div>
+                          <div class="emp-value" id="employee-role">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Departamento</div>
+                          <div class="emp-value" id="employee-dept">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Empresa</div>
+                          <div class="emp-value" id="employee-company">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Filial</div>
+                          <div class="emp-value" id="employee-branch">-</div>
+                        </div>
+                    
+                        <div class="emp-cell">
+                          <div class="emp-label">Data admissão</div>
+                          <div class="emp-value" id="employee-admission">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Gestor imediato</div>
+                          <div class="emp-value" id="employee-manager">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Data nascimento</div>
+                          <div class="emp-value" id="employee-birth">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Situação</div>
+                          <div class="emp-value" id="employee-status">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Motivo afastamento</div>
+                          <div class="emp-value" id="employee-leave-reason">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Salário base</div>
+                          <div class="emp-value" id="employee-salary">-</div>
+                        </div>
+                    
+                        <div class="emp-cell">
+                          <div class="emp-label">% HAY (MED)</div>
+                          <div class="emp-value" id="employee-hay">-</div>
+                        </div>
+                        <div class="emp-cell">
+                          <div class="emp-label">Rating 2025</div>
+                          <div class="emp-value" id="employee-rating">-</div>
+                        </div>
+                      </div>
                     </div>
+
 
                     <!-- Dimension Weights -->
                     <div class="dimension-weights">
@@ -682,7 +747,53 @@
       'INDIVIDUAL': 30,
       'METAS': 40
     };
+
+
+        
+            
+
+    // ====== Helpers de formatação + cabeçalho do avaliado ======
+    const moneyBR = (v) => (v==null || isNaN(v)) ? '-' : Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const dateBR  = (iso) => {
+      if(!iso) return '-';
+      try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso; }
+    };
     
+    function setEmployeeHeader(emp, lastFinalRating = null){
+      const get = (v, alt='-') => (v==null || v==='') ? alt : v;
+    
+      // título (nome grande)
+      const titleEl = document.getElementById('emp-title');
+      if (titleEl) titleEl.textContent = get(emp?.nome, '-').toUpperCase();
+    
+      // células
+      const map = {
+        'employee-id':        emp?.id,
+        'employee-name':      emp?.nome,
+        'employee-role':      emp?.cargo,
+        'employee-dept':      emp?.department_name,
+        'employee-company':   emp?.empresa || emp?.company_name,
+        'employee-branch':    emp?.branch_name,
+        'employee-admission': dateBR(emp?.admission_date),
+        'employee-manager':   emp?.manager_name,
+        'employee-birth':     dateBR(emp?.birth_date),
+        'employee-status':    emp?.employment_status || 'ATIVO',
+        'employee-leave-reason': emp?.leave_reason,
+        'employee-salary':    moneyBR(emp?.salario),
+        // campos que você já usava
+        'employee-hay':       emp?.hay_percent ?? '—',
+        'employee-rating':    (lastFinalRating != null) ? lastFinalRating : '-'
+      };
+    
+      Object.entries(map).forEach(([id, val])=>{
+        const el = document.getElementById(id);
+        if (el) el.textContent = (val===undefined || val===null || val==='') ? '-' : val;
+      });
+    }
+    
+
+
+        
     /* =========================
        Utilitários
     ========================= */
@@ -794,12 +905,8 @@
         currentEmployee = employees.find(emp => emp.id === employeeId);
         if (!currentEmployee) return;
     
-        qs('#employee-name').textContent = currentEmployee.nome;
-        qs('#employee-position').textContent = currentEmployee.cargo;
-        qs('#employee-company').textContent = currentEmployee.empresa;
-        qs('#employee-manager').textContent = 'Gestor Exemplo';
-        qs('#employee-hay').textContent = '51,2%';
-        qs('#employee-rating').textContent = '-';
+        setEmployeeHeader(currentEmployee, null);
+
     
         await loadEvaluationCriteria();
         await loadGoals();          // carrega metas e liga eventos
