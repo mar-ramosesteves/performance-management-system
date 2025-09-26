@@ -4,6 +4,33 @@ import json
 from datetime import datetime
 from supabase import create_client, Client
 
+from datetime import datetime, timezone
+
+def _parse_iso(dt_str: str):
+    if not dt_str:
+        return None
+    # aceita ISO com ou sem 'Z'
+    try:
+        if dt_str.endswith('Z'):
+            return datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        return datetime.fromisoformat(dt_str)
+    except Exception:
+        return None
+
+def is_window_open():
+    """Retorna (open_bool, start_dt, end_dt, period_str) comparando com o 'agora' em UTC."""
+    period = get_current_period()
+    row = get_window_row()  # já lê o período atual
+    if not row:
+        return (False, None, None, period)
+    start_dt = _parse_iso(str(row.get('start_at')))
+    end_dt   = _parse_iso(str(row.get('end_at')))
+    if not start_dt or not end_dt:
+        return (False, start_dt, end_dt, period)
+    now = datetime.now(timezone.utc)
+    return (start_dt <= now <= end_dt, start_dt, end_dt, period)
+
+
 app = Flask(__name__)
 
 # ===================== Configurações / Conexão =====================
@@ -308,6 +335,17 @@ def get_evaluations():
 def create_evaluation():
     try:
         data = request.get_json()
+
+        # --- BLOQUEIO POR JANELA (usa helper is_window_open) ---
+        # Se a janela NÃO estiver aberta, só permite salvar se vier o código do RH no body
+        # ex.: { ..., "code": "SEU_ADMIN_WINDOW_CODE" }
+        open_now, _, _, _ = is_window_open()
+        override_code = (data.get('code') or '').strip()
+        if not open_now:
+            if not ADMIN_WINDOW_CODE or override_code != ADMIN_WINDOW_CODE:
+                return jsonify({'error': 'Janela de avaliação fechada'}), 403
+        # --- fim do bloqueio ---
+
         if not data.get('employee_id') or not data.get('responses'):
             return jsonify({'error': 'Dados obrigatórios não fornecidos'}), 400
 
@@ -347,6 +385,7 @@ def create_evaluation():
         return jsonify({'evaluation_id': evaluation_id, 'message': 'Avaliação salva com sucesso!'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/evaluations/<int:evaluation_id>', methods=['GET'])
 def get_evaluation(evaluation_id):
@@ -470,15 +509,14 @@ def get_window_row():
 
 @app.route('/api/evaluations/window', methods=['GET'])
 def api_get_window_status():
-    period = get_current_period()
-    w = get_window_row()
+    is_open, start_dt, end_dt, period = is_window_open()
     return jsonify({
         'period': period,
-        'start_at': (w or {}).get('start_at'),
-        'end_at':   (w or {}).get('end_at'),
-        'open': bool(w and w.get('start_at') and w.get('end_at')
-                     and str(w['start_at']) <= str(w['end_at'])),
+        'open': bool(is_open),
+        'start_at': start_dt.isoformat() if start_dt else None,
+        'end_at':   end_dt.isoformat() if end_dt else None,
     }), 200
+
 
 @app.route('/api/evaluations/window', methods=['PUT', 'OPTIONS'])
 def api_put_window_update():
