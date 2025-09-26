@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import os
+import json
 from supabase import create_client, Client
 
 app = Flask(__name__)
@@ -218,6 +219,109 @@ def calculate_nine_box_position(performance, potential):
     nine_box_position = (pot_pos - 1) * 3 + (4 - perf_pos)
     
     return nine_box_position
+    
+    # ===== Helpers para buscar a ÚLTIMA avaliação preenchida =====
+def _to_num(v, default=None):
+    try:
+        return float(v)
+    except Exception:
+        return default
+
+def _get_latest_evaluation(employee_id: int):
+    """Busca a avaliação mais recente do funcionário."""
+    r = (supabase.table('evaluations')
+         .select('*')
+         .eq('employee_id', employee_id)
+         .order('evaluation_date', desc=True)
+         .order('created_at', desc=True)
+         .limit(1)
+         .execute())
+    data = r.data or []
+    return data[0] if data else None
+
+def _get_responses_rows(evaluation_id: int):
+    """Retorna linhas de evaluation_responses normalizando rating/score."""
+    r = (supabase.table('evaluation_responses')
+         .select('evaluation_id, criteria_id, rating, score')
+         .eq('evaluation_id', evaluation_id)
+         .order('criteria_id', desc=False)
+         .execute())
+    rows = r.data or []
+    return [{
+        'evaluation_id': x.get('evaluation_id'),
+        'criteria_id': x.get('criteria_id'),
+        'rating': x.get('rating') if x.get('rating') is not None else x.get('score')
+    } for x in rows]
+
+def _extract_weights(ev: dict):
+    """Extrai pesos das dimensões (aceita JSON na coluna ou colunas soltas)."""
+    w = ev.get('dimension_weights') or ev.get('weights')
+    if isinstance(w, str):
+        try:
+            w = json.loads(w)
+        except Exception:
+            w = None
+    if isinstance(w, dict):
+        up = {str(k).upper(): v for k, v in w.items()}
+        return {
+            'INSTITUCIONAL': _to_num(up.get('INSTITUCIONAL'), 25),
+            'FUNCIONAL':     _to_num(up.get('FUNCIONAL'), 25),
+            'INDIVIDUAL':    _to_num(up.get('INDIVIDUAL'), 25),
+            'METAS':         _to_num(up.get('METAS'), 25),
+        }
+    # Fallback: colunas separadas na tabela evaluations
+    return {
+        'INSTITUCIONAL': _to_num(ev.get('weight_institucional'), 25),
+        'FUNCIONAL':     _to_num(ev.get('weight_funcional'), 25),
+        'INDIVIDUAL':    _to_num(ev.get('weight_individual'), 25),
+        'METAS':         _to_num(ev.get('weight_metas'), 25),
+    }
+
+def _extract_goals(ev: dict):
+    """Extrai metas se você salva JSON na própria avaliação (opcional)."""
+    g = ev.get('goals') or ev.get('individual_goals')
+    if isinstance(g, str):
+        try:
+            g = json.loads(g)
+        except Exception:
+            g = None
+    return g if isinstance(g, list) else []
+
+# ===== Rotas novas =====
+
+@app.route('/api/evaluations/latest', methods=['GET'])
+def api_evaluations_latest():
+    """
+    Retorna a ÚLTIMA avaliação do funcionário, já com:
+      - evaluation (cabecalho + médias + final_rating etc.)
+      - responses (lista de {evaluation_id, criteria_id, rating})
+      - weights (dict com INSTITUCIONAL/FUNCIONAL/INDIVIDUAL/METAS)
+      - goals (lista, se você salvar JSON de metas na avaliação)
+    """
+    employee_id = request.args.get('employee_id', type=int)
+    if not employee_id:
+        return jsonify({'error': 'employee_id obrigatório'}), 400
+
+    ev = _get_latest_evaluation(employee_id)
+    if not ev:
+        return jsonify({'error': 'nenhuma_avaliacao'}), 404
+
+    payload = {
+        'evaluation': ev,
+        'responses': _get_responses_rows(ev['id']),
+        'weights': _extract_weights(ev),
+        'goals': _extract_goals(ev)
+    }
+    return jsonify(payload)
+
+# (Opcional) Mantém compatibilidade se o front ainda chamar esta rota
+@app.route('/api/evaluation-responses', methods=['GET'])
+def api_evaluation_responses():
+    evaluation_id = request.args.get('evaluation_id', type=int)
+    if not evaluation_id:
+        return jsonify({'error': 'evaluation_id obrigatório'}), 400
+    return jsonify(_get_responses_rows(evaluation_id))
+
 
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
