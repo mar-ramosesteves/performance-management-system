@@ -15,6 +15,36 @@ ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE')
 # Inicializar cliente Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ===== CORS simples sem dependências =====
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'https://gestor.thehrkey.tech').split(',')
+
+@app.after_request
+def add_cors_headers(resp):
+    origin = request.headers.get('Origin', '')
+    origin = origin.rstrip('/')  # normaliza
+    if origin in [o.rstrip('/') for o in ALLOWED_ORIGINS]:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Vary'] = 'Origin'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        # resp.headers['Access-Control-Allow-Credentials'] = 'true'  # habilite se um dia usar cookies
+    return resp
+
+@app.before_request
+def handle_preflight():
+    # Responde aos preflights do navegador
+    if request.method == 'OPTIONS' and request.path.startswith('/api/'):
+        resp = app.make_response(('', 204))
+        origin = request.headers.get('Origin', '')
+        origin = origin.rstrip('/')
+        if origin in [o.rstrip('/') for o in ALLOWED_ORIGINS]:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+            resp.headers['Vary'] = 'Origin'
+            resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
+            resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        return resp
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
