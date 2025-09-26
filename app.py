@@ -8,6 +8,9 @@ app = Flask(__name__)
 # Configuração do Supabase
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+EVAL_PERIOD = os.getenv('EVAL_PERIOD', '082025')  # use o seu código de período (ex.: 082025)
+ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE')
+
 
 # Inicializar cliente Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -531,6 +534,21 @@ def get_current_period():
             return jsonify({'error': 'Nenhum período aberto no momento'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/evaluations/window', methods=['GET'])
+def api_get_window():
+    w = get_window_row()
+    return jsonify({
+        'period': EVAL_PERIOD,
+        'open': bool(w and w.get('is_open')),
+        'start_at': (w or {}).get('start_at'),
+        'end_at':   (w or {}).get('end_at'),
+    }), 200
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
 
 
 if __name__ == '__main__':
