@@ -535,19 +535,39 @@ def get_current_period():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# --- Helpers com tratamento de erro para diagnosticar 500 ---
+def get_window_row():
+    """Lê a VIEW evaluation_windows_status para o período atual."""
+    try:
+        r = (
+            supabase.table('evaluation_windows_status')
+            .select('*')
+            .eq('period', EVAL_PERIOD)  # EVAL_PERIOD vem do ambiente (ex.: 082025)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        # Devolve exceção para a rota exibir (temporariamente, só para diagnóstico)
+        raise RuntimeError(f'Erro ao ler evaluation_windows_status: {e}')
+
 @app.route('/api/evaluations/window', methods=['GET'])
 def api_get_window():
-    w = get_window_row()
-    return jsonify({
-        'period': EVAL_PERIOD,
-        'open': bool(w and w.get('is_open')),
-        'start_at': (w or {}).get('start_at'),
-        'end_at':   (w or {}).get('end_at'),
-    }), 200
+    try:
+        w = get_window_row()
+        return jsonify({
+            'period': EVAL_PERIOD,
+            'open': bool(w and w.get('is_open')),
+            'start_at': (w or {}).get('start_at'),
+            'end_at':   (w or {}).get('end_at'),
+            # incluir w bruto ajuda a depurar (remova depois)
+            'debug_row': w
+        }), 200
+    except Exception as e:
+        # MOSTRAR O ERRO EXATO no navegador (temporário, para debug)
+        return jsonify({'error': str(e)}), 500
 
-
-if __name__ == '__main__':
-    app.run(debug=True)
 
 
 
