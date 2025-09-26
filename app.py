@@ -291,28 +291,86 @@ def _extract_goals(ev: dict):
 
 @app.route('/api/evaluations/latest', methods=['GET'])
 def api_evaluations_latest():
-    """
-    Retorna a ÚLTIMA avaliação do funcionário, já com:
-      - evaluation (cabecalho + médias + final_rating etc.)
-      - responses (lista de {evaluation_id, criteria_id, rating})
-      - weights (dict com INSTITUCIONAL/FUNCIONAL/INDIVIDUAL/METAS)
-      - goals (lista, se você salvar JSON de metas na avaliação)
-    """
-    employee_id = request.args.get('employee_id', type=int)
-    if not employee_id:
-        return jsonify({'error': 'employee_id obrigatório'}), 400
+    try:
+        employee_id = request.args.get('employee_id', type=int)
+        if not employee_id:
+            return jsonify({'error': 'employee_id obrigatório'}), 400
 
-    ev = _get_latest_evaluation(employee_id)
-    if not ev:
-        return jsonify({'error': 'nenhuma_avaliacao'}), 404
+        # 1) última avaliação
+        r_ev = (supabase.table('evaluations')
+                .select('*')
+                .eq('employee_id', employee_id)
+                .order('evaluation_date', desc=True)
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute())
+        data = r_ev.data or []
+        if not data:
+            return jsonify({'error': 'nenhuma_avaliacao'}), 404
+        ev = data[0]
 
-    payload = {
-        'evaluation': ev,
-        'responses': _get_responses_rows(ev['id']),
-        'weights': _extract_weights(ev),
-        'goals': _extract_goals(ev)
-    }
-    return jsonify(payload)
+        # 2) responses
+        try:
+            r_resp = (supabase.table('evaluation_responses')
+                      .select('evaluation_id, criteria_id, rating, score')
+                      .eq('evaluation_id', ev['id'])
+                      .order('criteria_id', desc=False)
+                      .execute())
+            rows = r_resp.data or []
+            responses = [{
+                'evaluation_id': x.get('evaluation_id'),
+                'criteria_id': x.get('criteria_id'),
+                'rating': x.get('rating') if x.get('rating') is not None else x.get('score')
+            } for x in rows]
+        except Exception as e:
+            # NÃO quebra a rota: volta sem responses, mas mostrando o erro
+            return jsonify({
+                'error': 'erro_ao_buscar_responses',
+                'detail': str(e)
+            }), 500
+
+        # 3) pesos/metas (se tiver)
+        import json as _json
+        w = ev.get('dimension_weights') or ev.get('weights')
+        if isinstance(w, str):
+            try:
+                w = _json.loads(w)
+            except Exception:
+                w = None
+        if isinstance(w, dict):
+            up = {str(k).upper(): v for k, v in w.items()}
+            weights = {
+                'INSTITUCIONAL': float(up.get('INSTITUCIONAL', 25) or 25),
+                'FUNCIONAL':     float(up.get('FUNCIONAL', 25) or 25),
+                'INDIVIDUAL':    float(up.get('INDIVIDUAL', 25) or 25),
+                'METAS':         float(up.get('METAS', 25) or 25),
+            }
+        else:
+            weights = {
+                'INSTITUCIONAL': float(ev.get('weight_institucional') or 25),
+                'FUNCIONAL':     float(ev.get('weight_funcional') or 25),
+                'INDIVIDUAL':    float(ev.get('weight_individual') or 25),
+                'METAS':         float(ev.get('weight_metas') or 25),
+            }
+
+        g = ev.get('goals') or ev.get('individual_goals')
+        if isinstance(g, str):
+            try:
+                g = _json.loads(g)
+            except Exception:
+                g = None
+        goals = g if isinstance(g, list) else []
+
+        return jsonify({
+            'evaluation': ev,
+            'responses': responses,
+            'weights': weights,
+            'goals': goals
+        })
+
+    except Exception as e:
+        # retorna o erro textual pra gente saber a causa
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
 # (Opcional) Mantém compatibilidade se o front ainda chamar esta rota
 @app.route('/api/evaluation-responses', methods=['GET'])
