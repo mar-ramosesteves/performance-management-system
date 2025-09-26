@@ -1247,86 +1247,107 @@
       try {
         console.log("[viewEmployeeEvaluation] employeeId=", employeeId);
     
-        // 🔎 Chama a nova rota
+        // 1) Buscar a última avaliação já preenchida
         const resp = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
         if (!resp.ok) {
-          alert("Nenhuma avaliação encontrada para este funcionário");
-          return;
+          if (resp.status === 404) return alert("Nenhuma avaliação encontrada para este funcionário.");
+          return alert("Erro ao carregar a última avaliação.");
         }
+        const { evaluation: ev, responses, weights, goals } = await resp.json();
+        console.log("[payload]", { ev, responses, weights, goals });
     
-        const payload = await resp.json();
-        console.log("[viewEmployeeEvaluation] payload=", payload);
+        // 2) (Opcional) Se quiser mostrar nome/cargo, busque o employee
+        let employee = null;
+        try {
+          const er = await fetch('/api/employees');
+          const employees = await er.json();
+          employee = employees.find(e => Number(e.id) === Number(ev.employee_id));
+        } catch (_) {}
     
-        const latestEvaluation = payload.evaluation;
-        const responses = payload.responses || [];
-        const weights = payload.weights || {};
-        const goals = payload.goals || [];
+        // 3) Preenche cabeçalho (usa employee se tiver, senão fallback)
+        currentEmployee = { id: ev.employee_id };
+        qs('#employee-name').textContent = employee?.nome ?? `ID ${ev.employee_id}`;
+        qs('#employee-position').textContent = employee?.cargo ?? '-';
+        qs('#employee-company').textContent = employee?.empresa ?? '-';
+        qs('#employee-manager').textContent = 'Gestor';
+        qs('#employee-hay').textContent = '—';
+        qs('#employee-rating').textContent = (ev.final_rating ?? '-');
     
-        // Preencher dados do funcionário
-        currentEmployee = { id: employeeId }; // opcional, ajuste conforme sua estrutura
-        qs('#employee-name').textContent = latestEvaluation.employee_id;
-        qs('#employee-position').textContent = latestEvaluation.position || "-";
-        qs('#employee-company').textContent = latestEvaluation.company || "-";
-        qs('#employee-manager').textContent = "Gestor Exemplo";
-        qs('#employee-hay').textContent = "51,2%";
-        qs('#employee-rating').textContent = latestEvaluation.final_rating || "-";
+        // 4) Gera DOM dos critérios (precisa existir antes de marcar botões)
+        await loadEvaluationCriteria();
     
-        // Resetar dados antes de preencher
+        // 5) Marcar respostas critério a critério
         evaluationData = {};
-    
-        // Preencher responses (botões de critérios)
-        responses.forEach(r => {
-          const btn = qs(`[data-criteria="${r.criteria_id}"][data-rating="${r.rating}"]`);
-          if (btn) {
-            btn.classList.add("selected");
-            evaluationData[r.criteria_id] = r.rating;
-          }
+        (responses || []).forEach(row => {
+          const cid = String(row.criteria_id);
+          const r = Number(row.rating);
+          // limpa seleção anterior e marca a resposta salva
+          qsa(`[data-criteria="${cid}"]`).forEach(b => b.classList.remove('selected'));
+          const btn = qs(`[data-criteria="${cid}"][data-rating="${r}"]`);
+          if (btn) { btn.classList.add('selected'); evaluationData[cid] = r; }
         });
     
-        // Preencher pesos
-        qs("#weight-institucional").value = weights.INSTITUCIONAL || 25;
-        qs("#weight-funcional").value = weights.FUNCIONAL || 25;
-        qs("#weight-individual").value = weights.INDIVIDUAL || 25;
-        qs("#weight-metas").value = weights.METAS || 25;
+        // 6) Pesos das dimensões
+        qs('#weight-institucional').value = (weights?.INSTITUCIONAL ?? 25);
+        qs('#weight-funcional').value     = (weights?.FUNCIONAL ?? 25);
+        qs('#weight-individual').value    = (weights?.INDIVIDUAL ?? 25);
+        qs('#weight-metas').value         = (weights?.METAS ?? 25);
         updateDimensionWeights();
     
-        // Preencher metas
-        if (goals.length > 0) {
-          qs("#goals-container").innerHTML = "";
+        // 7) Metas: se vierem, renderiza; se não, mantém vazio (ou loadGoals())
+        if (Array.isArray(goals) && goals.length) {
+          qs('#goals-container').innerHTML = '';
           goals.forEach((goal, index) => {
-            const wrap = document.createElement("div");
-            wrap.className = "goal-item";
+            const wrap = document.createElement('div');
+            wrap.className = 'goal-item';
             wrap.innerHTML = `
               <div class="goal-header">
                 <h4>Meta ${index + 1}</h4>
                 <input type="number" id="goal-weight-${index}" min="0" max="100"
-                       value="${goal.weight || 0}" placeholder="Peso %" />
+                       value="${goal.weight ?? 0}" placeholder="Peso %" />
               </div>
               <div class="goal-content">
-                <input type="text" id="goal-name-${index}" value="${goal.name || ''}" placeholder="Nome da Meta">
-                <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || ''}</textarea>
+                <input type="text" id="goal-name-${index}" value="${goal.name || goal.goal_name || ''}" placeholder="Nome da Meta">
+                <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || goal.goal_description || ''}</textarea>
               </div>
               <div class="goal-rating">
                 <label>Rating Atual:</label>
                 <select id="goal-rating-${index}">
                   <option value="">Selecione</option>
-                  ${[1,2,3,4,5].map(n => `<option value="${n}" ${(goal.rating==n)?'selected':''}>${n}</option>`).join("")}
+                  ${[1,2,3,4,5].map(n => `<option value="${n}" ${(Number(goal.rating)===n)?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>`;
-            qs("#goals-container").appendChild(wrap);
+            qs('#goals-container').appendChild(wrap);
           });
+          qsa('[id^="goal-weight-"]').forEach(inp => {
+            inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+            inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+          });
+          qsa('[id^="goal-rating-"]').forEach(sel => {
+            sel.addEventListener('change', () => calculateFinalRating());
+          });
+          updateGoalsWeight();
+        } else {
+          // se você prefere mostrar metas vazias:
+          // await loadGoals();
         }
     
-        // Mostrar seção
-        qs("#evaluation-section").style.display = "block";
-        qs("#evaluation-section").scrollIntoView({ behavior: "smooth" });
+        // 8) Exibir médias no topo (se seus spans existem)
+        if (qs('#avg-institucional')) qs('#avg-institucional').textContent = `Média: ${ev.institucional_avg ?? '-'}`;
+        if (qs('#avg-funcional'))     qs('#avg-funcional').textContent     = `Média: ${ev.funcional_avg ?? '-'}`;
+        if (qs('#avg-individual'))    qs('#avg-individual').textContent    = `Média: ${ev.individual_avg ?? '-'}`;
+        if (qs('#avg-metas'))         qs('#avg-metas').textContent         = `Média: ${ev.metas_avg ?? '-'}`;
     
-        // Calcular nota final
+        // 9) Recalcula/exibe o rating final na UI
         calculateFinalRating();
     
-      } catch (err) {
-        console.error(err);
-        alert("Erro ao carregar avaliação");
+        // 10) Mostra a seção
+        qs('#evaluation-section').style.display = 'block';
+        qs('#evaluation-section').scrollIntoView({ behavior: 'smooth' });
+    
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar avaliação');
       }
     }
 
