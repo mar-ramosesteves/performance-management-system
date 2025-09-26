@@ -1,18 +1,16 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import json
+from datetime import datetime
 from supabase import create_client, Client
 
 app = Flask(__name__)
 
-# Configuração do Supabase
+# ===================== Configurações / Conexão =====================
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-EVAL_PERIOD = os.getenv('EVAL_PERIOD', '082025')  # use o seu código de período (ex.: 082025)
-ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE')
+ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()  # usado em PUTs protegidos
 
-
-# Inicializar cliente Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ===== CORS simples sem dependências =====
@@ -20,23 +18,19 @@ ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'https://gestor.thehrkey.tech').s
 
 @app.after_request
 def add_cors_headers(resp):
-    origin = request.headers.get('Origin', '')
-    origin = origin.rstrip('/')  # normaliza
+    origin = (request.headers.get('Origin', '') or '').rstrip('/')
     if origin in [o.rstrip('/') for o in ALLOWED_ORIGINS]:
         resp.headers['Access-Control-Allow-Origin'] = origin
         resp.headers['Vary'] = 'Origin'
         resp.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS'
         resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-        # resp.headers['Access-Control-Allow-Credentials'] = 'true'  # habilite se um dia usar cookies
     return resp
 
 @app.before_request
 def handle_preflight():
-    # Responde aos preflights do navegador
     if request.method == 'OPTIONS' and request.path.startswith('/api/'):
         resp = app.make_response(('', 204))
-        origin = request.headers.get('Origin', '')
-        origin = origin.rstrip('/')
+        origin = (request.headers.get('Origin', '') or '').rstrip('/')
         if origin in [o.rstrip('/') for o in ALLOWED_ORIGINS]:
             resp.headers['Access-Control-Allow-Origin'] = origin
             resp.headers['Vary'] = 'Origin'
@@ -44,16 +38,17 @@ def handle_preflight():
             resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
         return resp
 
-
+# ===================== Páginas =====================
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# ===================== Employees =====================
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
     try:
-        response = supabase.table('employees').select('*').execute()
-        return jsonify(response.data)
+        r = supabase.table('employees').select('*').execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -61,24 +56,26 @@ def get_employees():
 def create_employee():
     try:
         data = request.get_json()
-        response = supabase.table('employees').insert(data).execute()
-        return jsonify(response.data)
+        r = supabase.table('employees').insert(data).execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ===================== Salary Grades =====================
 @app.route('/api/salary-grades', methods=['GET'])
 def get_salary_grades():
     try:
-        response = supabase.table('salary_grades').select('*').execute()
-        return jsonify(response.data)
+        r = supabase.table('salary_grades').select('*').execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ===================== Evaluation Criteria =====================
 @app.route('/api/evaluation-criteria', methods=['GET'])
 def get_evaluation_criteria():
     try:
-        response = supabase.table('evaluation_criteria').select('*').order('dimension', desc=False).execute()
-        return jsonify(response.data)
+        r = supabase.table('evaluation_criteria').select('*').order('dimension', desc=False).execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -86,8 +83,8 @@ def get_evaluation_criteria():
 def create_evaluation_criteria():
     try:
         data = request.get_json()
-        response = supabase.table('evaluation_criteria').insert(data).execute()
-        return jsonify(response.data)
+        r = supabase.table('evaluation_criteria').insert(data).execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -95,78 +92,68 @@ def create_evaluation_criteria():
 def update_evaluation_criteria(criteria_id):
     try:
         data = request.get_json()
-        response = supabase.table('evaluation_criteria').update(data).eq('id', criteria_id).execute()
-        return jsonify(response.data)
+        r = supabase.table('evaluation_criteria').update(data).eq('id', criteria_id).execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ===================== Cálculos de avaliação =====================
 def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_weights):
-    """Calcula as notas por dimensão e nota final"""
+    """Calcula médias de dimensões, metas, final ponderado e posição 9-box."""
     try:
-        print(f"DEBUG: calculate_evaluation_scores chamada com evaluation_id={evaluation_id}")
-        print(f"DEBUG: responses={responses}")
-        print(f"DEBUG: goals_data={goals_data}")
-        print(f"DEBUG: dimension_weights={dimension_weights}")
-        
-        # Buscar critérios para agrupar por dimensão
         criteria_response = supabase.table('evaluation_criteria').select('*').execute()
         criteria = {c['id']: c for c in criteria_response.data}
-        
-        # Agrupar respostas por dimensão
+
         dimension_ratings = {
             'INSTITUCIONAL': [],
             'FUNCIONAL': [],
             'INDIVIDUAL': []
         }
-        
+
         for criteria_id, rating in responses.items():
-            if int(criteria_id) in criteria:
-                dimension = criteria[int(criteria_id)]['dimension']
-                dimension_ratings[dimension].append(rating)
-        
-        # Calcular médias por dimensão
+            cid = int(criteria_id)
+            if cid in criteria:
+                dimension = criteria[cid]['dimension']
+                dimension_ratings[dimension].append(float(rating))
+
         institucional_avg = sum(dimension_ratings['INSTITUCIONAL']) / len(dimension_ratings['INSTITUCIONAL']) if dimension_ratings['INSTITUCIONAL'] else 0
-        funcional_avg = sum(dimension_ratings['FUNCIONAL']) / len(dimension_ratings['FUNCIONAL']) if dimension_ratings['FUNCIONAL'] else 0
-        individual_avg = sum(dimension_ratings['INDIVIDUAL']) / len(dimension_ratings['INDIVIDUAL']) if dimension_ratings['INDIVIDUAL'] else 0
-        
-        # Calcular média das metas
-        goal_ratings = [g['rating'] for g in goals_data if g.get('rating')]
+        funcional_avg     = sum(dimension_ratings['FUNCIONAL'])     / len(dimension_ratings['FUNCIONAL'])     if dimension_ratings['FUNCIONAL']     else 0
+        individual_avg    = sum(dimension_ratings['INDIVIDUAL'])    / len(dimension_ratings['INDIVIDUAL'])    if dimension_ratings['INDIVIDUAL']    else 0
+
+        goal_ratings = [float(g['rating']) for g in (goals_data or []) if g.get('rating') is not None]
         metas_avg = sum(goal_ratings) / len(goal_ratings) if goal_ratings else 0
-        
-        # Calcular rating final ponderado
+
+        w = {
+            'INSTITUCIONAL': float(dimension_weights.get('INSTITUCIONAL', 25)),
+            'FUNCIONAL':     float(dimension_weights.get('FUNCIONAL', 25)),
+            'INDIVIDUAL':    float(dimension_weights.get('INDIVIDUAL', 25)),
+            'METAS':         float(dimension_weights.get('METAS', 25)),
+        }
         final_rating = (
-            institucional_avg * (dimension_weights.get('INSTITUCIONAL', 0) / 100) +
-            funcional_avg * (dimension_weights.get('FUNCIONAL', 0) / 100) +
-            individual_avg * (dimension_weights.get('INDIVIDUAL', 0) / 100) +
-            metas_avg * (dimension_weights.get('METAS', 0) / 100)
+            institucional_avg * (w['INSTITUCIONAL']/100.0) +
+            funcional_avg     * (w['FUNCIONAL']/100.0) +
+            individual_avg    * (w['INDIVIDUAL']/100.0) +
+            metas_avg         * (w['METAS']/100.0)
         )
-        
-        # Calcular ratings para matriz 9-box
-        # Performance = média de todos os critérios de DESEMPENHO
-        performance_ratings = []
-        potential_ratings = []
-        
+
+        # Desempenho/Potencial baseados em type do critério
+        perf_list, pot_list = [], []
         for criteria_id, rating in responses.items():
-            if int(criteria_id) in criteria:
-                criteria_type = criteria[int(criteria_id)]['type']
-                if criteria_type == 'DESEMPENHO':
-                    performance_ratings.append(rating)
-                elif criteria_type == 'POTENCIAL':
-                    potential_ratings.append(rating)
-        
-        performance_rating = sum(performance_ratings) / len(performance_ratings) if performance_ratings else 0
-        potential_rating = sum(potential_ratings) / len(potential_ratings) if potential_ratings else 0
-        
-        print(f"DEBUG: performance_rating={performance_rating}, potential_rating={potential_rating}")
-        
-        # Calcular posição na matriz 9-box usando a tabela de correlação
+            cid = int(criteria_id)
+            if cid in criteria:
+                t = criteria[cid]['type']
+                if t == 'DESEMPENHO':
+                    perf_list.append(float(rating))
+                elif t == 'POTENCIAL':
+                    pot_list.append(float(rating))
+        performance_rating = sum(perf_list)/len(perf_list) if perf_list else 0
+        potential_rating   = sum(pot_list)/len(pot_list) if pot_list else 0
+
         nine_box_position = calculate_nine_box_position(performance_rating, potential_rating)
-        
-        # Converter os ratings para valores 9-box (1-9)
-        def rating_to_9box(rating):
-            """Converte rating (1-5) para 9-box (1-9) usando a tabela de correlação"""
-            rounded_rating = round(rating, 1)
-            correlation_table = {
+
+        def rating_to_9box(r):
+            rounded = round(r, 1)
+            table = {
                 1.0: 9.0, 1.1: 8.8, 1.2: 8.6, 1.3: 8.4, 1.4: 8.2, 1.5: 8.0,
                 1.6: 7.8, 1.7: 7.6, 1.8: 7.4, 1.9: 7.2, 2.0: 7.0, 2.1: 6.8,
                 2.2: 6.6, 2.3: 6.4, 2.4: 6.2, 2.5: 6.0, 2.6: 5.8, 2.7: 5.6,
@@ -175,41 +162,29 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
                 4.0: 3.0, 4.1: 2.8, 4.2: 2.6, 4.3: 2.4, 4.4: 2.2, 4.5: 2.0,
                 4.6: 1.8, 4.7: 1.6, 4.8: 1.4, 4.9: 1.2, 5.0: 1.0
             }
-            if rounded_rating in correlation_table:
-                return correlation_table[rounded_rating]
-            else:
-                return 10 - (rounded_rating * 2)
-        
-        # Converter para valores 9-box
+            return table.get(rounded, 10 - (rounded*2))
+
         performance_9box = rating_to_9box(performance_rating)
-        potential_9box = rating_to_9box(potential_rating)
-        
-        print(f"DEBUG: performance_rating convertido: {performance_rating} -> {performance_9box}")
-        print(f"DEBUG: potential_rating convertido: {potential_rating} -> {potential_9box}")
-        
+        potential_9box   = rating_to_9box(potential_rating)
+
         return {
             'institucional_avg': round(institucional_avg, 2),
             'funcional_avg': round(funcional_avg, 2),
             'individual_avg': round(individual_avg, 2),
             'metas_avg': round(metas_avg, 2),
             'final_rating': round(final_rating, 2),
-            'performance_rating': round(performance_9box, 2),  # Salvar valor convertido (1-9)
-            'potential_rating': round(potential_9box, 2),      # Salvar valor convertido (1-9)
+            'performance_rating': round(performance_9box, 2),  # escala 1–9
+            'potential_rating': round(potential_9box, 2),      # escala 1–9
             'nine_box_position': nine_box_position
         }
-        
     except Exception as e:
         print(f"Erro ao calcular scores: {e}")
         return None
 
 def calculate_nine_box_position(performance, potential):
-    """Calcula a posição na matriz 9-box baseada na tabela de correlação"""
-    
-    def rating_to_9box(rating):
-        """Converte rating (1-5) para 9-box (1-9) usando a tabela de correlação"""
-        rounded_rating = round(rating, 1)
-        
-        correlation_table = {
+    def rating_to_9box(r):
+        rounded = round(r, 1)
+        table = {
             1.0: 9.0, 1.1: 8.8, 1.2: 8.6, 1.3: 8.4, 1.4: 8.2, 1.5: 8.0,
             1.6: 7.8, 1.7: 7.6, 1.8: 7.4, 1.9: 7.2, 2.0: 7.0, 2.1: 6.8,
             2.2: 6.6, 2.3: 6.4, 2.4: 6.2, 2.5: 6.0, 2.6: 5.8, 2.7: 5.6,
@@ -218,64 +193,20 @@ def calculate_nine_box_position(performance, potential):
             4.0: 3.0, 4.1: 2.8, 4.2: 2.6, 4.3: 2.4, 4.4: 2.2, 4.5: 2.0,
             4.6: 1.8, 4.7: 1.6, 4.8: 1.4, 4.9: 1.2, 5.0: 1.0
         }
-        
-        if rounded_rating in correlation_table:
-            return correlation_table[rounded_rating]
-        else:
-            return 10 - (rounded_rating * 2)
-    
-    # Converter ratings para valores 9-box
-    performance_9box = rating_to_9box(performance)
-    potential_9box = rating_to_9box(potential)
-    
-    # CORREÇÃO: Usar a tabela de correlação para determinar as posições
-    # Baseado na tabela: 1-3=Baixo, 4-6=Médio, 7-9=Alto
-    
-    # Determinar posição de Performance (1-3)
-    if performance_9box >= 7:
-        perf_pos = 1  # Alto Desempenho
-    elif performance_9box >= 4:
-        perf_pos = 2  # Médio Desempenho
-    else:
-        perf_pos = 3  # Baixo Desempenho
-    
-    # Determinar posição de Potencial (1-3)
-    if potential_9box >= 7:
-        pot_pos = 1  # Alto Potencial
-    elif potential_9box >= 4:
-        pot_pos = 2  # Médio Potencial
-    else:
-        pot_pos = 3  # Baixo Potencial
-    
-    # Calcular posição final na matriz 9-box (1-9)
-    # Matriz: (potencial - 1) * 3 + (4 - performance)
-    nine_box_position = (pot_pos - 1) * 3 + (4 - perf_pos)
-    
-    return nine_box_position
-    
-    # ===== Helpers para buscar a ÚLTIMA avaliação preenchida =====
-def _to_num(v, default=None):
-    try:
-        return float(v)
-    except Exception:
-        return default
+        return table.get(rounded, 10 - (rounded*2))
 
-def _get_latest_evaluation(employee_id: int):
-    """Busca a avaliação mais recente do funcionário."""
-    r = (supabase.table('evaluations')
-         .select('*')
-         .eq('employee_id', employee_id)
-         .order('evaluation_date', desc=True)
-         .order('created_at', desc=True)
-         .limit(1)
-         .execute())
-    data = r.data or []
-    return data[0] if data else None
+    perf9 = rating_to_9box(performance)
+    pot9  = rating_to_9box(potential)
 
+    perf_pos = 1 if perf9 >= 7 else (2 if perf9 >= 4 else 3)  # Alto/Médio/Baixo
+    pot_pos  = 1 if pot9  >= 7 else (2 if pot9  >= 4 else 3)
+
+    return (pot_pos - 1) * 3 + (4 - perf_pos)
+
+# ===================== Última Avaliação =====================
 def _get_responses_rows(evaluation_id: int):
-    """Retorna linhas de evaluation_responses usando apenas 'rating' (sem 'score')."""
     r = (supabase.table('evaluation_responses')
-         .select('evaluation_id, criteria_id, rating')   # ⬅️ score removido
+         .select('evaluation_id,criteria_id,rating')
          .eq('evaluation_id', evaluation_id)
          .order('criteria_id', desc=False)
          .execute())
@@ -283,45 +214,8 @@ def _get_responses_rows(evaluation_id: int):
     return [{
         'evaluation_id': x.get('evaluation_id'),
         'criteria_id': x.get('criteria_id'),
-        'rating': x.get('rating')   # ⬅️ só rating
+        'rating': x.get('rating')
     } for x in rows]
-
-
-def _extract_weights(ev: dict):
-    """Extrai pesos das dimensões (aceita JSON na coluna ou colunas soltas)."""
-    w = ev.get('dimension_weights') or ev.get('weights')
-    if isinstance(w, str):
-        try:
-            w = json.loads(w)
-        except Exception:
-            w = None
-    if isinstance(w, dict):
-        up = {str(k).upper(): v for k, v in w.items()}
-        return {
-            'INSTITUCIONAL': _to_num(up.get('INSTITUCIONAL'), 25),
-            'FUNCIONAL':     _to_num(up.get('FUNCIONAL'), 25),
-            'INDIVIDUAL':    _to_num(up.get('INDIVIDUAL'), 25),
-            'METAS':         _to_num(up.get('METAS'), 25),
-        }
-    # Fallback: colunas separadas na tabela evaluations
-    return {
-        'INSTITUCIONAL': _to_num(ev.get('weight_institucional'), 25),
-        'FUNCIONAL':     _to_num(ev.get('weight_funcional'), 25),
-        'INDIVIDUAL':    _to_num(ev.get('weight_individual'), 25),
-        'METAS':         _to_num(ev.get('weight_metas'), 25),
-    }
-
-def _extract_goals(ev: dict):
-    """Extrai metas se você salva JSON na própria avaliação (opcional)."""
-    g = ev.get('goals') or ev.get('individual_goals')
-    if isinstance(g, str):
-        try:
-            g = json.loads(g)
-        except Exception:
-            g = None
-    return g if isinstance(g, list) else []
-
-# ===== Rotas novas =====
 
 @app.route('/api/evaluations/latest', methods=['GET'])
 def api_evaluations_latest():
@@ -330,7 +224,6 @@ def api_evaluations_latest():
         if not employee_id:
             return jsonify({'error': 'employee_id obrigatório'}), 400
 
-        # 1) última avaliação
         r_ev = (supabase.table('evaluations')
                 .select('*')
                 .eq('employee_id', employee_id)
@@ -343,32 +236,22 @@ def api_evaluations_latest():
             return jsonify({'error': 'nenhuma_avaliacao'}), 404
         ev = data[0]
 
-        # 2) responses
-        try:
-            r_resp = (supabase.table('evaluation_responses')
-                      .select('evaluation_id, criteria_id, rating')  # ⬅️ score removido
-                      .eq('evaluation_id', ev['id'])
-                      .order('criteria_id', desc=False)
-                      .execute())
-            rows = r_resp.data or []
-            responses = [{
-                'evaluation_id': x.get('evaluation_id'),
-                'criteria_id': x.get('criteria_id'),
-                'rating': x.get('rating')
-            } for x in rows]
-        except Exception as e:
-            return jsonify({
-                'error': 'erro_ao_buscar_responses',
-                'detail': str(e)
-            }), 500
+        r_resp = (supabase.table('evaluation_responses')
+                  .select('evaluation_id,criteria_id,rating')
+                  .eq('evaluation_id', ev['id'])
+                  .order('criteria_id', desc=False)
+                  .execute())
+        rows = r_resp.data or []
+        responses = [{
+            'evaluation_id': x.get('evaluation_id'),
+            'criteria_id': x.get('criteria_id'),
+            'rating': x.get('rating')
+        } for x in rows]
 
-
-        # 3) pesos/metas (se tiver)
-        import json as _json
         w = ev.get('dimension_weights') or ev.get('weights')
         if isinstance(w, str):
             try:
-                w = _json.loads(w)
+                w = json.loads(w)
             except Exception:
                 w = None
         if isinstance(w, dict):
@@ -390,7 +273,7 @@ def api_evaluations_latest():
         g = ev.get('goals') or ev.get('individual_goals')
         if isinstance(g, str):
             try:
-                g = _json.loads(g)
+                g = json.loads(g)
             except Exception:
                 g = None
         goals = g if isinstance(g, list) else []
@@ -401,12 +284,10 @@ def api_evaluations_latest():
             'weights': weights,
             'goals': goals
         })
-
     except Exception as e:
-        # retorna o erro textual pra gente saber a causa
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
-# (Opcional) Mantém compatibilidade se o front ainda chamar esta rota
+# Compat: pegar respostas por evaluation_id
 @app.route('/api/evaluation-responses', methods=['GET'])
 def api_evaluation_responses():
     evaluation_id = request.args.get('evaluation_id', type=int)
@@ -414,12 +295,12 @@ def api_evaluation_responses():
         return jsonify({'error': 'evaluation_id obrigatório'}), 400
     return jsonify(_get_responses_rows(evaluation_id))
 
-
+# ===================== Evaluations CRUD =====================
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
     try:
-        response = supabase.table('evaluations').select('*').execute()
-        return jsonify(response.data)
+        r = supabase.table('evaluations').select('*').execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -427,91 +308,66 @@ def get_evaluations():
 def create_evaluation():
     try:
         data = request.get_json()
-        print(f"Dados recebidos: {data}")  # Para debug
-        
-        # Verificar se os dados necessários existem
         if not data.get('employee_id') or not data.get('responses'):
             return jsonify({'error': 'Dados obrigatórios não fornecidos'}), 400
-        
-        # Criar a avaliação básica primeiro
+
         evaluation_data = {
             'employee_id': data['employee_id'],
-            'evaluator_id': data.get('evaluator_id', 1),  # Default 1 se não fornecido
-            'evaluation_year': data.get('evaluation_year', 2025)  # Default 2025 se não fornecido
+            'evaluator_id': data.get('evaluator_id', 1),
+            'evaluation_year': data.get('evaluation_year', 2025)
         }
-        
         evaluation_response = supabase.table('evaluations').insert(evaluation_data).execute()
-        
-        if evaluation_response.data:
-            evaluation_id = evaluation_response.data[0]['id']
-            
-            # Criar as respostas da avaliação
-            responses = []
-            for criteria_id, rating in data['responses'].items():
-                response_data = {
-                    'evaluation_id': evaluation_id,
-                    'criteria_id': int(criteria_id),
-                    'rating': int(rating)
-                }
-                responses.append(response_data)
-            
-            if responses:
-                supabase.table('evaluation_responses').insert(responses).execute()
-            
-            # Calcular scores se possível
-            try:
-                scores = calculate_evaluation_scores(
-                    evaluation_id,
-                    data['responses'],
-                    data.get('goals', []),
-                    data.get('dimension_weights', {})
-                )
-                
-                # Atualizar avaliação com os scores calculados
-                if scores:
-                    supabase.table('evaluations').update(scores).eq('id', evaluation_id).execute()
-            except Exception as calc_error:
-                print(f"Erro ao calcular scores: {calc_error}")
-                # Continuar mesmo se o cálculo falhar
-            
-            return jsonify({
-                'evaluation_id': evaluation_id,
-                'message': 'Avaliação salva com sucesso!'
-            })
-        else:
+        if not evaluation_response.data:
             return jsonify({'error': 'Erro ao criar avaliação'}), 500
-            
+
+        evaluation_id = evaluation_response.data[0]['id']
+
+        responses = []
+        for criteria_id, rating in data['responses'].items():
+            responses.append({
+                'evaluation_id': evaluation_id,
+                'criteria_id': int(criteria_id),
+                'rating': int(rating)
+            })
+        if responses:
+            supabase.table('evaluation_responses').insert(responses).execute()
+
+        try:
+            scores = calculate_evaluation_scores(
+                evaluation_id,
+                data['responses'],
+                data.get('goals', []),
+                data.get('dimension_weights', {})
+            )
+            if scores:
+                supabase.table('evaluations').update(scores).eq('id', evaluation_id).execute()
+        except Exception as calc_error:
+            print(f"Erro ao calcular scores: {calc_error}")
+
+        return jsonify({'evaluation_id': evaluation_id, 'message': 'Avaliação salva com sucesso!'})
     except Exception as e:
-        print(f"Erro: {e}")  # Para debug
         return jsonify({'error': str(e)}), 500
-
-
 
 @app.route('/api/evaluations/<int:evaluation_id>', methods=['GET'])
 def get_evaluation(evaluation_id):
     try:
-        # Buscar a avaliação
-        evaluation_response = supabase.table('evaluations').select('*').eq('id', evaluation_id).execute()
-        
-        if evaluation_response.data:
-            evaluation = evaluation_response.data[0]
-            
-            # Buscar as respostas
-            responses_response = supabase.table('evaluation_responses').select('*').eq('evaluation_id', evaluation_id).execute()
-            evaluation['responses'] = responses_response.data
-            
-            return jsonify(evaluation)
-        else:
+        r = supabase.table('evaluations').select('*').eq('id', evaluation_id).execute()
+        if not r.data:
             return jsonify({'error': 'Avaliação não encontrada'}), 404
-            
+
+        evaluation = r.data[0]
+        rr = supabase.table('evaluation_responses').select('*').eq('evaluation_id', evaluation_id).execute()
+        evaluation['responses'] = rr.data
+        return jsonify(evaluation)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ===================== Goals / Dimension Weights =====================
 @app.route('/api/individual-goals', methods=['GET'])
 def get_individual_goals():
     try:
-        response = supabase.table('individual_goals').select('*').execute()
-        return jsonify(response.data)
+        r = supabase.table('individual_goals').select('*').execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -519,16 +375,16 @@ def get_individual_goals():
 def create_individual_goal():
     try:
         data = request.get_json()
-        response = supabase.table('individual_goals').insert(data).execute()
-        return jsonify(response.data)
+        r = supabase.table('individual_goals').insert(data).execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/dimension-weights', methods=['GET'])
 def get_dimension_weights():
     try:
-        response = supabase.table('dimension_weights').select('*').execute()
-        return jsonify(response.data)
+        r = supabase.table('dimension_weights').select('*').execute()
+        return jsonify(r.data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -544,437 +400,248 @@ def update_dimension_weights():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-from datetime import datetime
-
-@app.route('/api/current-period', methods=['GET'])
+# ===================== Período atual (controlado pelo banco) =====================
 def get_current_period():
-    try:
-        now = datetime.utcnow().isoformat()
-        response = supabase.table('evaluation_periods')\
-            .select('*')\
-            .lte('start_at', now)\
-            .gte('end_at', now)\
-            .eq('is_open', True)\
-            .limit(1)\
-            .execute()
-        
-        if response.data:
-            return jsonify(response.data[0])
-        else:
-            return jsonify({'error': 'Nenhum período aberto no momento'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# --- Helpers com tratamento de erro para diagnosticar 500 ---
-def get_window_row():
-    """Lê a VIEW evaluation_windows_status para o período atual."""
-    try:
-        r = (
-            supabase.table('evaluation_windows_status')
-            .select('*')
-            .eq('period', EVAL_PERIOD)  # EVAL_PERIOD vem do ambiente (ex.: 082025)
-            .limit(1)
-            .execute()
-        )
-        rows = r.data or []
-        return rows[0] if rows else None
-    except Exception as e:
-        # Devolve exceção para a rota exibir (temporariamente, só para diagnóstico)
-        raise RuntimeError(f'Erro ao ler evaluation_windows_status: {e}')
-
-
-
-
-# =====================  ADMIN PAINEL SIMPLES  =====================
-# Página /admin para abrir/fechar período de avaliações (janela)
-# Usa a rota já existente: PUT /api/evaluations/window (com ADMIN_WINDOW_CODE)
-
-@app.route('/admin', methods=['GET'])
-def admin_panel():
-    # HTML simples, sem template, entrega a página do painel
-    html = """
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Painel de Avaliações — Admin</title>
-<style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;line-height:1.5;margin:0;background:#f7f7fb;color:#111}
-  .wrap{max-width:780px;margin:0 auto;padding:28px}
-  h1{font-size:22px;margin:0 0 8px}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:16px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  label{display:block;font-size:12px;color:#555;margin-bottom:6px}
-  input,button{font:inherit}
-  input[type=text], input[type=datetime-local]{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px}
-  .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
-  .btn.primary{background:#2563eb;color:#fff}
-  .btn.ghost{background:#f3f4f6}
-  .muted{color:#6b7280;font-size:13px}
-  .status-pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
-  .ok{background:#e7f9ee;color:#0a7b31;border:1px solid #b7efc8}
-  .warn{background:#fff6e6;color:#a15c00;border:1px solid #ffe2ae}
-  .err{background:#ffecec;color:#a10000;border:1px solid #ffbaba}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .footer{margin-top:18px;display:flex;gap:8px;align-items:center}
-  code{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:2px 6px}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Painel de Avaliações — Admin</h1>
-    <p class="muted">Abra ou feche a janela de avaliações. Use o <strong>código do RH</strong> para confirmar a alteração.</p>
-
-    <div class="card" id="status">
-      <div><strong>Status atual</strong></div>
-      <div id="status-content" class="muted">Carregando…</div>
-    </div>
-
-    <div class="card">
-      <div style="margin-bottom:10px"><strong>Atualizar janela</strong></div>
-      <div class="grid2">
-        <div>
-          <label>Período (ex.: 2025H2 ou 082025)</label>
-          <input type="text" id="period" placeholder="ex.: 2025H2" />
-        </div>
-        <div>
-          <label>Código RH (ADMIN_WINDOW_CODE)</label>
-          <input type="text" id="code" placeholder="ex.: RH-2025-OK" />
-        </div>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <div>
-          <label>Início (fuso local — será convertido p/ UTC)</label>
-          <input type="datetime-local" id="startAt" />
-        </div>
-        <div>
-          <label>Fim (fuso local — será convertido p/ UTC)</label>
-          <input type="datetime-local" id="endAt" />
-        </div>
-      </div>
-      <div class="footer">
-        <button class="btn primary" id="saveBtn">Salvar janela</button>
-        <button class="btn ghost" id="reloadBtn">Recarregar status</button>
-        <span id="msg" class="muted"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div><strong>Dicas</strong></div>
-      <ul class="muted">
-        <li><strong>Período</strong> é só uma etiqueta (texto): ex. <code>2025H2</code> ou <code>2025-10</code>.</li>
-        <li>Datas são salvas em <strong>UTC</strong>. Os campos acima convertem automaticamente do seu horário local para UTC.</li>
-        <li>Se a janela estiver “fechada”, salvamentos no front são bloqueados, a menos que você envie o Código RH no body.</li>
-      </ul>
-    </div>
-  </div>
-
-<script>
-  const $ = (sel) => document.querySelector(sel);
-
-  function fmtDate(iso) {
-    if (!iso) return '-';
-    try { return new Date(iso).toLocaleString(); } catch(e) { return iso; }
-  }
-
-  async function loadStatus() {
-    $('#status-content').textContent = 'Carregando…';
-    try {
-      const r = await fetch('/api/evaluations/window');
-      const j = await r.json();
-      if (r.ok) {
-        const pill = j.open
-          ? '<span class="status-pill ok">ABERTA</span>'
-          : '<span class="status-pill warn">FECHADA</span>';
-        $('#status-content').innerHTML = `
-          ${pill}<br>
-          <strong>Período:</strong> ${j.period || '-'}<br>
-          <strong>Início:</strong> ${fmtDate(j.start_at)}<br>
-          <strong>Fim:</strong> ${fmtDate(j.end_at)}
-        `;
-        // preenche campos com valores atuais (se houver)
-        if (j.period) $('#period').value = j.period;
-        if (j.start_at) {
-          const d = new Date(j.start_at);
-          $('#startAt').value = d.toISOString().slice(0,16); // yyyy-MM-ddTHH:mm
-        }
-        if (j.end_at) {
-          const d = new Date(j.end_at);
-          $('#endAt').value = d.toISOString().slice(0,16);
-        }
-      } else {
-        $('#status-content').innerHTML = '<span class="status-pill err">ERRO</span> ' + (j.error || 'Falha ao carregar status');
-      }
-    } catch (e) {
-      $('#status-content').innerHTML = '<span class="status-pill err">ERRO</span> ' + e;
-    }
-  }
-
-  function toUTCStringLocal(datetimeLocal) {
-    if (!datetimeLocal) return null;
-    // datetime-local vem sem timezone; interpretamos como local e convertemos para UTC ISO
-    const d = new Date(datetimeLocal);
-    return d.toISOString(); // ISO com 'Z'
-  }
-
-  async function saveWindow() {
-    $('#msg').textContent = 'Salvando…';
-    try {
-      const period = $('#period').value.trim();
-      const code = $('#code').value.trim();
-      const startAtLocal = $('#startAt').value;
-      const endAtLocal = $('#endAt').value;
-      if (!period || !code || !startAtLocal || !endAtLocal) {
-        $('#msg').textContent = 'Preencha período, código, início e fim.';
-        return;
-      }
-      // envia para variável de ambiente do backend (EVAL_PERIOD) usando um truque simples:
-      // primeiro salvamos as datas; depois você ajusta EVAL_PERIOD no Render se quiser fixar lá também.
-      // Mas aqui, como a API /api/evaluations/window usa EVAL_PERIOD do servidor, vamos apenas salvar as datas para o período já configurado no servidor.
-      // Se quiser alterar o período no servidor, atualize a env var EVAL_PERIOD no Render.
-      const payload = {
-        code: code,
-        start_at: toUTCStringLocal(startAtLocal),
-        end_at: toUTCStringLocal(endAtLocal)
-      };
-      const r = await fetch('/api/evaluations/window', {
-        method: 'PUT',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-      const j = await r.json();
-      if (r.ok) {
-        $('#msg').textContent = 'Janela atualizada com sucesso.';
-        await loadStatus();
-      } else {
-        $('#msg').textContent = 'Erro: ' + (j.error || 'falha ao salvar');
-      }
-    } catch (e) {
-      $('#msg').textContent = 'Erro: ' + e;
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    loadStatus();
-    $('#saveBtn').addEventListener('click', saveWindow);
-    $('#reloadBtn').addEventListener('click', loadStatus);
-  });
-</script>
-</body>
-</html>
     """
-    return html
-# =====================  /ADMIN PAINEL  =====================
-
-# ========= JANELA DE AVALIAÇÃO (GET + PUT) =========
-# Depende destas ENVs no Render:
-# - EVAL_PERIOD (ex.: "2025H2" ou "102025")
-# - ADMIN_WINDOW_CODE (ex.: "RH-2025-OK")
-
-EVAL_PERIOD = os.getenv('EVAL_PERIOD', '').strip()
-ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()
-
-def get_window_row():
-    """
-    Lê a VIEW 'evaluation_windows_status' para o período atual.
-    (A view calcula is_open com base em start_at/end_at.)
+    Lê o período atual na tabela 'evaluation_current_period' (id=1).
+    Fallback para '102025' se não houver registro.
     """
     try:
-        r = (
-            supabase.table('evaluation_windows_status')
-            .select('*')
-            .eq('period', EVAL_PERIOD)
-            .limit(1)
-            .execute()
-        )
-        rows = r.data or []
-        return rows[0] if rows else None
+        r = (supabase.table('evaluation_current_period')
+             .select('period')
+             .eq('id', 1)
+             .single()
+             .execute())
+        data = r.data or {}
+        p = (data.get('period') or '').strip()
+        if p:
+            return p
     except Exception as e:
-        # Se a view ainda não existe, devolve None (o GET mostrará fechado)
-        print(f"[get_window_row] erro: {e}")
-        return None
+        print('[get_current_period] fallback por erro:', e)
+    return '102025'
 
-@app.route('/api/evaluations/window', methods=['GET'])
-def api_get_window():
-    w = get_window_row()
-    return jsonify({
-        'period': EVAL_PERIOD,
-        'open': bool(w and w.get('is_open')),
-        'start_at': (w or {}).get('start_at'),
-        'end_at':   (w or {}).get('end_at'),
-    }), 200
+@app.route('/api/evaluations/current-period', methods=['GET'])
+def api_get_current_period():
+    return jsonify({'period': get_current_period()}), 200
 
-@app.route('/api/evaluations/window', methods=['PUT', 'OPTIONS'])
-def api_put_window():
-    # Preflight já é tratado no @app.before_request; aqui só reforço:
-    if request.method == 'OPTIONS':
-        return ('', 204)
-
-    # 1) valida código
+@app.route('/api/evaluations/current-period', methods=['PUT'])
+def api_put_current_period():
+    """
+    Body: { "period": "MMYYYY", "code": "SEU-CODIGO" }
+    """
     try:
         payload = request.get_json(force=True) or {}
     except Exception as e:
         return jsonify({'error': f'JSON inválido: {e}'}), 400
 
-    code = (payload.get('code') or '').strip()
     if not ADMIN_WINDOW_CODE:
-        return jsonify({'error': 'ADMIN_WINDOW_CODE não configurado no servidor'}), 500
-    if code != ADMIN_WINDOW_CODE:
+        return jsonify({'error': 'ADMIN_WINDOW_CODE não configurado'}), 500
+    if (payload.get('code') or '').strip() != ADMIN_WINDOW_CODE:
         return jsonify({'error': 'Código RH incorreto'}), 403
 
-    # 2) valida datas
-    start_at = (payload.get('start_at') or '').strip()
-    end_at   = (payload.get('end_at') or '').strip()
-    if not start_at or not end_at:
-        return jsonify({'error': 'Informe start_at e end_at (ISO-8601)'}), 400
-    # Não vamos converter aqui; salvamos como enviado (ISO vindo do front).
-
-    if not EVAL_PERIOD:
-        return jsonify({'error': 'EVAL_PERIOD não configurado no servidor'}), 500
-
-    # 3) grava/atualiza o período
-    # TABELA base esperada: public.evaluation_periods (period PK único)
-    # Colunas mínimas: period (TEXT), start_at (timestamptz), end_at (timestamptz)
-    row = {
-        'period': EVAL_PERIOD,
-        'start_at': start_at,
-        'end_at': end_at,
-    }
+    period = (payload.get('period') or '').strip()
+    if not (period.isdigit() and len(period) == 6):
+        return jsonify({'error': 'Período inválido. Use "MMYYYY", ex.: "102025".'}), 400
 
     try:
-        # upsert: se já existe o período, atualiza; senão, cria
-        # se sua PK/unique for outra, ajuste o 'on_conflict'
-        up = supabase.table('evaluation_periods').upsert(row, on_conflict='period').execute()
+        supabase.table('evaluation_current_period').update({
+            'period': period
+        }).eq('id', 1).execute()
     except Exception as e:
-        return jsonify({'error': f'Falha ao salvar janela: {e}'}), 500
+        return jsonify({'error': 'Falha ao salvar período atual', 'detail': str(e)}), 500
 
-    # 4) retorna status atualizado
-    w = get_window_row()
-    return jsonify({
-        'period': EVAL_PERIOD,
-        'open': bool(w and w.get('is_open')),
-        'start_at': (w or {}).get('start_at') or start_at,
-        'end_at':   (w or {}).get('end_at') or end_at,
-        'message': 'Janela atualizada com sucesso'
-    }), 200
+    return jsonify({'message': 'Período atualizado', 'period': period}), 200
 
-
-# ========= DIAGNÓSTICO E JANELA (GET/PUT) COM ERROS DETALHADOS =========
-EVAL_PERIOD = os.getenv('EVAL_PERIOD', '').strip()
-ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()
-
-def _ok(obj): return jsonify(obj), 200
-def _err(msg, code=500, extra=None):
-    payload = {'error': msg}
-    if extra is not None:
-        payload['detail'] = extra
-    return jsonify(payload), code
-
+# ===================== Janela (usa período atual do banco) =====================
 def get_window_row():
-    """Lê a VIEW 'evaluation_windows_status' para o período atual (se existir)."""
+    """Lê direto da tabela 'evaluation_periods' para o período atual."""
+    period = get_current_period()
     try:
-        r = (
-            supabase.table('evaluation_windows_status')
-            .select('*')
-            .eq('period', EVAL_PERIOD)
-            .limit(1)
-            .execute()
-        )
+        r = (supabase.table('evaluation_periods')
+             .select('period,start_at,end_at')
+             .eq('period', period)
+             .limit(1)
+             .execute())
         rows = r.data or []
         return rows[0] if rows else None
     except Exception as e:
-        # Se a view não existir, retornamos None e o GET marca open=False
         print('[get_window_row] erro:', e)
         return None
 
 @app.route('/api/evaluations/window', methods=['GET'])
 def api_get_window_status():
+    period = get_current_period()
     w = get_window_row()
-    return _ok({
-        'period': EVAL_PERIOD,
-        'open': bool(w and w.get('is_open')),
+    return jsonify({
+        'period': period,
         'start_at': (w or {}).get('start_at'),
         'end_at':   (w or {}).get('end_at'),
-    })
-
-@app.route('/api/evaluations/window/diag', methods=['GET'])
-def api_window_diag():
-    """Diagnóstico passo-a-passo para descobrir por que o PUT está dando 500."""
-    out = {'EVAL_PERIOD': EVAL_PERIOD, 'ADMIN_WINDOW_CODE_set': bool(ADMIN_WINDOW_CODE)}
-    # 1) testar conexão simples
-    try:
-        ping = supabase.table('employees').select('id').limit(1).execute()
-        out['supabase_ok'] = True
-    except Exception as e:
-        return _err('Falha ao conectar no Supabase (employees)', 500, str(e))
-
-    # 2) testar leitura da tabela evaluation_periods (se existe / RLS)
-    try:
-        test = (supabase.table('evaluation_periods')
-                .select('period,start_at,end_at')
-                .eq('period', EVAL_PERIOD)
-                .limit(1).execute())
-        out['evaluation_periods_readable'] = True
-        out['evaluation_periods_row'] = (test.data or [None])[0]
-    except Exception as e:
-        return _err('Falha ao ler evaluation_periods (tabela inexistente ou RLS)', 500, str(e))
-
-    # 3) testar leitura da view (se existir)
-    try:
-        w = get_window_row()
-        out['evaluation_windows_status_row'] = w
-    except Exception as e:
-        out['evaluation_windows_status_error'] = str(e)
-
-    return _ok(out)
+        'open': bool(w and w.get('start_at') and w.get('end_at')
+                     and str(w['start_at']) <= str(w['end_at'])),
+    }), 200
 
 @app.route('/api/evaluations/window', methods=['PUT', 'OPTIONS'])
 def api_put_window_update():
     if request.method == 'OPTIONS':
         return ('', 204)
-
-    # 0) JSON
     try:
         payload = request.get_json(force=True) or {}
     except Exception as e:
-        return _err('JSON inválido', 400, str(e))
+        return jsonify({'error': f'JSON inválido: {e}'}), 400
 
-    # 1) envs
-    if not EVAL_PERIOD:
-        return _err('EVAL_PERIOD não configurado no servidor', 500)
     if not ADMIN_WINDOW_CODE:
-        return _err('ADMIN_WINDOW_CODE não configurado no servidor', 500)
+        return jsonify({'error': 'ADMIN_WINDOW_CODE não configurado no servidor'}), 500
+    if (payload.get('code') or '').strip() != ADMIN_WINDOW_CODE:
+        return jsonify({'error': 'Código RH incorreto'}), 403
 
-    # 2) código RH
-    code = (payload.get('code') or '').strip()
-    if code != ADMIN_WINDOW_CODE:
-        return _err('Código RH incorreto', 403)
-
-    # 3) datas
     start_at = (payload.get('start_at') or '').strip()
     end_at   = (payload.get('end_at') or '').strip()
     if not start_at or not end_at:
-        return _err('Informe start_at e end_at (ISO-8601)', 400)
+        return jsonify({'error': 'Informe start_at e end_at (ISO-8601)'}), 400
 
-    # 4) upsert
-    row = {'period': EVAL_PERIOD, 'start_at': start_at, 'end_at': end_at}
+    period = get_current_period()
+    row = {'period': period, 'start_at': start_at, 'end_at': end_at}
     try:
-        # requer tabela: public.evaluation_periods(period text PK, start_at timestamptz, end_at timestamptz)
         supabase.table('evaluation_periods').upsert(row, on_conflict='period').execute()
     except Exception as e:
-        return _err('Falha ao salvar janela (upsert evaluation_periods)', 500, str(e))
+        return jsonify({'error': 'Falha ao salvar janela (upsert evaluation_periods)', 'detail': str(e)}), 500
 
-    # 5) retornar status atualizado (usa a view se houver)
     w = get_window_row()
-    return _ok({
-        'period': EVAL_PERIOD,
-        'open': bool(w and w.get('is_open')),
+    return jsonify({
+        'period': period,
         'start_at': (w or {}).get('start_at') or start_at,
         'end_at':   (w or {}).get('end_at') or end_at,
+        'open': bool(w and w.get('start_at') and w.get('end_at')
+                     and str(w['start_at']) <= str(w['end_at'])),
         'message': 'Janela atualizada com sucesso'
-    })
+    }), 200
 
+# ===================== Painel Admin embutido =====================
+@app.route('/admin', methods=['GET'])
+def admin_panel():
+    html = """
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Painel de Avaliações — Admin</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;line-height:1.5;margin:0;background:#f7f7fb;color:#111}
+.wrap{max-width:780px;margin:0 auto;padding:28px}
+h1{font-size:22px;margin:0 0 8px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-top:16px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;font-size:12px;color:#555;margin-bottom:6px}
+input,button{font:inherit}input[type=text],input[type=datetime-local]{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px}
+.btn{display:inline-block;padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+.btn.primary{background:#2563eb;color:#fff}.btn.ghost{background:#f3f4f6}
+.muted{color:#6b7280;font-size:13px}
+.status-pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.ok{background:#e7f9ee;color:#0a7b31;border:1px solid #b7efc8}
+.warn{background:#fff6e6;color:#a15c00;border:1px solid #ffe2ae}
+.err{background:#ffecec;color:#a10000;border:1px solid #ffbaba}
+</style></head><body>
+<div class="wrap">
+  <h1>Painel de Avaliações — Admin</h1>
+  <p class="muted">Defina o <strong>período atual</strong> e a <strong>janela</strong> (início/fim). Use o <b>código do RH</b>.</p>
 
+  <div class="card" id="status"><div><strong>Status atual</strong></div><div id="status-content" class="muted">Carregando…</div></div>
+
+  <div class="card">
+    <div style="margin-bottom:10px"><strong>Período atual</strong></div>
+    <div class="grid2">
+      <div><label>Período (MMYYYY)</label><input type="text" id="period" placeholder="ex.: 102025"/></div>
+      <div><label>Código RH</label><input type="text" id="codePeriod" placeholder="ex.: RH-2025-OK"/></div>
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn primary" id="savePeriodBtn">Salvar período atual</button>
+      <span id="msgPeriod" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="margin-bottom:10px"><strong>Atualizar janela</strong></div>
+    <div class="row">
+      <div><label>Início (local)</label><input type="datetime-local" id="startAt"/></div>
+      <div><label>Fim (local)</label><input type="datetime-local" id="endAt"/></div>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div></div><div><label>Código RH</label><input type="text" id="codeWindow" placeholder="ex.: RH-2025-OK"/></div>
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn primary" id="saveWindowBtn">Salvar janela</button>
+      <button class="btn ghost" id="reloadBtn">Recarregar status</button>
+      <span id="msgWindow" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="card"><div><strong>Dicas</strong></div>
+    <ul class="muted"><li>Período é etiqueta MMYYYY (ex.: <b>102025</b>).</li>
+    <li>Datas são salvas em UTC; os campos de data/hora convertem do seu fuso para ISO.</li></ul>
+  </div>
+</div>
+
+<script>
+const $ = sel => document.querySelector(sel);
+function fmtDate(iso){ if(!iso) return '-'; try{ return new Date(iso).toLocaleString(); }catch(e){ return iso; } }
+function toUTCStringLocal(dt){ if(!dt) return null; return new Date(dt).toISOString(); }
+
+async function loadStatus(){
+  $('#status-content').textContent = 'Carregando…';
+  try{
+    const [p,w] = await Promise.all([
+      fetch('/api/evaluations/current-period').then(r=>r.json()),
+      fetch('/api/evaluations/window').then(r=>r.json())
+    ]);
+    if(p.period) $('#period').value = p.period;
+    const pill = w.open ? '<span class="status-pill ok">ABERTA</span>'
+                        : '<span class="status-pill warn">FECHADA</span>';
+    $('#status-content').innerHTML = `${pill}<br><b>Período:</b> ${w.period||p.period||'-'}<br><b>Início:</b> ${fmtDate(w.start_at)}<br><b>Fim:</b> ${fmtDate(w.end_at)}`;
+    if(w.start_at){ $('#startAt').value = new Date(w.start_at).toISOString().slice(0,16); }
+    if(w.end_at){   $('#endAt').value   = new Date(w.end_at).toISOString().slice(0,16); }
+  }catch(e){
+    $('#status-content').innerHTML = '<span class="status-pill err">ERRO</span> '+e;
+  }
+}
+
+async function savePeriod(){
+  $('#msgPeriod').textContent = 'Salvando…';
+  const period = ($('#period').value||'').trim();
+  const code = ($('#codePeriod').value||'').trim();
+  if(!period || !code){ $('#msgPeriod').textContent = 'Preencha período e código.'; return; }
+  const r = await fetch('/api/evaluations/current-period', {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({period, code})
+  });
+  const j = await r.json();
+  $('#msgPeriod').textContent = r.ok ? 'OK' : ('Erro: '+(j.error||'falha'));
+  if(r.ok) await loadStatus();
+}
+
+async function saveWindow(){
+  $('#msgWindow').textContent = 'Salvando…';
+  const code = ($('#codeWindow').value||'').trim();
+  const s = $('#startAt').value, e = $('#endAt').value;
+  if(!code || !s || !e){ $('#msgWindow').textContent = 'Preencha datas e código.'; return; }
+  const r = await fetch('/api/evaluations/window', {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({code, start_at: toUTCStringLocal(s), end_at: toUTCStringLocal(e)})
+  });
+  const j = await r.json();
+  $('#msgWindow').textContent = r.ok ? 'OK' : ('Erro: '+(j.error||'falha'));
+  if(r.ok) await loadStatus();
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadStatus();
+  $('#savePeriodBtn').addEventListener('click', savePeriod);
+  $('#saveWindowBtn').addEventListener('click', saveWindow);
+  $('#reloadBtn').addEventListener('click', loadStatus);
+});
+</script>
+</body></html>
+    """
+    return html
+
+# ===================== Exec =====================
 if __name__ == '__main__':
     app.run(debug=True)
