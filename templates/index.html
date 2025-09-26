@@ -758,6 +758,21 @@
       if(!iso) return '-';
       try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso; }
     };
+
+    function dateBR(v){
+      if(!v) return '-';
+      const d = new Date(v);
+      if (Number.isNaN(d.valueOf())) return v;
+      return d.toLocaleDateString('pt-BR');
+    }
+    
+    function moneyBR(v){
+      if (v==null || v==='') return '-';
+      const n = Number(v);
+      if (Number.isNaN(n)) return String(v);
+      return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    }
+
     
     function setEmployeeHeader(emp, lastFinalRating = null){
       const get = (v, alt='-') => (v==null || v==='') ? alt : v;
@@ -900,26 +915,39 @@
     ========================= */
     async function startEvaluationForEmployee(employeeId) {
       try {
+        // pega a lista e acha o funcionário
         const resp = await fetch('/api/employees');
         const employees = await resp.json();
         currentEmployee = employees.find(emp => emp.id === employeeId);
-        if (!currentEmployee) return;
+        if (!currentEmployee) return alert('Funcionário não encontrado');
     
-        setEmployeeHeader(currentEmployee, null);
-
+        // pega a última avaliação para mostrar o último rating no cabeçalho
+        let lastFinalRating = null;
+        try {
+          const r = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
+          if (r.ok) {
+            const j = await r.json();
+            lastFinalRating = (j?.evaluation?.final_rating ?? null);
+          }
+        } catch (_) {}
     
+        // preenche o cabeçalho (usa seus IDs do grid)
+        setEmployeeHeader(currentEmployee, lastFinalRating);
+    
+        // carrega a avaliação
         await loadEvaluationCriteria();
-        await loadGoals();          // carrega metas e liga eventos
-        initDimensionWeights();     // liga eventos dos pesos das dimensões
+        await loadGoals();          // metas + eventos
+        initDimensionWeights();     // pesos + eventos
         calculateFinalRating();     // primeira passada
     
-        qs('#evaluation-section').style.display = 'block';
-        qs('#evaluation-section').scrollIntoView({behavior:'smooth'});
+        document.getElementById('evaluation-section').style.display = 'block';
+        document.getElementById('evaluation-section').scrollIntoView({behavior:'smooth'});
       } catch (e) {
         console.error(e);
         alert('Erro ao iniciar avaliação');
       }
     }
+
     
     async function loadEvaluationCriteria() {
       try {
@@ -1381,7 +1409,7 @@
         const { evaluation: ev, responses, weights, goals } = await resp.json();
         console.log("[payload]", { ev, responses, weights, goals });
     
-        // 2) (Opcional) Se quiser mostrar nome/cargo, busque o employee
+        // 2) Buscar dados do funcionário para o cabeçalho
         let employee = null;
         try {
           const er = await fetch('/api/employees');
@@ -1389,14 +1417,23 @@
           employee = employees.find(e => Number(e.id) === Number(ev.employee_id));
         } catch (_) {}
     
-        // 3) Preenche cabeçalho (usa employee se tiver, senão fallback)
-        currentEmployee = { id: ev.employee_id };
-        qs('#employee-name').textContent = employee?.nome ?? `ID ${ev.employee_id}`;
-        qs('#employee-position').textContent = employee?.cargo ?? '-';
-        qs('#employee-company').textContent = employee?.empresa ?? '-';
-        qs('#employee-manager').textContent = 'Gestor';
-        qs('#employee-hay').textContent = '—';
-        qs('#employee-rating').textContent = (ev.final_rating ?? '-');
+        // 3) Define currentEmployee e preenche o cabeçalho com setEmployeeHeader
+        currentEmployee = employee || {
+          id: ev.employee_id,
+          nome: `ID ${ev.employee_id}`,
+          cargo: '-',
+          empresa: '-',
+          department_name: '-',
+          branch_name: '-',
+          admission_date: null,
+          manager_name: '-',
+          birth_date: null,
+          employment_status: 'ATIVO',
+          leave_reason: '',
+          salario: null
+        };
+        // 👉 Aqui preenche tudo no cabeçalho (inclui a nota final da última avaliação)
+        setEmployeeHeader(currentEmployee, ev?.final_rating ?? null);
     
         // 4) Gera DOM dos critérios (precisa existir antes de marcar botões)
         await loadEvaluationCriteria();
@@ -1419,7 +1456,7 @@
         qs('#weight-metas').value         = (weights?.METAS ?? 25);
         updateDimensionWeights();
     
-        // 7) Metas: se vierem, renderiza; se não, mantém vazio (ou loadGoals())
+        // 7) Metas: se vierem, renderiza; se não, deixe vazio (ou chame loadGoals())
         if (Array.isArray(goals) && goals.length) {
           qs('#goals-container').innerHTML = '';
           goals.forEach((goal, index) => {
@@ -1453,7 +1490,7 @@
           });
           updateGoalsWeight();
         } else {
-          // se você prefere mostrar metas vazias:
+          // // Se preferir mostrar metas vazias:
           // await loadGoals();
         }
     
