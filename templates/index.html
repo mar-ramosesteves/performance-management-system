@@ -753,25 +753,20 @@
             
 
     // ====== Helpers de formatação + cabeçalho do avaliado ======
-    const moneyBR = (v) => (v==null || isNaN(v)) ? '-' : Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    const dateBR  = (iso) => {
-      if(!iso) return '-';
-      try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso; }
-    };
-
-    function dateBR(v){
-      if(!v) return '-';
-      const d = new Date(v);
-      if (Number.isNaN(d.valueOf())) return v;
-      return d.toLocaleDateString('pt-BR');
-    }
-    
-    function moneyBR(v){
+    // ===== Helpers de formatação (únicos e seguros) =====
+    window.moneyBR = window.moneyBR || function(v){
       if (v==null || v==='') return '-';
       const n = Number(v);
       if (Number.isNaN(n)) return String(v);
-      return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    }
+      return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+    };
+    
+    window.dateBR = window.dateBR || function(v){
+      if (!v) return '-';
+      const d = new Date(v);
+      if (Number.isNaN(d.valueOf())) return v;
+      return d.toLocaleDateString('pt-BR');
+    };
 
     
     function setEmployeeHeader(emp, lastFinalRating = null){
