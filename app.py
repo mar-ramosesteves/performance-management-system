@@ -781,6 +781,98 @@ def admin_panel():
     return html
 # =====================  /ADMIN PAINEL  =====================
 
+# ========= JANELA DE AVALIAÇÃO (GET + PUT) =========
+# Depende destas ENVs no Render:
+# - EVAL_PERIOD (ex.: "2025H2" ou "102025")
+# - ADMIN_WINDOW_CODE (ex.: "RH-2025-OK")
+
+EVAL_PERIOD = os.getenv('EVAL_PERIOD', '').strip()
+ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()
+
+def get_window_row():
+    """
+    Lê a VIEW 'evaluation_windows_status' para o período atual.
+    (A view calcula is_open com base em start_at/end_at.)
+    """
+    try:
+        r = (
+            supabase.table('evaluation_windows_status')
+            .select('*')
+            .eq('period', EVAL_PERIOD)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        # Se a view ainda não existe, devolve None (o GET mostrará fechado)
+        print(f"[get_window_row] erro: {e}")
+        return None
+
+@app.route('/api/evaluations/window', methods=['GET'])
+def api_get_window():
+    w = get_window_row()
+    return jsonify({
+        'period': EVAL_PERIOD,
+        'open': bool(w and w.get('is_open')),
+        'start_at': (w or {}).get('start_at'),
+        'end_at':   (w or {}).get('end_at'),
+    }), 200
+
+@app.route('/api/evaluations/window', methods=['PUT', 'OPTIONS'])
+def api_put_window():
+    # Preflight já é tratado no @app.before_request; aqui só reforço:
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    # 1) valida código
+    try:
+        payload = request.get_json(force=True) or {}
+    except Exception as e:
+        return jsonify({'error': f'JSON inválido: {e}'}), 400
+
+    code = (payload.get('code') or '').strip()
+    if not ADMIN_WINDOW_CODE:
+        return jsonify({'error': 'ADMIN_WINDOW_CODE não configurado no servidor'}), 500
+    if code != ADMIN_WINDOW_CODE:
+        return jsonify({'error': 'Código RH incorreto'}), 403
+
+    # 2) valida datas
+    start_at = (payload.get('start_at') or '').strip()
+    end_at   = (payload.get('end_at') or '').strip()
+    if not start_at or not end_at:
+        return jsonify({'error': 'Informe start_at e end_at (ISO-8601)'}), 400
+    # Não vamos converter aqui; salvamos como enviado (ISO vindo do front).
+
+    if not EVAL_PERIOD:
+        return jsonify({'error': 'EVAL_PERIOD não configurado no servidor'}), 500
+
+    # 3) grava/atualiza o período
+    # TABELA base esperada: public.evaluation_periods (period PK único)
+    # Colunas mínimas: period (TEXT), start_at (timestamptz), end_at (timestamptz)
+    row = {
+        'period': EVAL_PERIOD,
+        'start_at': start_at,
+        'end_at': end_at,
+    }
+
+    try:
+        # upsert: se já existe o período, atualiza; senão, cria
+        # se sua PK/unique for outra, ajuste o 'on_conflict'
+        up = supabase.table('evaluation_periods').upsert(row, on_conflict='period').execute()
+    except Exception as e:
+        return jsonify({'error': f'Falha ao salvar janela: {e}'}), 500
+
+    # 4) retorna status atualizado
+    w = get_window_row()
+    return jsonify({
+        'period': EVAL_PERIOD,
+        'open': bool(w and w.get('is_open')),
+        'start_at': (w or {}).get('start_at') or start_at,
+        'end_at':   (w or {}).get('end_at') or end_at,
+        'message': 'Janela atualizada com sucesso'
+    }), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
