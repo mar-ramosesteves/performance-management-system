@@ -860,5 +860,121 @@ def api_put_window():
     }), 200
 
 
+# ========= DIAGNÓSTICO E JANELA (GET/PUT) COM ERROS DETALHADOS =========
+EVAL_PERIOD = os.getenv('EVAL_PERIOD', '').strip()
+ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()
+
+def _ok(obj): return jsonify(obj), 200
+def _err(msg, code=500, extra=None):
+    payload = {'error': msg}
+    if extra is not None:
+        payload['detail'] = extra
+    return jsonify(payload), code
+
+def get_window_row():
+    """Lê a VIEW 'evaluation_windows_status' para o período atual (se existir)."""
+    try:
+        r = (
+            supabase.table('evaluation_windows_status')
+            .select('*')
+            .eq('period', EVAL_PERIOD)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        # Se a view não existir, retornamos None e o GET marca open=False
+        print('[get_window_row] erro:', e)
+        return None
+
+@app.route('/api/evaluations/window', methods=['GET'])
+def api_get_window_status():
+    w = get_window_row()
+    return _ok({
+        'period': EVAL_PERIOD,
+        'open': bool(w and w.get('is_open')),
+        'start_at': (w or {}).get('start_at'),
+        'end_at':   (w or {}).get('end_at'),
+    })
+
+@app.route('/api/evaluations/window/diag', methods=['GET'])
+def api_window_diag():
+    """Diagnóstico passo-a-passo para descobrir por que o PUT está dando 500."""
+    out = {'EVAL_PERIOD': EVAL_PERIOD, 'ADMIN_WINDOW_CODE_set': bool(ADMIN_WINDOW_CODE)}
+    # 1) testar conexão simples
+    try:
+        ping = supabase.table('employees').select('id').limit(1).execute()
+        out['supabase_ok'] = True
+    except Exception as e:
+        return _err('Falha ao conectar no Supabase (employees)', 500, str(e))
+
+    # 2) testar leitura da tabela evaluation_periods (se existe / RLS)
+    try:
+        test = (supabase.table('evaluation_periods')
+                .select('period,start_at,end_at')
+                .eq('period', EVAL_PERIOD)
+                .limit(1).execute())
+        out['evaluation_periods_readable'] = True
+        out['evaluation_periods_row'] = (test.data or [None])[0]
+    except Exception as e:
+        return _err('Falha ao ler evaluation_periods (tabela inexistente ou RLS)', 500, str(e))
+
+    # 3) testar leitura da view (se existir)
+    try:
+        w = get_window_row()
+        out['evaluation_windows_status_row'] = w
+    except Exception as e:
+        out['evaluation_windows_status_error'] = str(e)
+
+    return _ok(out)
+
+@app.route('/api/evaluations/window', methods=['PUT', 'OPTIONS'])
+def api_put_window_update():
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    # 0) JSON
+    try:
+        payload = request.get_json(force=True) or {}
+    except Exception as e:
+        return _err('JSON inválido', 400, str(e))
+
+    # 1) envs
+    if not EVAL_PERIOD:
+        return _err('EVAL_PERIOD não configurado no servidor', 500)
+    if not ADMIN_WINDOW_CODE:
+        return _err('ADMIN_WINDOW_CODE não configurado no servidor', 500)
+
+    # 2) código RH
+    code = (payload.get('code') or '').strip()
+    if code != ADMIN_WINDOW_CODE:
+        return _err('Código RH incorreto', 403)
+
+    # 3) datas
+    start_at = (payload.get('start_at') or '').strip()
+    end_at   = (payload.get('end_at') or '').strip()
+    if not start_at or not end_at:
+        return _err('Informe start_at e end_at (ISO-8601)', 400)
+
+    # 4) upsert
+    row = {'period': EVAL_PERIOD, 'start_at': start_at, 'end_at': end_at}
+    try:
+        # requer tabela: public.evaluation_periods(period text PK, start_at timestamptz, end_at timestamptz)
+        supabase.table('evaluation_periods').upsert(row, on_conflict='period').execute()
+    except Exception as e:
+        return _err('Falha ao salvar janela (upsert evaluation_periods)', 500, str(e))
+
+    # 5) retornar status atualizado (usa a view se houver)
+    w = get_window_row()
+    return _ok({
+        'period': EVAL_PERIOD,
+        'open': bool(w and w.get('is_open')),
+        'start_at': (w or {}).get('start_at') or start_at,
+        'end_at':   (w or {}).get('end_at') or end_at,
+        'message': 'Janela atualizada com sucesso'
+    })
+
+
 if __name__ == '__main__':
     app.run(debug=True)
