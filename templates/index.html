@@ -781,6 +781,58 @@
       return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
     };
 
+
+    // --- Renderiza metas e liga eventos (usado em "Ver Avaliação" e pode ser reutilizado no "Novo") ---
+    function renderGoalsFrom(goalsList) {
+      const box = document.querySelector('#goals-container');
+      if (!box) return;
+      box.innerHTML = '';
+    
+      // se vazio, nada a fazer
+      if (!Array.isArray(goalsList) || goalsList.length === 0) return;
+    
+      goalsList.forEach((goal, idx) => {
+        const w = Number(goal.weight ?? goal.peso ?? 0);
+        const r = Number(goal.rating ?? goal.nota ?? 0);
+        const name = goal.name || goal.goal_name || goal.nome || '';
+        const desc = goal.description || goal.goal_description || goal.descricao || '';
+    
+        const wrap = document.createElement('div');
+        wrap.className = 'goal-item';
+        wrap.innerHTML = `
+          <div class="goal-header">
+            <h4>Meta ${idx + 1}</h4>
+            <input type="number" id="goal-weight-${idx}" min="0" max="100"
+                   value="${!Number.isNaN(w) ? w : 0}" placeholder="Peso %" />
+          </div>
+          <div class="goal-content">
+            <input type="text" id="goal-name-${idx}" value="${name}" placeholder="Nome da Meta">
+            <textarea id="goal-description-${idx}" placeholder="Descrição da Meta">${desc}</textarea>
+          </div>
+          <div class="goal-rating">
+            <label>Rating Atual:</label>
+            <select id="goal-rating-${idx}">
+              <option value="">Selecione</option>
+              ${[1,2,3,4,5].map(nv => `<option value="${nv}" ${nv===r ? 'selected':''}>${nv}</option>`).join('')}
+            </select>
+          </div>`;
+        box.appendChild(wrap);
+      });
+    
+      // liga eventos p/ recalcular sempre que usuário mexer
+      document.querySelectorAll('[id^="goal-weight-"]').forEach(inp => {
+        inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+        inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+      });
+      document.querySelectorAll('[id^="goal-rating-"]').forEach(sel => {
+        sel.addEventListener('change', () => calculateFinalRating());
+      });
+    
+      // sincroniza pesos de metas com DOM e força recálculo visual
+      updateGoalsWeight();
+      calculateFinalRating();
+    }
+
     // Normaliza pesos vindos do backend (aceita várias formas)
     function normalizeDimensionWeights(w) {
       const out = { INSTITUCIONAL: 25, FUNCIONAL: 25, INDIVIDUAL: 25, METAS: 25 };
@@ -1504,6 +1556,12 @@
     
         // 4) Gera DOM dos critérios (precisa existir antes de marcar botões)
         await loadEvaluationCriteria();
+        
+        // 👉 importante no fluxo "ver": liga os listeners dos pesos
+        if (typeof initDimensionWeights === 'function') {
+          initDimensionWeights();
+        }
+
     
         // 5) Marcar respostas critério a critério
         evaluationData = {};
@@ -1516,23 +1574,30 @@
           if (btn) { btn.classList.add('selected'); evaluationData[cid] = r; }
         });
     
-        // 6) Pesos das dimensões (usar o que foi salvo)
+        // 6) Pesos das dimensões — use o que foi salvo
         const savedWeights = normalizeDimensionWeights(weights || ev?.dimension_weights || {});
         if (qs('#weight-institucional')) qs('#weight-institucional').value = String(savedWeights.INSTITUCIONAL);
         if (qs('#weight-funcional'))     qs('#weight-funcional').value     = String(savedWeights.FUNCIONAL);
         if (qs('#weight-individual'))    qs('#weight-individual').value    = String(savedWeights.INDIVIDUAL);
         if (qs('#weight-metas'))         qs('#weight-metas').value         = String(savedWeights.METAS);
-        updateDimensionWeights(); // mantém sua barra verde e total
         
-        // 7) Metas: considerar várias formas que podem vir do backend
+        // força atualizar barra e nota
+        updateDimensionWeights();
+        calculateFinalRating();
+
+        
+        // 7) Metas — pegue do payload (goals) ou de ev.goals_json
         let goalsList = goals;
         if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
           try { goalsList = JSON.parse(ev.goals_json); } catch {}
         }
         if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
-          // às vezes vem em ev.goals
           goalsList = ev.goals;
         }
+        
+        // Renderiza metas salvas (e liga eventos)
+        renderGoalsFrom(goalsList);
+
         
         if (Array.isArray(goalsList) && goalsList.length) {
           // Renderiza metas salvas
