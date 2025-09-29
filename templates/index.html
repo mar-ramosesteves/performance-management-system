@@ -749,7 +749,27 @@
     };
 
 
-        
+    // Normaliza pesos vindos do backend (aceita chaves maiúsculas/minúsculas)
+    function normalizeDimensionWeights(w) {
+      const out = { INSTITUCIONAL: 25, FUNCIONAL: 25, INDIVIDUAL: 25, METAS: 25 };
+      if (!w || typeof w !== 'object') return out;
+    
+      // tenta várias fontes de onde isso pode vir
+      const src = (w.dimension_weights && typeof w.dimension_weights === 'object') ? w.dimension_weights : w;
+    
+      for (const [k, v] of Object.entries(src)) {
+        const key = String(k).toUpperCase().trim();
+        const num = Number(v);
+        if (!Number.isNaN(num)) {
+          if (key === 'INSTITUCIONAL') out.INSTITUCIONAL = num;
+          if (key === 'FUNCIONAL')     out.FUNCIONAL     = num;
+          if (key === 'INDIVIDUAL')    out.INDIVIDUAL    = num;
+          if (key === 'METAS')         out.METAS         = num;
+        }
+      }
+      return out;
+    }
+    
             
 
     // ====== Helpers de formatação + cabeçalho do avaliado ======
@@ -767,6 +787,8 @@
       if (Number.isNaN(d.valueOf())) return v;
       return d.toLocaleDateString('pt-BR');
     };
+
+    
 
     function fmtEmpCode(emp){
       const code = (emp?.employee_code ?? '').toString().trim();
@@ -1457,12 +1479,14 @@
           if (btn) { btn.classList.add('selected'); evaluationData[cid] = r; }
         });
     
-        // 6) Pesos das dimensões
-        qs('#weight-institucional').value = (weights?.INSTITUCIONAL ?? 25);
-        qs('#weight-funcional').value     = (weights?.FUNCIONAL ?? 25);
-        qs('#weight-individual').value    = (weights?.INDIVIDUAL ?? 25);
-        qs('#weight-metas').value         = (weights?.METAS ?? 25);
+        // 6) Pesos das dimensões (carrega o que foi salvo)
+        const savedWeights = normalizeDimensionWeights(weights || ev?.dimension_weights || {});
+        if (qs('#weight-institucional')) qs('#weight-institucional').value = String(savedWeights.INSTITUCIONAL);
+        if (qs('#weight-funcional'))     qs('#weight-funcional').value     = String(savedWeights.FUNCIONAL);
+        if (qs('#weight-individual'))    qs('#weight-individual').value    = String(savedWeights.INDIVIDUAL);
+        if (qs('#weight-metas'))         qs('#weight-metas').value         = String(savedWeights.METAS);
         updateDimensionWeights();
+
     
         // 7) Metas: se vierem, renderiza; se não, deixe vazio (ou chame loadGoals())
         if (Array.isArray(goals) && goals.length) {
