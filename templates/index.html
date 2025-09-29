@@ -768,6 +768,11 @@
       return d.toLocaleDateString('pt-BR');
     };
 
+    function fmtEmpCode(emp){
+      const code = (emp?.employee_code ?? '').toString().trim();
+      if (code) return code.padStart(4,'0');   // ex.: 0009
+      return (emp?.id != null) ? `INT-${emp.id}` : '-'; // fallback
+    }
     
     function setEmployeeHeader(emp, lastFinalRating = null){
       const get = (v, alt='-') => (v==null || v==='') ? alt : v;
@@ -905,9 +910,7 @@
       }
     }
     
-    /* =========================
-       Avaliação
-    ========================= */
+    /* =========================Avaliação========================= */
     async function startEvaluationForEmployee(employeeId) {
       try {
         // pega a lista e acha o funcionário
@@ -928,6 +931,11 @@
     
         // preenche o cabeçalho (usa seus IDs do grid)
         setEmployeeHeader(currentEmployee, lastFinalRating);
+        
+        // corrige o ID para mostrar o employee_code (0009) em vez do id interno
+        const idEl = document.querySelector('#employee-id');
+        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
+
     
         // carrega a avaliação
         await loadEvaluationCriteria();
@@ -1429,6 +1437,11 @@
         };
         // 👉 Aqui preenche tudo no cabeçalho (inclui a nota final da última avaliação)
         setEmployeeHeader(currentEmployee, ev?.final_rating ?? null);
+
+        // força o campo "ID" a exibir o employee_code (ex.: 0009) em vez do id interno
+        const idEl = document.querySelector('#employee-id');
+        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee); // usa employee_code se existir
+  
     
         // 4) Gera DOM dos critérios (precisa existir antes de marcar botões)
         await loadEvaluationCriteria();
