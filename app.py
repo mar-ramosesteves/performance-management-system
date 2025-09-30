@@ -251,6 +251,7 @@ def api_evaluations_latest():
         if not employee_id:
             return jsonify({'error': 'employee_id obrigatório'}), 400
 
+        # Buscar avaliação
         r_ev = (supabase.table('evaluations')
                 .select('*')
                 .eq('employee_id', employee_id)
@@ -263,6 +264,7 @@ def api_evaluations_latest():
             return jsonify({'error': 'nenhuma_avaliacao'}), 404
         ev = data[0]
 
+        # Buscar respostas
         r_resp = (supabase.table('evaluation_responses')
                   .select('evaluation_id,criteria_id,rating')
                   .eq('evaluation_id', ev['id'])
@@ -275,35 +277,36 @@ def api_evaluations_latest():
             'rating': x.get('rating')
         } for x in rows]
 
-        w = ev.get('dimension_weights') or ev.get('weights')
-        if isinstance(w, str):
-            try:
-                w = json.loads(w)
-            except Exception:
-                w = None
-        if isinstance(w, dict):
-            up = {str(k).upper(): v for k, v in w.items()}
-            weights = {
-                'INSTITUCIONAL': float(up.get('INSTITUCIONAL', 25) or 25),
-                'FUNCIONAL':     float(up.get('FUNCIONAL', 25) or 25),
-                'INDIVIDUAL':    float(up.get('INDIVIDUAL', 25) or 25),
-                'METAS':         float(up.get('METAS', 25) or 25),
-            }
-        else:
-            weights = {
-                'INSTITUCIONAL': float(ev.get('weight_institucional') or 25),
-                'FUNCIONAL':     float(ev.get('weight_funcional') or 25),
-                'INDIVIDUAL':    float(ev.get('weight_individual') or 25),
-                'METAS':         float(ev.get('weight_metas') or 25),
-            }
+        # Buscar metas da tabela individual_goals
+        r_goals = (supabase.table('individual_goals')
+                   .select('*')
+                   .eq('evaluation_id', ev['id'])
+                   .execute())
+        goals_data = r_goals.data or []
+        
+        # Converter para formato esperado pelo frontend
+        goals = []
+        for goal in goals_data:
+            goals.append({
+                'index': goal.get('goal_index', 1),
+                'name': goal.get('goal_name', ''),
+                'description': goal.get('goal_description', ''),
+                'weight': float(goal.get('weight', 0)),
+                'rating': int(goal.get('rating', 0)) if goal.get('rating') else None,
+                'rating_1_criteria': goal.get('rating_1_criteria', ''),
+                'rating_2_criteria': goal.get('rating_2_criteria', ''),
+                'rating_3_criteria': goal.get('rating_3_criteria', ''),
+                'rating_4_criteria': goal.get('rating_4_criteria', ''),
+                'rating_5_criteria': goal.get('rating_5_criteria', '')
+            })
 
-        g = ev.get('goals') or ev.get('individual_goals')
-        if isinstance(g, str):
-            try:
-                g = json.loads(g)
-            except Exception:
-                g = None
-        goals = g if isinstance(g, list) else []
+        # Pesos das dimensões - usar valores salvos ou padrão
+        weights = {
+            'INSTITUCIONAL': float(ev.get('weight_institucional', 25)),
+            'FUNCIONAL':     float(ev.get('weight_funcional', 25)),
+            'INDIVIDUAL':    float(ev.get('weight_individual', 25)),
+            'METAS':         float(ev.get('weight_metas', 25)),
+        }
 
         return jsonify({
             'evaluation': ev,
@@ -313,6 +316,7 @@ def api_evaluations_latest():
         })
     except Exception as e:
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
 
 # Compat: pegar respostas por evaluation_id
 @app.route('/api/evaluation-responses', methods=['GET'])
