@@ -394,7 +394,7 @@ def create_evaluation():
             goals_to_save = []
             for goal in data['goals']:
                 goals_to_save.append({
-                    'evaluation_id': evaluation_id,
+                    
                     'goal_index': goal.get('index', 1),
                     'goal_name': goal.get('name', ''),
                     'goal_description': goal.get('description', ''),
