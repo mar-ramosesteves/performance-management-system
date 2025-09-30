@@ -703,7 +703,15 @@
                         
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="d-flex gap-2">
-                                <button class="btn btn-success btn-sm" onclick="addGoal()">
+                                 <button class="btn btn-success btn-sm" onclick="addGoal()">
+                                    <i class="fas fa-plus me-1"></i>Adicionar Meta
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="removeGoal()">
+                                    <i class="fas fa-trash me-1"></i>Excluir Meta
+                                </button>
+                                
+
+                                    
                                     <i class="fas fa-plus me-1"></i>Adicionar Meta
                                 </button>
                                 <button class="btn btn-primary btn-sm" onclick="saveGoals()">
@@ -1057,6 +1065,9 @@
             goalsContainer.innerHTML = '';
         }
         
+        // Limpa dados de avaliação anteriores
+        evaluationData = {};
+        
         await loadGoals();          // metas + eventos
         initDimensionWeights();     // pesos + eventos
         calculateFinalRating();     // primeira passada
@@ -1224,7 +1235,22 @@
     
       updateGoalsWeight();
     }
-    
+
+
+
+    function removeGoal() {
+        const container = qs('#goals-container');
+        const goals = qsa('.goal-item');
+        if (goals.length > 0) {
+            goals[goals.length - 1].remove();
+            updateGoalsWeight();
+            calculateFinalRating();
+        }
+    }
+
+
+
+        
     function saveGoals() {
       const { goals, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) {
