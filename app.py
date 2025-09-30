@@ -286,12 +286,12 @@ def api_evaluations_latest():
         } for x in rows]
 
         # Buscar metas da tabela individual_goals (sem evaluation_id)
+                
         goals = []
-        
-        
         try:
             r_goals = (supabase.table('individual_goals')
                        .select('*')
+                       .eq('employee_id', employee_id)
                        .execute())
             goals_data = r_goals.data or []
             
