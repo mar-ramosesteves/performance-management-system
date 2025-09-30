@@ -703,11 +703,8 @@
                         
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="d-flex gap-2">
-                                 <button class="btn btn-success btn-sm" onclick="addGoal()">
+                                <button class="btn btn-success btn-sm" onclick="addGoal()">
                                     <i class="fas fa-plus me-1"></i>Adicionar Meta
-                                </button>
-                                <button class="btn btn-danger btn-sm" onclick="removeGoal()">
-                                    <i class="fas fa-trash me-1"></i>Excluir Meta
                                 </button>
                                 
 
@@ -1068,7 +1065,18 @@
         // Limpa dados de avaliação anteriores
         evaluationData = {};
         
+        // Limpa metas anteriores e carrega metas vazias
+        const goalsContainer = document.querySelector('#goals-container');
+        if (goalsContainer) {
+            goalsContainer.innerHTML = '';
+        }
+        
+        // Carrega metas vazias para novo funcionário
         await loadGoals();          // metas + eventos
+
+
+
+          
         initDimensionWeights();     // pesos + eventos
         calculateFinalRating();     // primeira passada
     
@@ -1203,6 +1211,15 @@
       el.innerHTML = `
         <div class="goal-header">
           <h4>Meta ${index + 1}</h4>
+        <div class="goal-header">
+            <h4>Meta ${index + 1}</h4>
+            <button class="btn btn-danger btn-sm" onclick="removeGoal(${index})">
+                <i class="fas fa-trash me-1"></i>Excluir
+            </button>
+        </div>  
+
+            
+          
           <input type="number" id="goal-weight-${index}" min="0" max="100" value="33.33" placeholder="Peso %">
         </div>
         <div class="goal-content">
@@ -1238,11 +1255,11 @@
 
 
 
-    function removeGoal() {
+    function removeGoal(goalIndex) {
         const container = qs('#goals-container');
         const goals = qsa('.goal-item');
-        if (goals.length > 0) {
-            goals[goals.length - 1].remove();
+        if (goals.length > 0 && goalIndex >= 0 && goalIndex < goals.length) {
+            goals[goalIndex].remove();
             updateGoalsWeight();
             calculateFinalRating();
         }
