@@ -277,29 +277,33 @@ def api_evaluations_latest():
             'rating': x.get('rating')
         } for x in rows]
 
-        # Buscar metas da tabela individual_goals
-        r_goals = (supabase.table('individual_goals')
-                   .select('*')
-                   .eq('evaluation_id', ev['id'])
-                   .execute())
-        goals_data = r_goals.data or []
-        
-        # Converter para formato esperado pelo frontend
-        goals = []
-        for goal in goals_data:
-            goals.append({
-                'index': goal.get('goal_index', 1),
-                'name': goal.get('goal_name', ''),
-                'description': goal.get('goal_description', ''),
-                'weight': float(goal.get('weight', 0)),
-                'rating': int(goal.get('rating', 0)) if goal.get('rating') else None,
-                'rating_1_criteria': goal.get('rating_1_criteria', ''),
-                'rating_2_criteria': goal.get('rating_2_criteria', ''),
-                'rating_3_criteria': goal.get('rating_3_criteria', ''),
-                'rating_4_criteria': goal.get('rating_4_criteria', ''),
-                'rating_5_criteria': goal.get('rating_5_criteria', '')
-            })
+                # Buscar metas da tabela individual_goals (sem evaluation_id)
+                goals = []
+                try:
+                    r_goals = (supabase.table('individual_goals')
+                               .select('*')
+                               .execute())
+                    goals_data = r_goals.data or []
+                    
+                    # Converter para formato esperado pelo frontend
+                    for goal in goals_data:
+                        goals.append({
+                            'index': goal.get('goal_index', 1),
+                            'name': goal.get('goal_name', ''),
+                            'description': goal.get('goal_description', ''),
+                            'weight': float(goal.get('weight', 0)),
+                            'rating': int(goal.get('rating', 0)) if goal.get('rating') else None,
+                            'rating_1_criteria': goal.get('rating_1_criteria', ''),
+                            'rating_2_criteria': goal.get('rating_2_criteria', ''),
+                            'rating_3_criteria': goal.get('rating_3_criteria', ''),
+                            'rating_4_criteria': goal.get('rating_4_criteria', ''),
+                            'rating_5_criteria': goal.get('rating_5_criteria', '')
+                        })
+                except Exception as e:
+                    print(f"Erro ao buscar metas: {e}")
+                    goals = []
 
+        
         # Pesos das dimensões - usar valores salvos ou padrão
         weights = {
             'INSTITUCIONAL': float(ev.get('weight_institucional', 25)),
