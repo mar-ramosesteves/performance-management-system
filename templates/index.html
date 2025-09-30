@@ -1050,6 +1050,13 @@
     
         // carrega a avaliação
         await loadEvaluationCriteria();
+        
+        // Limpa metas anteriores
+        const goalsContainer = document.querySelector('#goals-container');
+        if (goalsContainer) {
+            goalsContainer.innerHTML = '';
+        }
+        
         await loadGoals();          // metas + eventos
         initDimensionWeights();     // pesos + eventos
         calculateFinalRating();     // primeira passada
