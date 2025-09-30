@@ -1056,6 +1056,11 @@
         // carrega a avaliação
         await loadEvaluationCriteria();
         
+        
+        
+        // Limpa dados de avaliação anteriores
+        evaluationData = {};
+        
         // Limpa metas anteriores
         const goalsContainer = document.querySelector('#goals-container');
         if (goalsContainer) {
@@ -1065,13 +1070,6 @@
         // Limpa dados de avaliação anteriores
         evaluationData = {};
         
-        // Limpa metas anteriores e carrega metas vazias
-        const goalsContainer = document.querySelector('#goals-container');
-        if (goalsContainer) {
-            goalsContainer.innerHTML = '';
-        }
-        
-        // Carrega metas vazias para novo funcionário
         await loadGoals();          // metas + eventos
 
 
