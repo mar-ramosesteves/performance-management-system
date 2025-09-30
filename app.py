@@ -388,7 +388,24 @@ def create_evaluation():
             })
         if responses:
             supabase.table('evaluation_responses').insert(responses).execute()
-
+            
+        # Salvar metas na tabela individual_goals
+        if data.get('goals'):
+            goals_to_save = []
+            for goal in data['goals']:
+                goals_to_save.append({
+                    'employee_id': data['employee_id'],
+                    'goal_name': goal.get('name', ''),
+                    'goal_description': goal.get('description', ''),
+                    'weight': float(goal.get('weight', 0)),
+                    'rating_1_criteria': goal.get('rating_1_criteria', ''),
+                    'rating_2_criteria': goal.get('rating_2_criteria', ''),
+                    'rating_3_criteria': goal.get('rating_3_criteria', ''),
+                    'rating_4_criteria': goal.get('rating_4_criteria', ''),
+                    'rating_5_criteria': goal.get('rating_5_criteria', '')
+                })
+            if goals_to_save:
+                supabase.table('individual_goals').insert(goals_to_save).execute()    
                         
        
         try:
