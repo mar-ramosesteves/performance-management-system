@@ -1124,6 +1124,7 @@
       try {
         const goals = await (await fetch('/api/individual-goals')).json();
         const container = qs('#goals-container');
+        container.innerHTML = ''; // Limpa metas anteriores
         container.innerHTML = '';
     
         goals.forEach((goal, index) => {
