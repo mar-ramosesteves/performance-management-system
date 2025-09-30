@@ -403,7 +403,8 @@ def create_evaluation():
                     'rating_2_criteria': goal.get('rating_2_criteria', ''),
                     'rating_3_criteria': goal.get('rating_3_criteria', ''),
                     'rating_4_criteria': goal.get('rating_4_criteria', ''),
-                    'rating_5_criteria': goal.get('rating_5_criteria', '')
+                    'rating_5_criteria': goal.get('rating_5_criteria', ''),
+                    'rating': int(goal.get('rating', 0)) if goal.get('rating') else None
                 })
             if goals_to_save:
                 supabase.table('individual_goals').insert(goals_to_save).execute()    
