@@ -1581,17 +1581,19 @@
     
         // 6) Pesos das dimensões — use o que foi salvo
         const savedWeights = normalizeDimensionWeights(weights || ev?.dimension_weights || {});
-        if (qs('#weight-institucional')) qs('#weight-institucional').value = String(savedWeights.INSTITUCIONAL);
-        if (qs('#weight-funcional'))     qs('#weight-funcional').value     = String(savedWeights.FUNCIONAL);
-        if (qs('#weight-individual'))    qs('#weight-individual').value    = String(savedWeights.INDIVIDUAL);
-        if (qs('#weight-metas'))         qs('#weight-metas').value         = String(savedWeights.METAS);
+        console.log('Pesos salvos:', savedWeights);
+        
+        // Preenche os campos de peso
+        document.getElementById('weight-institucional').value = savedWeights.INSTITUCIONAL;
+        document.getElementById('weight-funcional').value = savedWeights.FUNCIONAL;
+        document.getElementById('weight-individual').value = savedWeights.INDIVIDUAL;
+        document.getElementById('weight-metas').value = savedWeights.METAS;
         
         // força atualizar barra e nota
         updateDimensionWeights();
         calculateFinalRating();
-
         
-        // 7) Metas — pegue do payload (goals) ou de ev.goals_json
+        /// 7) Metas — pegue do payload (goals) ou de ev.goals_json
         let goalsList = goals;
         if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
           try { goalsList = JSON.parse(ev.goals_json); } catch {}
