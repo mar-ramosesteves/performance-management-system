@@ -279,7 +279,7 @@ def api_evaluations_latest():
             'rating': x.get('rating')
         } for x in rows]
 
-                responses = [{
+        responses = [{
             'evaluation_id': x.get('evaluation_id'),
             'criteria_id': x.get('criteria_id'),
             'rating': x.get('rating')
