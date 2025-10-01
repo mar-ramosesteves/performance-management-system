@@ -373,11 +373,22 @@ def create_evaluation():
             'final_rating': data.get('final_rating'),
             'goals_average': data.get('goals_average')
         }
-        evaluation_response = supabase.table('evaluations').insert(evaluation_data).execute()
-        if not evaluation_response.data:
-            return jsonify({'error': 'Erro ao criar avaliação'}), 500
-
-        evaluation_id = evaluation_response.data[0]['id']
+        
+        # Verificar se já existe avaliação para este funcionário no ano
+        existing_eval = supabase.table('evaluations').select('id').eq('employee_id', data['employee_id']).eq('evaluation_year', data.get('evaluation_year', 2025)).execute()
+        
+        if existing_eval.data:
+            # Atualizar avaliação existente
+            evaluation_id = existing_eval.data[0]['id']
+            supabase.table('evaluations').update(evaluation_data).eq('id', evaluation_id).execute()
+            print(f"DEBUG: Avaliação {evaluation_id} atualizada")
+        else:
+            # Criar nova avaliação
+            evaluation_response = supabase.table('evaluations').insert(evaluation_data).execute()
+            if not evaluation_response.data:
+                return jsonify({'error': 'Erro ao criar avaliação'}), 500
+            evaluation_id = evaluation_response.data[0]['id']
+            print(f"DEBUG: Nova avaliação {evaluation_id} criada")
 
         responses = []
         for criteria_id, rating in data['responses'].items():
