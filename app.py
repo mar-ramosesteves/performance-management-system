@@ -390,6 +390,13 @@ def create_evaluation():
         if responses:
             supabase.table('evaluation_responses').insert(responses).execute()
             
+        # Limpar metas antigas do funcionário
+        try:
+            supabase.table('individual_goals').delete().eq('employee_id', data['employee_id']).execute()
+            print(f"Metas antigas deletadas para funcionário {data['employee_id']}")
+        except Exception as e:
+            print(f"Erro ao deletar metas antigas: {e}")
+
         # Salvar metas na tabela individual_goals
         if data.get('goals'):
             goals_to_save = []
