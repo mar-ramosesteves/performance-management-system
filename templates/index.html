@@ -660,31 +660,31 @@
                         <div class="weight-inputs">
                             <div class="weight-item">
                                 <label>INSTITUCIONAL:</label>
-                                <input type="number" id="weight-institucional" min="0" max="100" value="25">
+                                <input type="number" id="weight-institucional" min="0" max="100" value="">
                                 <span>%</span>
                                 <span class="dimension-average" id="avg-institucional">-</span>
                             </div>
                             <div class="weight-item">
                                 <label>FUNCIONAL:</label>
-                                <input type="number" id="weight-funcional" min="0" max="100" value="25">
+                                <input type="number" id="weight-funcional" min="0" max="100" value="">
                                 <span>%</span>
                                 <span class="dimension-average" id="avg-funcional">-</span>
                             </div>
                             <div class="weight-item">
                                 <label>INDIVIDUAL:</label>
-                                <input type="number" id="weight-individual" min="0" max="100" value="25">
+                                <input type="number" id="weight-individual" min="0" max="100" value="">
                                 <span>%</span>
                                 <span class="dimension-average" id="avg-individual">-</span>
                             </div>
                             <div class="weight-item">
                                 <label>METAS:</label>
-                                <input type="number" id="weight-metas" min="0" max="100" value="25">
+                                <input type="number" id="weight-metas" min="0" max="100" value="">
                                 <span>%</span>
                                 <span class="dimension-average" id="avg-metas">-</span>
                             </div>
                         </div>
                         <div class="total-weight">
-                            <strong>Total: <span id="total-weight">100</span>%</strong>
+                            <strong>Total: <span id="total-weight">0</span>%</strong>
                         </div>
                     </div>
 
@@ -1209,12 +1209,43 @@
       el.innerHTML = `
         <div class="goal-header">
           <h4>Meta ${index + 1}</h4>
-        <div class="goal-header">
-            <h4>Meta ${index + 1}</h4>
+          <div class="d-flex gap-2">
+            <input type="number" id="goal-weight-${index}" min="0" max="100" value="" placeholder="Peso %">
             <button class="btn btn-danger btn-sm" onclick="removeGoal(${index})">
-                <i class="fas fa-trash me-1"></i>Excluir
+              <i class="fas fa-trash me-1"></i>Excluir
             </button>
-        </div>  
+          </div>
+        </div>
+        <div class="goal-content">
+          <input type="text" id="goal-name-${index}" placeholder="Nome da Meta">
+          <textarea id="goal-description-${index}" placeholder="Descrição da Meta"></textarea>
+        </div>
+        <div class="goal-criteria">
+          <h5>Critérios de Avaliação:</h5>
+          <div class="criteria-grid">
+            ${[1,2,3,4,5].map(n => `
+              <div class="criteria-item">
+                <label>Rating ${n}:</label>
+                <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required></textarea>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="goal-rating">
+          <label>Rating Atual:</label>
+          <select id="goal-rating-${index}">
+            <option value="">Selecione</option>
+            ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
+          </select>
+        </div>`;
+      container.appendChild(el);
+
+      // eventos do novo item
+      qs(`#goal-weight-${index}`).addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
+      qs(`#goal-weight-${index}`).addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
+      qs(`#goal-rating-${index}`).addEventListener('change', () => calculateFinalRating());
+
+      updateGoalsWeight();
+    }
 
             
           
