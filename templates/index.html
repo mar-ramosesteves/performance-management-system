@@ -1226,13 +1226,43 @@
 
 
     function removeGoal(goalIndex) {
-        const container = qs('#goals-container');
-        const goals = qsa('.goal-item');
-        if (goals.length > 0 && goalIndex >= 0 && goalIndex < goals.length) {
-            goals[goalIndex].remove();
-            updateGoalsWeight();
-            calculateFinalRating();
-        }
+      const container = qs('#goals-container');
+      const goals = qsa('.goal-item');
+      if (goals.length > 0 && goalIndex >= 0 && goalIndex < goals.length) {
+        goals[goalIndex].remove();
+        
+        // Reindexar metas restantes
+        const remainingGoals = qsa('.goal-item');
+        remainingGoals.forEach((goal, newIndex) => {
+          // Atualiza IDs dos elementos
+          const weightInput = goal.querySelector(`[id^="goal-weight-"]`);
+          const nameInput = goal.querySelector(`[id^="goal-name-"]`);
+          const descTextarea = goal.querySelector(`[id^="goal-description-"]`);
+          const ratingSelect = goal.querySelector(`[id^="goal-rating-"]`);
+          
+          if (weightInput) weightInput.id = `goal-weight-${newIndex}`;
+          if (nameInput) nameInput.id = `goal-name-${newIndex}`;
+          if (descTextarea) descTextarea.id = `goal-description-${newIndex}`;
+          if (ratingSelect) ratingSelect.id = `goal-rating-${newIndex}`;
+          
+          // Atualiza critérios
+          for (let n = 1; n <= 5; n++) {
+            const criteriaTextarea = goal.querySelector(`[id^="goal-rating${n}-"]`);
+            if (criteriaTextarea) criteriaTextarea.id = `goal-rating${n}-${newIndex}`;
+          }
+          
+          // Atualiza título
+          const title = goal.querySelector('h4');
+          if (title) title.textContent = `Meta ${newIndex + 1}`;
+          
+          // Atualiza onclick do botão excluir
+          const deleteBtn = goal.querySelector('button[onclick*="removeGoal"]');
+          if (deleteBtn) deleteBtn.setAttribute('onclick', `removeGoal(${newIndex})`);
+        });
+        
+        updateGoalsWeight();
+        calculateFinalRating();
+      }
     }
 
 
@@ -1256,6 +1286,9 @@
       let missingCriteria = false;
     
       items.forEach((item, idx) => {
+        // Verifica se o item ainda existe no DOM
+        if (!item.parentNode) return;
+        
         const goal = {
           index: idx + 1,
           name: qs(`#goal-name-${idx}`)?.value || '',
@@ -1263,6 +1296,7 @@
           weight: toNumber(qs(`#goal-weight-${idx}`)?.value, 0),
           rating: toNumber(qs(`#goal-rating-${idx}`)?.value, null),
         };
+        
         // critérios 1..5
         for (let n=1;n<=5;n++){
           const t = qs(`#goal-rating${n}-${idx}`);
@@ -1629,8 +1663,9 @@
         if (Array.isArray(goalsList) && goalsList.length > 0) {
           renderGoalsFrom(goalsList);
         } else {
-          // Se não há metas, carrega as padrão
-          await loadGoals();
+          // Se não há metas, deixa vazio
+          qs('#goals-container').innerHTML = '';
+          updateGoalsWeight();
         }
     
         // 8) Exibir médias no topo (se seus spans existem)
