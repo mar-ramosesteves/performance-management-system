@@ -360,7 +360,11 @@ def create_evaluation():
         evaluation_data = {
             'employee_id': data['employee_id'],
             'evaluator_id': data.get('evaluator_id', 1),
-            'evaluation_year': data.get('evaluation_year', 2025)
+            'evaluation_year': data.get('evaluation_year', 2025),
+            'dimension_weights': data.get('dimension_weights', {}),
+            'dimension_averages': data.get('dimension_averages', {}),
+            'final_rating': data.get('final_rating'),
+            'goals_average': data.get('goals_average')
         }
         evaluation_response = supabase.table('evaluations').insert(evaluation_data).execute()
         if not evaluation_response.data:
