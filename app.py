@@ -272,13 +272,6 @@ def api_evaluations_latest():
                   .execute())
         rows = r_resp.data or []
 
-        
-        responses = [{
-            'evaluation_id': x.get('evaluation_id'),
-            'criteria_id': x.get('criteria_id'),
-            'rating': x.get('rating')
-        } for x in rows]
-
         responses = [{
             'evaluation_id': x.get('evaluation_id'),
             'criteria_id': x.get('criteria_id'),
@@ -286,7 +279,6 @@ def api_evaluations_latest():
         } for x in rows]
 
         # Buscar metas da tabela individual_goals (sem evaluation_id)
-                
         goals = []
         try:
             r_goals = (supabase.table('individual_goals')
@@ -302,7 +294,6 @@ def api_evaluations_latest():
                     'name': goal.get('goal_name', ''),
                     'description': goal.get('goal_description', ''),
                     'weight': float(goal.get('weight', 0)),
-                    'rating': int(goal.get('rating', 0)) if goal.get('rating') else None,
                     'rating_1_criteria': goal.get('rating_1_criteria', ''),
                     'rating_2_criteria': goal.get('rating_2_criteria', ''),
                     'rating_3_criteria': goal.get('rating_3_criteria', ''),
@@ -314,14 +305,12 @@ def api_evaluations_latest():
             print(f"Erro ao buscar metas: {e}")
             goals = []        
         
-                
-        
         # Pesos das dimensões - usar valores salvos ou padrão
         weights = {
-            'INSTITUCIONAL': float(ev.get('weight_institucional', 25)),
-            'FUNCIONAL':     float(ev.get('weight_funcional', 25)),
-            'INDIVIDUAL':    float(ev.get('weight_individual', 25)),
-            'METAS':         float(ev.get('weight_metas', 25)),
+            'INSTITUCIONAL': float(ev.get('weight_institucional', 0)),
+            'FUNCIONAL':     float(ev.get('weight_funcional', 0)),
+            'INDIVIDUAL':    float(ev.get('weight_individual', 0)),
+            'METAS':         float(ev.get('weight_metas', 0)),
         }
 
         return jsonify({
@@ -332,7 +321,6 @@ def api_evaluations_latest():
         })
     except Exception as e:
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
-
 
 # Compat: pegar respostas por evaluation_id
 @app.route('/api/evaluation-responses', methods=['GET'])
