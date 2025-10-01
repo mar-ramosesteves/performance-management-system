@@ -306,12 +306,18 @@ def api_evaluations_latest():
             goals = []        
         
         # Pesos das dimensões - usar valores salvos ou padrão
-        weights = {
-            'INSTITUCIONAL': float(ev.get('weight_institucional', 0)),
-            'FUNCIONAL':     float(ev.get('weight_funcional', 0)),
-            'INDIVIDUAL':    float(ev.get('weight_individual', 0)),
-            'METAS':         float(ev.get('weight_metas', 0)),
-        }
+        weights = {}
+        if ev.get('dimension_weights'):
+            # Se tem dimension_weights salvo, usa ele
+            weights = ev['dimension_weights']
+        else:
+            # Fallback para colunas individuais (se existirem)
+            weights = {
+                'INSTITUCIONAL': float(ev.get('weight_institucional', 0)),
+                'FUNCIONAL':     float(ev.get('weight_funcional', 0)),
+                'INDIVIDUAL':    float(ev.get('weight_individual', 0)),
+                'METAS':         float(ev.get('weight_metas', 0)),
+            }
 
         return jsonify({
             'evaluation': ev,
@@ -321,6 +327,7 @@ def api_evaluations_latest():
         })
     except Exception as e:
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
 
 # Compat: pegar respostas por evaluation_id
 @app.route('/api/evaluation-responses', methods=['GET'])
