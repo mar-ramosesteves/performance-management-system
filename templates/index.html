@@ -1429,6 +1429,13 @@
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
       if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
+      
+      // Validar pesos das DIMENSÕES
+      const dimensionTotal = dimensionWeights.INSTITUCIONAL + dimensionWeights.FUNCIONAL + 
+                           dimensionWeights.INDIVIDUAL + dimensionWeights.METAS;
+      if (Math.abs(dimensionTotal - 100) > 0.01) {
+        return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
+      }
     
       const finalRating = calculateFinalRating();
     
