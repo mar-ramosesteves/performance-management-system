@@ -1238,41 +1238,6 @@
           </select>
         </div>`;
       container.appendChild(el);
-
-      // eventos do novo item
-      qs(`#goal-weight-${index}`).addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
-      qs(`#goal-weight-${index}`).addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
-      qs(`#goal-rating-${index}`).addEventListener('change', () => calculateFinalRating());
-
-      updateGoalsWeight();
-    }
-
-            
-          
-          <input type="number" id="goal-weight-${index}" min="0" max="100" value="33.33" placeholder="Peso %">
-        </div>
-        <div class="goal-content">
-          <input type="text" id="goal-name-${index}" placeholder="Nome da Meta">
-          <textarea id="goal-description-${index}" placeholder="Descrição da Meta"></textarea>
-        </div>
-        <div class="goal-criteria">
-          <h5>Critérios de Avaliação:</h5>
-          <div class="criteria-grid">
-            ${[1,2,3,4,5].map(n => `
-              <div class="criteria-item">
-                <label>Rating ${n}:</label>
-                <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required></textarea>
-              </div>`).join('')}
-          </div>
-        </div>
-        <div class="goal-rating">
-          <label>Rating Atual:</label>
-          <select id="goal-rating-${index}">
-            <option value="">Selecione</option>
-            ${[1,2,3,4,5].map(n => `<option value="${n}">${n}</option>`).join('')}
-          </select>
-        </div>`;
-      container.appendChild(el);
     
       // eventos do novo item
       qs(`#goal-weight-${index}`).addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -1281,7 +1246,6 @@
     
       updateGoalsWeight();
     }
-
 
 
     function removeGoal(goalIndex) {
