@@ -1471,8 +1471,9 @@
         METAS:         metasAvg
       };
     
-      // payload completo
-      const payload = {
+        // payload completo
+        const roundCode = document.getElementById('round-code').value;
+        const payload = {      
         employee_id: currentEmployee.id,
         evaluator_id: 1,
         evaluation_year: 2025,
