@@ -1480,7 +1480,7 @@
         }
            
         console.log('Código da rodada sendo enviado:', roundCode); // DEBUG
-        console.log('Payload completo sendo enviado:', payload); // DEBUG
+        
         const payload = {      
         employee_id: currentEmployee.id,
         evaluator_id: 1,
@@ -1492,6 +1492,7 @@
         dimension_averages: dimensionAverages,  // médias por dimensão
         final_rating: finalRating               // rating final consolidado
       };
+        console.log('Payload completo sendo enviado:', payload); // DEBUG
     
       try {
         const resp = await fetch('/api/evaluations', {
