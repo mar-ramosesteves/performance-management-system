@@ -70,6 +70,10 @@ def handle_preflight():
 def index():
     return render_template('index.html')
 
+@app.route('/manager')
+def manager():
+    return render_template('manager.html')
+
 # ===================== Employees =====================
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
