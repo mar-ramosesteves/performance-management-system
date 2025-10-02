@@ -421,6 +421,26 @@
             }
         }
 
+
+        // Carregar código da rodada ativo
+        async function loadActiveRoundCode() {
+            try {
+                const response = await fetch('/api/system-config');
+                const config = await response.json();
+                
+                if (config.active_round_code) {
+                    document.getElementById('round-code').value = config.active_round_code;
+                } else {
+                    document.getElementById('round-code').value = '';
+                }
+            } catch (e) {
+                console.error('Erro ao carregar código da rodada:', e);
+                document.getElementById('round-code').value = '';
+            }
+        }
+
+        
+        
         // Atualizar acesso aos campos
         function updateFieldAccess() {
             const inputs = document.querySelectorAll('input, select, button');
@@ -482,6 +502,9 @@
         // Carregar avaliação existente
         async function loadExistingEvaluation(employeeId) {
             try {
+                // Primeiro, carregar o código da rodada ativo
+                await loadActiveRoundCode();
+                
                 const response = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
                 
                 if (!response.ok) {
@@ -492,11 +515,11 @@
                     }
                     throw new Error('Erro ao carregar avaliação');
                 }
-
+        
                 const { evaluation, responses, weights, goals: savedGoals } = await response.json();
                 
-                // Carregar código da rodada
-                document.getElementById('round-code').value = evaluation.round_code || '';
+                // Carregar código da rodada (usar o ativo, não o salvo)
+                // document.getElementById('round-code').value = evaluation.round_code || '';
                 
                 // Carregar critérios
                 await loadEvaluationCriteria();
@@ -513,7 +536,7 @@
                         evaluationData[cid] = r;
                     }
                 });
-
+        
                 // Carregar pesos das dimensões
                 const savedWeights = weights || {};
                 document.getElementById('weight-institucional').value = savedWeights.INSTITUCIONAL || 0;
@@ -541,8 +564,12 @@
             }
         }
 
+        
         // Carregar formulário vazio
         async function loadEmptyEvaluation() {
+            // Carregar código da rodada ativo
+            await loadActiveRoundCode();
+            
             await loadEvaluationCriteria();
             evaluationData = {};
             dimensionWeights = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
@@ -562,6 +589,7 @@
             calculateFinalRating();
         }
 
+        
         // Carregar critérios de avaliação
         async function loadEvaluationCriteria() {
             try {
