@@ -1820,6 +1820,11 @@
             }
         } catch (e) {
             console.error('Erro ao carregar código da rodada:', e);
+            // Fallback: usar valor padrão se der erro
+            const roundCodeInput = document.getElementById('round-code');
+            if (roundCodeInput) {
+                roundCodeInput.value = 'Start2025';
+            }
         }
     }
 
