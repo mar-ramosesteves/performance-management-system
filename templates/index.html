@@ -1708,6 +1708,15 @@
     
         // 9) Recalcula/exibe o rating final na UI
         calculateFinalRating();
+
+
+        // 9.5) Carregar código da rodada da avaliação salva
+        const roundCodeInput = document.getElementById('round-code');
+        if (roundCodeInput && ev.round_code) {
+            roundCodeInput.value = ev.round_code;
+        } else if (roundCodeInput) {
+            roundCodeInput.value = 'Start2025'; // fallback
+        }
     
         // 10) Mostra a seção
         qs('#evaluation-section').style.display = 'block';
