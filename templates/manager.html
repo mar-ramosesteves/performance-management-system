@@ -718,29 +718,31 @@
             document.getElementById('goals-total-weight').textContent = total;
         }
 
+
+        
         // Salvar metas
         async function saveGoals() {
             if (!currentEmployee) {
                 alert('Nenhum funcionário selecionado');
                 return;
             }
-
+        
             if (!isWindowOpen) {
                 alert('A janela de avaliação está fechada. Alterações não são permitidas.');
                 return;
             }
-
+        
             // Validar metas
             if (goals.length < 3) {
                 alert('É necessário definir pelo menos 3 metas.');
                 return;
             }
-
+        
             if (goals.length > 5) {
                 alert('É permitido definir no máximo 5 metas.');
                 return;
             }
-
+        
             // Validar critérios
             for (let i = 0; i < goals.length; i++) {
                 const goal = goals[i];
@@ -754,31 +756,11 @@
                     return;
                 }
             }
-
-            try {
-                const response = await fetch('/api/individual-goals', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        employee_id: currentEmployee.id,
-                        goals: goals
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    alert('Erro ao salvar metas: ' + (error.error || 'Erro desconhecido'));
-                    return;
-                }
-
-                alert('Metas salvas com sucesso!');
-                
-            } catch (e) {
-                console.error('Erro ao salvar metas:', e);
-                alert('Erro ao salvar metas');
-            }
+        
+            alert('Metas validadas! Use o botão "Salvar Avaliação" para salvar tudo junto.');
         }
 
+        
         // Definir rating
         function setRating(criteriaId, rating) {
             if (!isWindowOpen) return;
