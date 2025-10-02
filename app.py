@@ -75,6 +75,10 @@ def index():
 def manager():
     return render_template('manager.html')
 
+@app.route('/test')
+def test():
+    return "Teste funcionando!"
+
 # ===================== Employees =====================
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
