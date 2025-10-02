@@ -573,6 +573,27 @@
                     <h2 class="text-center mb-5">Avaliação de Desempenho 2025</h2>
                     
                     <!-- Employee Info -->
+                    <!-- Código da Rodada -->
+                    <div class="evaluation-section" style="background: #e8f4fd; border: 2px solid #17a2b8; border-radius: 10px; padding: 20px; margin: 20px 0;">
+                      <h4><i class="fas fa-calendar-alt me-2"></i>Código da Rodada</h4>
+                      <div class="row">
+                        <div class="col-md-6">
+                          <label for="round-code" class="form-label"><strong>Código da Rodada:</strong></label>
+                          <input type="text" id="round-code" class="form-control" placeholder="Ex: Start2025, IR2025, YE2025" 
+                                 pattern="^(Start|IR|YE)\d{4}$" title="Formato: Start2025, IR2025, YE2025" readonly>
+                          <div class="form-text">
+                            <small class="text-muted">
+                              <strong>Formatos válidos:</strong><br>
+                              • Start2025 - Definição de Metas (EMPENHO)<br>
+                              • IR2025 - Interim Review (Estimativa)<br>
+                              • YE2025 - Year End Review (Final)
+                            </small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                           
                     <!-- Employee Info (cabeçalho completo) -->
                     <div class="evaluation-section" id="employee-header">
                       <h4>Informações do Avaliado</h4>
