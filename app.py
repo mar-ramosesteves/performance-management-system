@@ -817,8 +817,36 @@ def add_salary_movement(employee_id):
         return jsonify({'error': str(e)}), 500
 
 
+# ===================== Sistema de Rodadas =====================
+@app.route('/api/system-config', methods=['GET'])
+def get_system_config():
+    try:
+        r = supabase.table('system_config').select('*').eq('config_key', 'active_round_code').execute()
+        if r.data:
+            return jsonify({'active_round_code': r.data[0]['config_value']})
+        return jsonify({'active_round_code': 'Start2025'})  # fallback
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-
+@app.route('/api/system-config', methods=['PUT'])
+def update_system_config():
+    try:
+        data = request.get_json()
+        round_code = data.get('active_round_code', '').strip()
+        
+        if not round_code:
+            return jsonify({'error': 'Código da rodada obrigatório'}), 400
+            
+        # Atualizar ou inserir configuração
+        supabase.table('system_config').upsert({
+            'config_key': 'active_round_code',
+            'config_value': round_code,
+            'description': f'Código da rodada ativa: {round_code}'
+        }, on_conflict='config_key').execute()
+        
+        return jsonify({'message': 'Configuração atualizada com sucesso'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
