@@ -759,7 +759,6 @@
         
             alert('Metas validadas! Use o botão "Salvar Avaliação" para salvar tudo junto.');
         }
-
         
         // Definir rating
         function setRating(criteriaId, rating) {
@@ -838,25 +837,50 @@
                 alert('Nenhum funcionário selecionado');
                 return;
             }
-
+        
             if (!isWindowOpen) {
                 alert('A janela de avaliação está fechada. Alterações não são permitidas.');
                 return;
             }
-
+        
+            // Validar metas
+            if (goals.length < 3) {
+                alert('É necessário definir pelo menos 3 metas.');
+                return;
+            }
+        
+            if (goals.length > 5) {
+                alert('É permitido definir no máximo 5 metas.');
+                return;
+            }
+        
+            // Validar critérios das metas
+            for (let i = 0; i < goals.length; i++) {
+                const goal = goals[i];
+                if (!goal.name || !goal.description) {
+                    alert(`Meta ${i + 1}: Nome e descrição são obrigatórios.`);
+                    return;
+                }
+                if (!goal.rating_1_criteria || !goal.rating_2_criteria || !goal.rating_3_criteria || 
+                    !goal.rating_4_criteria || !goal.rating_5_criteria) {
+                    alert(`Meta ${i + 1}: Todos os critérios de avaliação são obrigatórios.`);
+                    return;
+                }
+            }
+        
             // Validar pesos das dimensões
             const total = Object.values(dimensionWeights).reduce((sum, weight) => sum + weight, 0);
             if (Math.abs(total - 100) > 0.01) {
                 alert('Os pesos das DIMENSÕES devem totalizar 100%.');
                 return;
             }
-
+        
             const roundCode = document.getElementById('round-code').value;
             if (!roundCode || roundCode.trim() === '') {
                 alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
                 return;
             }
-
+        
             // Construir payload
             const payload = {
                 employee_id: currentEmployee.id,
@@ -875,20 +899,20 @@
                 },
                 final_rating: Number(document.getElementById('final-rating').textContent) || 0
             };
-
+        
             try {
                 const response = await fetch('/api/evaluations', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-
+        
                 if (!response.ok) {
                     const error = await response.json();
                     alert('Erro ao salvar: ' + (error.error || 'Erro desconhecido'));
                     return;
                 }
-
+        
                 alert('Avaliação salva com sucesso!');
                 
             } catch (e) {
