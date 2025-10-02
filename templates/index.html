@@ -1473,6 +1473,13 @@
     
         // payload completo
         const roundCode = document.getElementById('round-code').value;
+           
+        // Validar se tem código da rodada
+        if (!roundCode || roundCode.trim() === '') {
+            return alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
+        }
+           
+        console.log('Código da rodada sendo enviado:', roundCode); // DEBUG
         const payload = {      
         employee_id: currentEmployee.id,
         evaluator_id: 1,
@@ -1829,14 +1836,13 @@
             }
         } catch (e) {
             console.error('Erro ao carregar código da rodada:', e);
-            // Fallback: usar valor padrão se der erro
+            // SEM FALLBACK - deixa vazio se der erro
             const roundCodeInput = document.getElementById('round-code');
             if (roundCodeInput) {
-                roundCodeInput.value = 'Start2025';
+                roundCodeInput.value = ''; // VAZIO em vez de 'Start2025'
             }
         }
     }
-
     
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
