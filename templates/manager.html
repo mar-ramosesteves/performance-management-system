@@ -546,6 +546,17 @@
             await loadEvaluationCriteria();
             evaluationData = {};
             dimensionWeights = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
+            
+            // Limpar campos de peso
+            document.getElementById('weight-institucional').value = '';
+            document.getElementById('weight-funcional').value = '';
+            document.getElementById('weight-individual').value = '';
+            document.getElementById('weight-metas').value = '';
+            
+            // Limpar totais
+            document.getElementById('total-weight').textContent = '0';
+            document.getElementById('goals-total-weight').textContent = '0';
+            
             goals = [];
             renderGoals();
             calculateFinalRating();
@@ -881,6 +892,22 @@
                 return;
             }
         
+            // Verificar se é uma nova rodada
+            const currentRoundCode = document.getElementById('round-code').value;
+            const existingRoundCode = evaluationData.evaluation?.round_code;
+            
+            if (existingRoundCode && existingRoundCode !== currentRoundCode) {
+                const confirm = window.confirm(
+                    `Você está alterando o código da rodada de "${existingRoundCode}" para "${currentRoundCode}".\n\n` +
+                    `Isso criará uma NOVA avaliação mantendo a anterior no histórico.\n\n` +
+                    `Deseja continuar?`
+                );
+                
+                if (!confirm) {
+                    return;
+                }
+            }
+        
             // Construir payload
             const payload = {
                 employee_id: currentEmployee.id,
@@ -921,6 +948,7 @@
             }
         }
 
+        
         // Calcular média de uma dimensão
         function calculateDimensionAverage(dimension) {
             const cards = document.querySelectorAll(`[data-dimension="${dimension}"]`);
