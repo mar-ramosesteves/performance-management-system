@@ -1800,7 +1800,24 @@
     window.setRating = setRating;
     window.viewEmployeeEvaluation = viewEmployeeEvaluation;
     window.removeGoal = removeGoal;
-
+    
+        
+        
+    /* =========================
+       Sistema de Rodadas
+    ========================= */
+    async function loadActiveRoundCode() {
+        try {
+            const response = await fetch('/api/system-config');
+            const config = await response.json();
+            const roundCodeInput = document.getElementById('round-code');
+            if (roundCodeInput && config.active_round_code) {
+                roundCodeInput.value = config.active_round_code;
+            }
+        } catch (e) {
+            console.error('Erro ao carregar código da rodada:', e);
+        }
+    }
 
     
     </script>
