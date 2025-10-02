@@ -100,6 +100,69 @@
             margin-bottom: 20px;
             background-color: #f9f9f9;
         }
+        .goal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .goal-header h4 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        .goal-content {
+            margin-bottom: 15px;
+        }
+        .goal-content input, .goal-content textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .goal-criteria {
+            margin-bottom: 15px;
+        }
+        .goal-criteria h5 {
+            margin-bottom: 10px;
+            color: #34495e;
+        }
+        .criteria-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .criteria-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .criteria-item label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2c3e50;
+        }
+        .criteria-item textarea {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 60px;
+        }
+        .goal-rating {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .goal-rating label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .goal-rating select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-width: 200px;
+        }
         .dimension-weights {
             background: #fff3cd;
             border: 2px solid #ffc107;
@@ -138,6 +201,17 @@
         .weight-item label {
             min-width: 100px;
             font-weight: bold;
+        }
+        .total-weight {
+            background: #28a745;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .total-weight.invalid {
+            background: #dc3545;
         }
     </style>
 </head>
@@ -255,9 +329,20 @@
 
                     <!-- Goals Section -->
                     <div class="goals-section">
-                        <h4><i class="fas fa-bullseye me-2"></i>Metas Individuais</h4>
+                        <h4><i class="fas fa-bullseye me-2"></i>Metas Individuais (3 a 5 metas)</h4>
                         <div id="goals-container">
                             <!-- As metas serão carregadas aqui -->
+                        </div>
+                        <div class="text-center mt-3">
+                            <button class="btn btn-primary" onclick="addGoal()">
+                                <i class="fas fa-plus me-2"></i>Adicionar Meta
+                            </button>
+                            <button class="btn btn-success ms-2" onclick="saveGoals()">
+                                <i class="fas fa-save me-2"></i>Salvar Metas
+                            </button>
+                        </div>
+                        <div class="total-weight mt-3">
+                            <strong>Total: <span id="goals-total-weight">0</span>%</strong>
                         </div>
                     </div>
 
@@ -271,7 +356,7 @@
                     <!-- Action Buttons -->
                     <div class="text-center mt-4">
                         <button class="btn btn-success btn-lg" onclick="saveManagerEvaluation()" id="save-btn">
-                            <i class="fas fa-save me-2"></i>Salvar Alterações
+                            <i class="fas fa-save me-2"></i>Salvar Avaliação
                         </button>
                         <button class="btn btn-info btn-lg ms-3" onclick="viewNineBoxPosition()">
                             <i class="fas fa-th me-2"></i>Ver Posição 9-Box
@@ -289,6 +374,7 @@
         let evaluationData = {};
         let dimensionWeights = {};
         let isWindowOpen = false;
+        let goals = [];
 
         // Carregar funcionários do time
         async function loadTeamMembers() {
@@ -407,7 +493,7 @@
                     throw new Error('Erro ao carregar avaliação');
                 }
 
-                const { evaluation, responses, weights, goals } = await response.json();
+                const { evaluation, responses, weights, goals: savedGoals } = await response.json();
                 
                 // Carregar código da rodada
                 document.getElementById('round-code').value = evaluation.round_code || '';
@@ -439,8 +525,12 @@
                 updateDimensionWeights();
                 
                 // Carregar metas
-                if (goals && goals.length > 0) {
-                    renderGoals(goals);
+                if (savedGoals && savedGoals.length > 0) {
+                    goals = savedGoals;
+                    renderGoals();
+                } else {
+                    goals = [];
+                    renderGoals();
                 }
                 
                 calculateFinalRating();
@@ -456,7 +546,8 @@
             await loadEvaluationCriteria();
             evaluationData = {};
             dimensionWeights = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
-            document.getElementById('goals-container').innerHTML = '';
+            goals = [];
+            renderGoals();
             calculateFinalRating();
         }
 
@@ -488,7 +579,7 @@
                     dimensions[dimension].forEach(c => {
                         const typeClass = `type-${(c.type||'').toLowerCase()}`;
                         html += `
-                            <div class="criteria-card">
+                            <div class="criteria-card" data-dimension="${dimension}">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div class="flex-grow-1">
                                         <div class="d-flex align-items-center gap-2 mb-2">
@@ -517,7 +608,7 @@
         }
 
         // Renderizar metas
-        function renderGoals(goals) {
+        function renderGoals() {
             const container = document.getElementById('goals-container');
             container.innerHTML = '';
 
@@ -526,24 +617,166 @@
                 goalEl.className = 'goal-item';
                 goalEl.innerHTML = `
                     <div class="goal-header">
-                        <h5>Meta ${idx + 1}: ${goal.name}</h5>
-                        <div class="d-flex gap-2">
-                            <span class="badge bg-primary">Peso: ${goal.weight}%</span>
-                            <span class="badge bg-success">Rating: ${goal.rating || '-'}</span>
-                        </div>
+                        <h4>Meta ${idx + 1}</h4>
+                        <button class="btn btn-danger btn-sm" onclick="removeGoal(${idx})">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                     <div class="goal-content">
-                        <p><strong>Descrição:</strong> ${goal.description}</p>
-                        <div class="criteria-section">
-                            <h6>Critérios de Avaliação:</h6>
-                            ${[1,2,3,4,5].map(n => `
-                                <div class="mb-2">
-                                    <strong>Rating ${n}:</strong> ${goal[`rating_${n}_criteria`] || '-'}
-                                </div>`).join('')}
+                        <input type="text" placeholder="Nome da meta" value="${goal.name || ''}" 
+                               onchange="updateGoal(${idx}, 'name', this.value)">
+                        <textarea placeholder="Descrição da meta" 
+                                  onchange="updateGoal(${idx}, 'description', this.value)">${goal.description || ''}</textarea>
+                        <input type="number" placeholder="Peso (%)" min="0" max="100" value="${goal.weight || 0}" 
+                               onchange="updateGoal(${idx}, 'weight', this.value)">
+                    </div>
+                    <div class="goal-criteria">
+                        <h5>Critérios de Avaliação:</h5>
+                        <div class="criteria-grid">
+                            <div class="criteria-item">
+                                <label>Rating 1:</label>
+                                <textarea placeholder="Critério para rating 1" 
+                                          onchange="updateGoal(${idx}, 'rating_1_criteria', this.value)">${goal.rating_1_criteria || ''}</textarea>
+                            </div>
+                            <div class="criteria-item">
+                                <label>Rating 2:</label>
+                                <textarea placeholder="Critério para rating 2" 
+                                          onchange="updateGoal(${idx}, 'rating_2_criteria', this.value)">${goal.rating_2_criteria || ''}</textarea>
+                            </div>
+                            <div class="criteria-item">
+                                <label>Rating 3:</label>
+                                <textarea placeholder="Critério para rating 3" 
+                                          onchange="updateGoal(${idx}, 'rating_3_criteria', this.value)">${goal.rating_3_criteria || ''}</textarea>
+                            </div>
+                            <div class="criteria-item">
+                                <label>Rating 4:</label>
+                                <textarea placeholder="Critério para rating 4" 
+                                          onchange="updateGoal(${idx}, 'rating_4_criteria', this.value)">${goal.rating_4_criteria || ''}</textarea>
+                            </div>
+                            <div class="criteria-item">
+                                <label>Rating 5:</label>
+                                <textarea placeholder="Critério para rating 5" 
+                                          onchange="updateGoal(${idx}, 'rating_5_criteria', this.value)">${goal.rating_5_criteria || ''}</textarea>
+                            </div>
                         </div>
+                    </div>
+                    <div class="goal-rating">
+                        <label>Avaliação:</label>
+                        <select onchange="updateGoal(${idx}, 'rating', this.value)">
+                            <option value="">Selecione...</option>
+                            <option value="1" ${goal.rating == 1 ? 'selected' : ''}>1 - Excelente</option>
+                            <option value="2" ${goal.rating == 2 ? 'selected' : ''}>2 - Superou</option>
+                            <option value="3" ${goal.rating == 3 ? 'selected' : ''}>3 - Atendeu</option>
+                            <option value="4" ${goal.rating == 4 ? 'selected' : ''}>4 - Não Atendeu</option>
+                            <option value="5" ${goal.rating == 5 ? 'selected' : ''}>5 - Insuficiente</option>
+                        </select>
                     </div>`;
                 container.appendChild(goalEl);
             });
+            
+            updateGoalsWeight();
+        }
+
+        // Adicionar meta
+        function addGoal() {
+            if (!isWindowOpen) return;
+            
+            goals.push({
+                name: '',
+                description: '',
+                weight: 0,
+                rating_1_criteria: '',
+                rating_2_criteria: '',
+                rating_3_criteria: '',
+                rating_4_criteria: '',
+                rating_5_criteria: '',
+                rating: null
+            });
+            renderGoals();
+        }
+
+        // Remover meta
+        function removeGoal(index) {
+            if (!isWindowOpen) return;
+            
+            goals.splice(index, 1);
+            renderGoals();
+        }
+
+        // Atualizar meta
+        function updateGoal(index, field, value) {
+            if (!isWindowOpen) return;
+            
+            goals[index][field] = value;
+            updateGoalsWeight();
+            calculateFinalRating();
+        }
+
+        // Atualizar peso total das metas
+        function updateGoalsWeight() {
+            const total = goals.reduce((sum, goal) => sum + (Number(goal.weight) || 0), 0);
+            document.getElementById('goals-total-weight').textContent = total;
+        }
+
+        // Salvar metas
+        async function saveGoals() {
+            if (!currentEmployee) {
+                alert('Nenhum funcionário selecionado');
+                return;
+            }
+
+            if (!isWindowOpen) {
+                alert('A janela de avaliação está fechada. Alterações não são permitidas.');
+                return;
+            }
+
+            // Validar metas
+            if (goals.length < 3) {
+                alert('É necessário definir pelo menos 3 metas.');
+                return;
+            }
+
+            if (goals.length > 5) {
+                alert('É permitido definir no máximo 5 metas.');
+                return;
+            }
+
+            // Validar critérios
+            for (let i = 0; i < goals.length; i++) {
+                const goal = goals[i];
+                if (!goal.name || !goal.description) {
+                    alert(`Meta ${i + 1}: Nome e descrição são obrigatórios.`);
+                    return;
+                }
+                if (!goal.rating_1_criteria || !goal.rating_2_criteria || !goal.rating_3_criteria || 
+                    !goal.rating_4_criteria || !goal.rating_5_criteria) {
+                    alert(`Meta ${i + 1}: Todos os critérios de avaliação são obrigatórios.`);
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch('/api/individual-goals', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        employee_id: currentEmployee.id,
+                        goals: goals
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert('Erro ao salvar metas: ' + (error.error || 'Erro desconhecido'));
+                    return;
+                }
+
+                alert('Metas salvas com sucesso!');
+                
+            } catch (e) {
+                console.error('Erro ao salvar metas:', e);
+                alert('Erro ao salvar metas');
+            }
         }
 
         // Definir rating
@@ -598,20 +831,10 @@
                 document.getElementById(`avg-${dim.toLowerCase()}`).textContent = `Média: ${Math.round(averages[dim]) || '-'}`;
             });
 
-            // Calcular média das metas (simplificado)
-            const goals = document.querySelectorAll('.goal-item');
-            let goalsTotal = 0, goalsCount = 0;
-            goals.forEach(goal => {
-                const ratingEl = goal.querySelector('.badge.bg-success');
-                if (ratingEl) {
-                    const rating = Number(ratingEl.textContent.match(/Rating: (\d+)/)?.[1]);
-                    if (rating) {
-                        goalsTotal += rating;
-                        goalsCount++;
-                    }
-                }
-            });
-            averages['METAS'] = goalsCount ? (goalsTotal / goalsCount) : 0;
+            // Calcular média das metas
+            const goalsWithRating = goals.filter(goal => goal.rating);
+            averages['METAS'] = goalsWithRating.length ? 
+                (goalsWithRating.reduce((sum, goal) => sum + Number(goal.rating), 0) / goalsWithRating.length) : 0;
             document.getElementById('avg-metas').textContent = `Média: ${Math.round(averages['METAS']) || '-'}`;
 
             // Calcular rating final ponderado
@@ -659,14 +882,14 @@
                 evaluation_year: 2025,
                 round_code: roundCode,
                 responses: evaluationData,
-                goals: [], // Metas não editáveis pelo gestor
-                goals_average: 0,
+                goals: goals,
+                goals_average: calculateGoalsAverage(),
                 dimension_weights: dimensionWeights,
                 dimension_averages: {
                     INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
                     FUNCIONAL: calculateDimensionAverage('FUNCIONAL'),
                     INDIVIDUAL: calculateDimensionAverage('INDIVIDUAL'),
-                    METAS: 0
+                    METAS: calculateGoalsAverage()
                 },
                 final_rating: Number(document.getElementById('final-rating').textContent) || 0
             };
@@ -704,6 +927,13 @@
                 }
             });
             return count ? (total / count) : 0;
+        }
+
+        // Calcular média das metas
+        function calculateGoalsAverage() {
+            const goalsWithRating = goals.filter(goal => goal.rating);
+            return goalsWithRating.length ? 
+                (goalsWithRating.reduce((sum, goal) => sum + Number(goal.rating), 0) / goalsWithRating.length) : 0;
         }
 
         // Ver posição 9-box
