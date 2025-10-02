@@ -365,14 +365,15 @@ def create_evaluation():
             return jsonify({'error': 'Dados obrigatórios não fornecidos'}), 400
 
         evaluation_data = {
-            'employee_id': data['employee_id'],
-            'evaluator_id': data.get('evaluator_id', 1),
-            'evaluation_year': data.get('evaluation_year', 2025),
-            'dimension_weights': data.get('dimension_weights', {}),
-            'dimension_averages': data.get('dimension_averages', {}),
-            'final_rating': data.get('final_rating'),
-            'goals_average': data.get('goals_average')
-        }
+           'employee_id': data['employee_id'],
+           'evaluator_id': data.get('evaluator_id', 1),
+           'evaluation_year': data.get('evaluation_year', 2025),
+           'round_code': data.get('round_code'),  # NOVO: código da rodada
+           'dimension_weights': data.get('dimension_weights', {}),
+           'dimension_averages': data.get('dimension_averages', {}),
+           'final_rating': data.get('final_rating'),
+           'goals_average': data.get('goals_average')
+       }
         
         # Verificar se já existe avaliação para este funcionário no ano
         existing_eval = supabase.table('evaluations').select('id').eq('employee_id', data['employee_id']).eq('evaluation_year', data.get('evaluation_year', 2025)).execute()
@@ -824,7 +825,7 @@ def get_system_config():
         r = supabase.table('system_config').select('*').eq('config_key', 'active_round_code').execute()
         if r.data:
             return jsonify({'active_round_code': r.data[0]['config_value']})
-        return jsonify({'active_round_code': 'Start2025'})  # fallback
+        return jsonify({'active_round_code': None})  # sem fallback
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
