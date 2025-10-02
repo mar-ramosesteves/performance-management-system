@@ -364,6 +364,10 @@ def create_evaluation():
         if not data.get('employee_id') or not data.get('responses'):
             return jsonify({'error': 'Dados obrigatórios não fornecidos'}), 400
 
+
+        # DEBUG: verificar se round_code está chegando
+        print(f"DEBUG: round_code recebido: {data.get('round_code')}")
+        print(f"DEBUG: dados completos: {data}")
         evaluation_data = {
            'employee_id': data['employee_id'],
            'evaluator_id': data.get('evaluator_id', 1),
