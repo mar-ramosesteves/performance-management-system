@@ -65,6 +65,7 @@ def handle_preflight():
             resp.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
         return resp
 
+
 # ===================== Páginas =====================
 @app.route('/')
 def index():
