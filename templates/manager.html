@@ -459,6 +459,25 @@
             }
         }
 
+        }  // ← fim de updateFieldAccess()
+
+        // Trava os inputs de peso para não serem editados pelo gestor
+        function lockDWInputs(){
+          ['weight-institucional','weight-funcional','weight-individual','weight-metas']
+            .forEach(id=>{
+              const el = document.getElementById(id);
+              if(!el) return;
+              el.readOnly = true;                // impede digitação
+              el.setAttribute('tabindex','-1');  // evita foco pelo teclado
+              el.title = 'Definido pelo RH';
+              el.addEventListener('wheel', e=>e.preventDefault(), {passive:false}); // bloqueia rodinha
+              el.addEventListener('keydown', e=>{
+                if (['ArrowUp','ArrowDown','PageUp','PageDown','+','-'].includes(e.key)) e.preventDefault();
+              });
+            });
+        }
+
+
         // Carregar avaliação do funcionário selecionado
         async function loadTeamMemberEvaluation() {
             const select = document.getElementById('team-member-select');
@@ -1019,6 +1038,7 @@
                 document.getElementById(id).addEventListener('input', updateDimensionWeights);
                 document.getElementById(id).addEventListener('change', updateDimensionWeights);
             });
+            lockDWInputs();
         });
     </script>
 </body>
