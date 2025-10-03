@@ -1855,17 +1855,44 @@
     }
     
     // Função para carregar código da rodada ativa (dinâmico)
+    // =========================
+    // Sistema de Rodadas Dinâmico (Centralizado pelo RH)
+    // =========================
+    
+    // Função para gerar códigos de rodada dinâmicos
+    function generateRoundCode(type, year) {
+        const yearStr = year.toString();
+        return `${type}${yearStr}`;
+    }
+    
+    // Função para obter o ano atual
+    function getCurrentYear() {
+        return new Date().getFullYear();
+    }
+    
+    // Função para gerar códigos de rodada baseados no ano atual
+    function generateCurrentRoundCodes() {
+        const year = getCurrentYear();
+        return {
+            start: generateRoundCode('Start', year),
+            ir: generateRoundCode('IR', year),
+            ye: generateRoundCode('YE', year)
+        };
+    }
+    
+    // Função para carregar código da rodada ativa (centralizado pelo RH)
     async function loadActiveRoundCode() {
         try {
-            // Primeiro tenta buscar do backend
+            // Busca do backend (controlado pelo RH)
             const response = await fetch('/api/system-config');
             const config = await response.json();
             const roundCodeInput = document.getElementById('round-code');
             
             if (roundCodeInput && config.active_round_code) {
+                // RH definiu o código - usa o que está no sistema
                 roundCodeInput.value = config.active_round_code;
             } else if (roundCodeInput) {
-                // Se não tem no backend, gera automaticamente baseado no ano
+                // RH não definiu - gera automaticamente baseado no ano
                 const codes = generateCurrentRoundCodes();
                 roundCodeInput.value = codes.start; // Default: Start2025, Start2026, etc.
             }
