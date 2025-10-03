@@ -1829,20 +1829,53 @@
     /* =========================
        Sistema de Rodadas
     ========================= */
+    // =========================
+    // Sistema de Rodadas Dinâmico
+    // =========================
+    
+    // Função para gerar códigos de rodada dinâmicos
+    function generateRoundCode(type, year) {
+        const yearStr = year.toString();
+        return `${type}${yearStr}`;
+    }
+    
+    // Função para obter o ano atual
+    function getCurrentYear() {
+        return new Date().getFullYear();
+    }
+    
+    // Função para gerar códigos de rodada baseados no ano atual
+    function generateCurrentRoundCodes() {
+        const year = getCurrentYear();
+        return {
+            start: generateRoundCode('Start', year),
+            ir: generateRoundCode('IR', year),
+            ye: generateRoundCode('YE', year)
+        };
+    }
+    
+    // Função para carregar código da rodada ativa (dinâmico)
     async function loadActiveRoundCode() {
         try {
+            // Primeiro tenta buscar do backend
             const response = await fetch('/api/system-config');
             const config = await response.json();
             const roundCodeInput = document.getElementById('round-code');
+            
             if (roundCodeInput && config.active_round_code) {
                 roundCodeInput.value = config.active_round_code;
+            } else if (roundCodeInput) {
+                // Se não tem no backend, gera automaticamente baseado no ano
+                const codes = generateCurrentRoundCodes();
+                roundCodeInput.value = codes.start; // Default: Start2025, Start2026, etc.
             }
         } catch (e) {
             console.error('Erro ao carregar código da rodada:', e);
-            // SEM FALLBACK - deixa vazio se der erro
+            // Fallback: gera automaticamente
             const roundCodeInput = document.getElementById('round-code');
             if (roundCodeInput) {
-                roundCodeInput.value = ''; // VAZIO em vez de 'Start2025'
+                const codes = generateCurrentRoundCodes();
+                roundCodeInput.value = codes.start;
             }
         }
     }
