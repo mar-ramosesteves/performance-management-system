@@ -1095,6 +1095,8 @@
        
        // Carregar código da rodada ativa
        await loadActiveRoundCode();
+       await loadCentralDimensionWeights();   // <<< NOVO: puxa os pesos definidos pelo RH
+
         
         
         
@@ -1906,7 +1908,68 @@
             }
         }
     }
+
+
     
+    /* ===== Pesos das Dimensões — centralizados pelo RH ===== */
+    function applyDimensionWeightsToInputs(weights, lock){
+      const w = {
+        INSTITUCIONAL: Number(weights.INSTITUCIONAL ?? 0),
+        FUNCIONAL:     Number(weights.FUNCIONAL     ?? 0),
+        INDIVIDUAL:    Number(weights.INDIVIDUAL    ?? 0),
+        METAS:         Number(weights.METAS         ?? 0),
+      };
+      const ids = {
+        INSTITUCIONAL: 'weight-institucional',
+        FUNCIONAL:     'weight-funcional',
+        INDIVIDUAL:    'weight-individual',
+        METAS:         'weight-metas'
+      };
+      Object.keys(ids).forEach(k=>{
+        const el = document.getElementById(ids[k]);
+        if (el){
+          el.value   = w[k];
+          el.disabled = !!lock;   // trava edição
+          el.readOnly = !!lock;   // redundante, só por segurança
+        }
+      });
+      // atualiza o objeto usado no cálculo e a UI
+      dimensionWeights = w;
+      updateDimensionWeights();
+      calculateFinalRating();
+    }
+    
+    async function loadCentralDimensionWeights(){
+      try{
+        const r = await fetch('/api/dimension-weights');
+        if(!r.ok) return;
+        const rows = await r.json();
+    
+        // monta {INSTITUCIONAL, FUNCIONAL, INDIVIDUAL, METAS}
+        const map = {INSTITUCIONAL:null,FUNCIONAL:null,INDIVIDUAL:null,METAS:null};
+        rows.forEach(row=>{
+          const k = String(row.dimension || row.name || '').toUpperCase().trim();
+          const v = Number(row.weight);
+          if(!Number.isNaN(v) && map.hasOwnProperty(k)) map[k] = v;
+        });
+    
+        // se vieram os 4, aplica; se somarem 100%, trava os campos
+        const complete = Object.values(map).every(v=>typeof v==='number' && v!=null);
+        const total    = Object.values(map).reduce((s,v)=> s + (Number(v)||0), 0);
+        if (complete){
+          const lock = Math.abs(total - 100) < 0.01; // trava se 100%
+          applyDimensionWeightsToInputs(map, lock);
+        }
+      }catch(e){
+        console.warn('Falha carregando pesos centrais:', e);
+      }
+    }
+
+
+        
+
+
+        
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </body>
