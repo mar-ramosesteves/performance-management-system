@@ -83,10 +83,31 @@ def test():
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
     try:
+        # Verificar se as variáveis de ambiente estão configuradas
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            return jsonify({'error': 'Configuração do Supabase não encontrada'}), 500
+        
+        # Fazer a consulta com tratamento de erro mais específico
         r = supabase.table('employees').select('*').execute()
-        return jsonify(r.data)
+        
+        # Verificar se a resposta é válida
+        if not r:
+            return jsonify({'error': 'Resposta vazia do Supabase'}), 500
+            
+        # Verificar se r.data existe e é uma lista
+        if r.data is None:
+            return jsonify({'error': 'Dados não encontrados na tabela employees'}), 404
+            
+        if not isinstance(r.data, list):
+            return jsonify({'error': 'Formato de dados inválido'}), 500
+            
+        # Retornar os dados ou lista vazia se não houver funcionários
+        return jsonify(r.data if r.data else [])
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Erro no endpoint /api/employees: {str(e)}")
+        return jsonify({'error': f'Erro interno: {str(e)}'}), 500
+
 
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
