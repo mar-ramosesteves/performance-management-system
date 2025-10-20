@@ -976,31 +976,35 @@
     async function loadEmployees() {
         try {
             const response = await fetch('/api/employees');
-            const data = await response.json();
+            const employees = await response.json();
             
-            // Verificar se a resposta é válida
-            if (!response.ok) {
-                console.error('Erro na API:', data.error || 'Erro desconhecido');
-                // Mostrar mensagem de erro para o usuário
-                alert('Erro ao carregar funcionários: ' + (data.error || 'Erro desconhecido'));
+            // Verificar se employees é um array
+            if (!Array.isArray(employees)) {
+                console.error('Dados não são um array:', employees);
                 return;
             }
             
-            // Verificar se data é um array
-            if (!Array.isArray(data)) {
-                console.error('Dados não são um array:', data);
-                alert('Formato de dados inválido recebido da API');
-                return;
+            // Limpar lista anterior
+            const employeeList = document.getElementById('employeeList');
+            if (employeeList) {
+                employeeList.innerHTML = '';
             }
             
-            // Agora é seguro usar forEach
-            data.forEach(employee => {
-                // seu código existente aqui
+            // Adicionar funcionários à lista
+            employees.forEach(employee => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <strong>${employee.nome || 'Nome não informado'}</strong> - 
+                    ${employee.cargo || 'Cargo não informado'} - 
+                    ${employee.empresa || 'Empresa não informada'}
+                `;
+                if (employeeList) {
+                    employeeList.appendChild(li);
+                }
             });
             
         } catch (error) {
-            console.error('Erro na requisição:', error);
-            alert('Erro de conexão ao carregar funcionários');
+            console.error('Erro ao carregar funcionários:', error);
         }
     }
     
