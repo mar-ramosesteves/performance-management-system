@@ -974,44 +974,34 @@
        Funcionários
     ========================= */
     async function loadEmployees() {
-      try {
-        const response = await fetch('/api/employees');
-        const employees = await response.json();
-    
-        const container = qs('#employees-container');
-        const section = qs('#employees-section');
-        container.innerHTML = '';
-    
-        employees.forEach(employee => {
-          const col = document.createElement('div');
-          col.className = 'col-md-4';
-          col.innerHTML = `
-            <div class="employee-card">
-              <h5>${employee.nome}</h5>
-              <p><strong>Cargo:</strong> ${employee.cargo}</p>
-              <p><strong>Empresa:</strong> ${employee.empresa}</p>
-              <p><strong>Salário:</strong> R$ ${Number(employee.salario||0).toLocaleString('pt-BR')}</p>
-              <div class="d-flex gap-2">
-                    <button class="btn btn-primary btn-sm" onclick="editEmployee(${employee.id})">
-                        <i class="fas fa-edit me-1"></i>Editar
-                    </button>
-                    <button class="btn btn-success btn-sm" onclick="startEvaluationForEmployee(${employee.id})">
-                        <i class="fas fa-clipboard-check me-1"></i>Avaliar
-                    </button>
-                    <button class="btn btn-info btn-sm" onclick="viewEmployeeEvaluation(${employee.id})">
-                        <i class="fas fa-eye me-1"></i>Ver Avaliação
-                    </button>
-                </div>
-            </div>`;
-          container.appendChild(col);
-        });
-    
-        section.style.display = 'block';
-        section.scrollIntoView({behavior:'smooth'});
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao carregar funcionários');
-      }
+        try {
+            const response = await fetch('/api/employees');
+            const data = await response.json();
+            
+            // Verificar se a resposta é válida
+            if (!response.ok) {
+                console.error('Erro na API:', data.error || 'Erro desconhecido');
+                // Mostrar mensagem de erro para o usuário
+                alert('Erro ao carregar funcionários: ' + (data.error || 'Erro desconhecido'));
+                return;
+            }
+            
+            // Verificar se data é um array
+            if (!Array.isArray(data)) {
+                console.error('Dados não são um array:', data);
+                alert('Formato de dados inválido recebido da API');
+                return;
+            }
+            
+            // Agora é seguro usar forEach
+            data.forEach(employee => {
+                // seu código existente aqui
+            });
+            
+        } catch (error) {
+            console.error('Erro na requisição:', error);
+            alert('Erro de conexão ao carregar funcionários');
+        }
     }
     
     function startEvaluation() {
