@@ -974,39 +974,94 @@
        Funcionários
     ========================= */
     async function loadEmployees() {
-        try {
-            const response = await fetch('/api/employees');
-            const employees = await response.json();
-            
-            // Verificar se employees é um array
-            if (!Array.isArray(employees)) {
-                console.error('Dados não são um array:', employees);
-                return;
-            }
-            
-            // Limpar lista anterior
-            const employeeList = document.getElementById('employeeList');
-            if (employeeList) {
-                employeeList.innerHTML = '';
-            }
-            
-            // Adicionar funcionários à lista
-            employees.forEach(employee => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <strong>${employee.nome || 'Nome não informado'}</strong> - 
-                    ${employee.cargo || 'Cargo não informado'} - 
-                    ${employee.empresa || 'Empresa não informada'}
-                `;
-                if (employeeList) {
-                    employeeList.appendChild(li);
-                }
-            });
-            
-        } catch (error) {
-            console.error('Erro ao carregar funcionários:', error);
+      try {
+        const employeesSection = document.getElementById('employees-section');
+        const employeesContainer = document.getElementById('employees-container');
+        const nineBox = document.getElementById('nine-box-section');
+        const evalSection = document.getElementById('evaluation-section');
+    
+        if (nineBox) nineBox.style.display = 'none';
+        if (evalSection) evalSection.style.display = 'none';
+        if (employeesSection) employeesSection.style.display = 'block';
+        if (employeesContainer) {
+          employeesContainer.innerHTML =
+            '<div class="col-12 text-center text-muted py-3">Carregando funcionários…</div>';
         }
+    
+        const resp = await fetch('/api/employees');
+        const employees = await resp.json();
+    
+        if (!Array.isArray(employees)) {
+          console.error('Resposta inesperada:', employees);
+          if (employeesContainer) {
+            employeesContainer.innerHTML =
+              '<div class="col-12 text-center text-danger py-3">Erro: dados inválidos.</div>';
+          }
+          return;
+        }
+    
+        if (!employees.length) {
+          if (employeesContainer) {
+            employeesContainer.innerHTML =
+              '<div class="col-12 text-center text-muted py-3">Nenhum funcionário cadastrado.</div>';
+          }
+          return;
+        }
+    
+        employeesContainer.innerHTML = '';
+        employees.forEach(emp => employeesContainer.appendChild(renderEmployeeCard(emp)));
+    
+        employeesSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        console.error('Erro ao carregar funcionários:', err);
+        const employeesContainer = document.getElementById('employees-container');
+        if (employeesContainer) {
+          employeesContainer.innerHTML =
+            '<div class="col-12 text-center text-danger py-3">Falha ao carregar funcionários.</div>';
+        }
+      }
     }
+    
+    function renderEmployeeCard(emp) {
+      const col = document.createElement('div');
+      col.className = 'col-md-6 col-lg-4';
+    
+      const nome = emp?.nome || 'Sem nome';
+      const cargo = emp?.cargo || '—';
+      const empresa = emp?.empresa || emp?.company_name || '—';
+      const depto = emp?.department_name || '—';
+      const filial = emp?.branch_name || '—';
+      const gestor = emp?.manager_name || '—';
+      const salario = (typeof window.moneyBR === 'function') ? moneyBR(emp?.salario) : (emp?.salario ?? '—');
+      const empCode = (typeof fmtEmpCode === 'function') ? fmtEmpCode(emp) : (emp?.id ?? '—');
+    
+      col.innerHTML = `
+        <div class="employee-card h-100 d-flex flex-column">
+          <div class="d-flex align-items-start justify-content-between mb-2">
+            <h5 class="mb-0">${nome}</h5>
+            <span class="badge bg-secondary">ID: ${empCode}</span>
+          </div>
+          <div class="text-muted small mb-3">
+            <div><strong>Cargo:</strong> ${cargo}</div>
+            <div><strong>Empresa:</strong> ${empresa}</div>
+            <div><strong>Departamento:</strong> ${depto}</div>
+            <div><strong>Filial:</strong> ${filial}</div>
+            <div><strong>Gestor:</strong> ${gestor}</div>
+            <div><strong>Salário:</strong> ${salario}</div>
+          </div>
+          <div class="mt-auto d-flex gap-2">
+            <button class="btn btn-primary btn-sm flex-fill" onclick="startEvaluationForEmployee(${emp.id})">
+              <i class="fas fa-clipboard-check me-1"></i> Nova Avaliação
+            </button>
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="viewEmployeeEvaluation(${emp.id})">
+              <i class="fas fa-eye me-1"></i> Ver Avaliação
+            </button>
+          </div>
+        </div>
+      `;
+      return col;
+    }
+
     
     function startEvaluation() {
       alert('Selecione um funcionário para avaliar');
