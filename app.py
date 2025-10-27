@@ -6,6 +6,49 @@ from supabase import create_client, Client
 
 from datetime import datetime, timezone
 
+import base64, hmac, hashlib, time
+from urllib.parse import urlencode
+from flask import make_response
+
+
+# ===== Helpers de acesso do Gestor =====
+def current_manager_code():
+    """
+    Lê o cookie httpOnly 'manager_access' (definido ao entrar em /team?t=TOKEN).
+    Se existir, retornamos o manager_code (ex.: '0007'); senão, None (modo RH).
+    """
+    try:
+        mc = (request.cookies.get('manager_access') or '').strip()
+        return mc if mc else None
+    except Exception:
+        return None
+
+def restrict_to_manager_employee_ids():
+    """
+    Se houver manager_access, retorna a lista de IDs de funcionários do time desse gestor.
+    Caso contrário (RH), retorna None.
+    """
+    mc = current_manager_code()
+    if not mc:
+        return None  # RH (sem filtro)
+
+    try:
+        r = (supabase.table('employees')
+             .select('id')
+             .eq('manager_code', mc)
+             .execute())
+        emp_ids = [row['id'] for row in (r.data or []) if row.get('id') is not None]
+        return emp_ids
+    except Exception as e:
+        print('[restrict_to_manager_employee_ids] erro:', e)
+        return []  # sem IDs => gestor vê nada
+
+
+
+
+
+
+
 def _parse_iso(dt_str: str):
     if not dt_str:
         return None
@@ -39,6 +82,52 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()  # usado em PUTs protegidos
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+MANAGER_LINK_SECRET = os.getenv('MANAGER_LINK_SECRET', '').encode('utf-8')
+def _b64u(x: bytes) -> str:
+    return base64.urlsafe_b64encode(x).decode('ascii').rstrip('=')
+
+def _b64u_dec(s: str) -> bytes:
+    pad = '=' * (-len(s) % 4)
+    return base64.urlsafe_b64decode((s + pad).encode('ascii'))
+
+def sign_manager_token(manager_code: str, exp_seconds: int = 2592000) -> str:
+    """
+    Gera um token assinado válido por ~30 dias (padrão).
+    Payload: {"mc":"0007","exp":<epoch>}
+    """
+    if not MANAGER_LINK_SECRET:
+        raise RuntimeError('MANAGER_LINK_SECRET ausente')
+    payload = json.dumps({
+        "mc": str(manager_code).strip(),
+        "exp": int(time.time()) + int(exp_seconds)
+    }, separators=(',', ':')).encode('utf-8')
+    p = _b64u(payload)
+    sig = hmac.new(MANAGER_LINK_SECRET, payload, hashlib.sha256).digest()
+    s = _b64u(sig)
+    return f"{p}.{s}"
+
+def verify_manager_token(token: str):
+    """Retorna dict com 'mc' se ok; senão None."""
+    try:
+        p, s = token.split('.', 1)
+        payload = _b64u_dec(p)
+        sig = _b64u_dec(s)
+        good = hmac.compare_digest(sig, hmac.new(MANAGER_LINK_SECRET, payload, hashlib.sha256).digest())
+        if not good:
+            return None
+        data = json.loads(payload.decode('utf-8'))
+        if int(data.get('exp', 0)) < int(time.time()):
+            return None
+        mc = str(data.get('mc', '')).strip()
+        return {"mc": mc} if mc else None
+    except Exception:
+        return None
+
+
+
+
+
 
 # ===== CORS simples sem dependências =====
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'https://gestor.thehrkey.tech').split(',')
@@ -78,6 +167,57 @@ def manager():
 @app.route('/test')
 def test():
     return "Teste funcionando!"
+
+
+from flask import make_response
+
+@app.route('/team')
+def team():
+    """
+    Gestor acessa por link com ?t=TOKEN.
+    Se o token for válido, gravamos o cookie httpOnly 'manager_access' com o manager_code.
+    """
+    t = (request.args.get('t') or '').strip()
+    resp = make_response(render_template('manager.html'))  # reaproveita o mesmo front
+    if t:
+        info = verify_manager_token(t)
+        if info and info.get('mc'):
+            resp.set_cookie(
+                'manager_access',
+                info['mc'],                 # ex.: '0007'
+                max_age=30*24*3600,         # 30 dias
+                secure=True,
+                httponly=True,
+                samesite='Lax'
+            )
+        else:
+            # token inválido: limpa cookie
+            resp.set_cookie('manager_access', '', expires=0)
+    return resp
+
+from urllib.parse import urlencode
+
+@app.route('/admin/generate-manager-link')
+def admin_generate_manager_link():
+    """
+    Uso: /admin/generate-manager-link?manager_code=0007&days=30
+    Retorna a URL para enviar ao gestor.
+    """
+    mc = (request.args.get('manager_code') or '').strip()
+    days = int(request.args.get('days', '30') or '30')
+    if not mc:
+        return jsonify({"error": "Informe manager_code=XXXX (4 dígitos)"}), 400
+
+    tok = sign_manager_token(mc, exp_seconds=days*24*3600)
+    base = request.host_url.rstrip('/')
+    link = f"{base}/team?{urlencode({'t': tok})}"
+    return jsonify({"manager_code": mc, "valid_days": days, "link": link}), 200
+
+@app.route('/api/auth/whoami', methods=['GET'])
+def api_whoami():
+    mc = request.cookies.get('manager_access')
+    return jsonify({"role": ("manager" if mc else "admin"), "manager_code": mc or None}), 200
+
 
 # ===================== Employees =====================
 @app.route('/api/employees', methods=['GET'])
