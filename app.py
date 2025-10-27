@@ -252,6 +252,31 @@ def get_employees():
         print(f"Erro no endpoint /api/employees: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/employees/by-manager', methods=['GET'])
+def get_employees_by_manager():
+    """
+    Retorna apenas os funcionários cujo campo manager_name corresponde ao nome passado na querystring.
+    Exemplo de uso: GET /api/employees/by-manager?manager_name=Maria%20Silva
+    """
+    try:
+        manager_name = request.args.get('manager_name', '').strip()
+        if not manager_name:
+            return jsonify({'error': 'Parâmetro manager_name é obrigatório'}), 400
+
+        # Busca case-insensitive (exato). Se quiser “contém”, troque eq -> ilike e use f'%{manager_name}%'
+        r = supabase.table('employees') \
+            .select('*') \
+            .eq('manager_name', manager_name) \
+            .execute()
+
+        return jsonify(r.data or [])
+    except Exception as e:
+        print(f"Erro no endpoint /api/employees/by-manager: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+
+
 
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
