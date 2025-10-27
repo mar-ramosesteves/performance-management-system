@@ -2014,11 +2014,89 @@
       }
     }
 
+    <!-- === FILTRO POR GESTOR VIA URL (?manager_name=...) === -->
+    
+      // Lê parâmetro de URL
+      function getQueryParam(name){
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      }
+    
+      // Renderiza cartões no #employees-container (mesmo layout da página)
+      function renderEmployeesCards(employees){
+        const wrap = document.getElementById('employees-container');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        employees.forEach(emp => {
+          const col = document.createElement('div');
+          col.className = 'col-md-4';
+          col.innerHTML = `
+            <div class="employee-card">
+              <h5 class="mb-1">${emp.nome || '-'}</h5>
+              <div class="text-muted mb-2">${emp.cargo || '-'}</div>
+              <div><strong>Departamento:</strong> ${emp.department_name || '-'}</div>
+              <div><strong>Empresa:</strong> ${emp.empresa || emp.company_name || '-'}</div>
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">
+                  Nova avaliação
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">
+                  Ver última
+                </button>
+              </div>
+            </div>
+          `;
+          wrap.appendChild(col);
+        });
+        // mostra a seção de funcionários
+        const sec = document.getElementById('employees-section');
+        if (sec) sec.style.display = 'block';
+        // esconde a matriz e a avaliação, se estiverem abertas
+        const nine = document.getElementById('nine-box-section');
+        if (nine) nine.style.display = 'none';
+        const evalSec = document.getElementById('evaluation-section');
+        if (evalSec) evalSec.style.display = 'none';
+      }
+    
+      // Carrega somente o time do gestor
+      async function loadEmployeesByManager(managerName){
+        try{
+          const url = `/api/employees/by-manager?manager_name=${encodeURIComponent(managerName)}`;
+          const r = await fetch(url);
+          if (!r.ok) throw new Error('Falha ao buscar funcionários do gestor');
+          const data = await r.json();
+          renderEmployeesCards(data || []);
+        }catch(e){
+          console.error(e);
+          alert('Erro ao carregar equipe do gestor.');
+        }
+      }
+    
+      // Auto-aplica se a URL tiver ?manager_name=...
+      (function autoFilterByManager(){
+        const m = getQueryParam('manager_name');
+        if (m) {
+          loadEmployeesByManager(m);
+        }
+      })();
+    
+    // === MODO GESTOR VIA URL ?manager_name=... ===
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const manager = params.get('manager_name') || params.get('manager'); // aceita ambos
+    
+      if (manager) {
+        // Mostra a seção e carrega somente o time do gestor informado
+        const sec = document.getElementById('employees-section');
+        if (sec) sec.style.display = 'block';
+        if (typeof loadEmployeesByManager === 'function') {
+          loadEmployeesByManager(manager);
+        }
+      }
+    })();
 
-        
-
-
-        
+            
+          
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </body>
