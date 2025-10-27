@@ -222,15 +222,36 @@ def api_whoami():
 # ===================== Employees =====================
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
+    """
+    Se existir o cookie manager_access, filtra os funcionários por manager_code.
+    EXCEÇÃO: quando a requisição vier da tela /manager (RH), NÃO filtra.
+    """
     try:
-        r = supabase.table('employees').select('*').execute()
-        # Garantir que sempre retorne um array
-        if r.data is None:
-            return jsonify([])
-        return jsonify(r.data)
+        # Detecta se a chamada veio da tela do RH
+        referer = (request.headers.get('Referer') or '')
+        from_manager_panel = '/manager' in referer
+
+        # Código do gestor vindo do cookie (criado em /team?m=XXXX)
+        manager_code = (request.cookies.get('manager_access') or '').strip()
+
+        # Se existe cookie E não é a tela /manager, aplica o filtro
+        if manager_code and not from_manager_panel:
+            r = (
+                supabase
+                .table('employees')
+                .select('*')
+                .eq('manager_code', manager_code)
+                .execute()
+            )
+        else:
+            # RH (ou sem cookie) vê todos
+            r = supabase.table('employees').select('*').execute()
+
+        return jsonify(r.data or [])
     except Exception as e:
         print(f"Erro no endpoint /api/employees: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
