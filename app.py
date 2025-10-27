@@ -252,6 +252,32 @@ def get_employees():
         print(f"Erro no endpoint /api/employees: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/employees/manager', methods=['GET'])
+def get_employees_by_manager():
+    """
+    Retorna somente os funcionários cujo manager_name corresponde ao nome informado.
+    Uso: GET /api/employees/manager?name=NOME%20EXATO%20DO%20GESTOR
+    """
+    try:
+        name = request.args.get('name', '').strip()
+        if not name:
+            return jsonify({'error': "Parâmetro 'name' é obrigatório (manager_name)."}), 400
+
+        # Case-insensitive (ILIKE). Se você sempre copia e cola o nome exato, também funcionaria com eq.
+        r = (
+            supabase
+            .table('employees')
+            .select('*')
+            .ilike('manager_name', name)   # sem % vira comparação case-insensitive exata
+            .execute()
+        )
+
+        return jsonify(r.data or [])
+    except Exception as e:
+        print(f"Erro no endpoint /api/employees/manager: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/employees/by-manager', methods=['GET'])
 def get_employees_by_manager():
     """
