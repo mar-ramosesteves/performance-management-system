@@ -32,8 +32,8 @@
         }
         .rating-buttons { display: flex; gap: 10px; margin-top: 10px; }
         .rating-btn {
-            width: 40px; height: 40px; border: 2px solid #ddd; border-radius: 50%; background: white; color: #666;
-            font-weight: bold; transition: all 0.3s ease;
+            width: 40px; height: 40px; border: 2px solid #ddd; border-radius: 50%;
+            background: white; color: #666; font-weight: bold; transition: all 0.3s ease;
         }
         .rating-btn:hover { border-color: #667eea; color: #667eea; }
         .rating-btn.selected { background: #667eea; border-color: #667eea; color: white; }
@@ -41,40 +41,72 @@
         .type-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
         .type-desempenho { background: #28a745; color: white; }
         .type-potencial  { background: #17a2b8; color: white; }
-        .goals-section { background: #e8f4fd; border: 2px solid #17a2b8; border-radius: 10px; padding: 20px; margin: 20px 0; }
+        .goals-section   { background: #e8f4fd; border: 2px solid #17a2b8; border-radius: 10px; padding: 20px; margin: 20px 0; }
         .goal-card { background: white; border: 1px solid #17a2b8; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
         .weight-input { width: 80px; text-align: center; }
-        .total-weight { background: #28a745; color: white; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }
+        .total-weight {
+            background: #28a745; color: white; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold;
+        }
         .total-weight.invalid { background: #dc3545; }
         .dimension-weights { background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 20px; margin: 20px 0; }
         .final-rating { background: #d4edda; border: 2px solid #28a745; border-radius: 10px; padding: 20px; margin: 20px 0; text-align: center; }
         .final-rating-value { font-size: 2rem; font-weight: bold; color: #28a745; }
-        .nine-box-container { display: grid; grid-template-columns: 100px 120px 120px 120px; grid-template-rows: 40px 80px 80px 80px; gap: 5px; margin: 20px auto; max-width: 500px; }
+
+        /* Matriz 9-Box (cards iniciais do topo) */
+        .nine-box-container {
+            display: grid; grid-template-columns: 100px 120px 120px 120px; grid-template-rows: 40px 80px 80px 80px;
+            gap: 5px; margin: 20px auto; max-width: 500px;
+        }
         .performance-header, .potential-header {
-            display: flex; align-items: center; justify-content: center; font-weight: bold; background-color: #f0f0f0;
-            border: 1px solid #ccc; padding: 5px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+            background-color: #f0f0f0; border: 1px solid #ccc; padding: 5px;
         }
         .potential-header { writing-mode: vertical-rl; text-orientation: mixed; }
-        .nine-box-cell { border: 2px solid #333; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px; min-height: 80px; max-height: 80px; overflow: hidden; }
+        .nine-box-cell {
+            border: 2px solid #333; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 5px; min-height: 80px; max-height: 80px; overflow: hidden;
+        }
         .nine-box-cell.occupied { background-color: rgba(255, 255, 255, 0.9); }
         .employee-name { font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 2px; }
         .employee-rating { font-size: 10px; color: #666; text-align: center; }
         .box-title { font-size: 10px; color: #999; text-align: center; }
-        .box-1 { background-color: #90EE90; } .box-2 { background-color: #ADD8E6; } .box-3 { background-color: #FFC0CB; }
-        .box-4 { background-color: #90EE90; } .box-5 { background-color: #FFFFE0; } .box-6 { background-color: #FFDAB9; }
-        .box-7 { background-color: #FFA500; } .box-8 { background-color: #FFDAB9; } .box-9 { background-color: #FF0000; }
-        .matrix-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; margin-bottom: 10px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .box-1 { background-color: #90EE90; }
+        .box-2 { background-color: #ADD8E6; }
+        .box-3 { background-color: #FFC0CB; }
+        .box-4 { background-color: #90EE90; }
+        .box-5 { background-color: #FFFFE0; }
+        .box-6 { background-color: #FFDAB9; }
+        .box-7 { background-color: #FFA500; }
+        .box-8 { background-color: #FFDAB9; }
+        .box-9 { background-color: #FF0000; }
+        .matrix-labels {
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; margin-bottom: 10px; max-width: 600px;
+            margin-left: auto; margin-right: auto;
+        }
         .matrix-label { text-align: center; font-weight: bold; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; }
-        .matrix-y-labels { display: flex; flex-direction: column; justify-content: space-between; height: 360px; margin-right: 10px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .matrix-y-labels {
+            display: flex; flex-direction: column; justify-content: space-between; height: 360px; margin-right: 10px; max-width: 600px;
+            margin-left: auto; margin-right: auto;
+        }
         .matrix-y-label { text-align: center; font-weight: bold; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; writing-mode: vertical-rl; text-orientation: mixed; }
-        .dimension-average { background-color: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-left: 10px; font-size: 12px; }
+
+        /* Médias das dimensões */
+        .dimension-average {
+            background-color: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-left: 10px; font-size: 12px;
+        }
         .weight-item { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
         .weight-item label { min-width: 100px; font-weight: bold; }
-        .goal-item { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; background-color: #f9f9f9; }
+
+        /* Metas */
+        .goal-item {
+            border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; background-color: #f9f9f9;
+        }
         .goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .goal-header h4 { margin: 0; color: #2c3e50; }
         .goal-content { margin-bottom: 15px; }
-        .goal-content input, .goal-content textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .goal-content input, .goal-content textarea {
+            width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px;
+        }
         .goal-criteria { margin-bottom: 15px; }
         .goal-criteria h5 { margin-bottom: 10px; color: #34495e; }
         .criteria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
@@ -84,24 +116,6 @@
         .goal-rating { display: flex; align-items: center; gap: 10px; }
         .goal-rating label { font-weight: bold; color: #2c3e50; }
         .goal-rating select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 200px; }
-        /* Título Matriz 9-Box */
-        #nine-box-section h2 { text-align: center; font-size: 28px; font-weight: bold; color: #2c3e50; margin: 30px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); letter-spacing: 1px; }
-        .nine-box-table { border-collapse: collapse; margin: 20px auto; font-family: Arial, sans-serif; display: table; width: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
-        .nine-box-table tr { display: table-row; }
-        .nine-box-table td {
-            width: 200px; height: 120px; border: 2px solid #333; text-align: center; vertical-align: middle; padding: 10px;
-            font-size: 11px; line-height: 1.3; overflow: hidden; display: table-cell;
-        }
-        .header-cell {
-            background: #e3f2fd; color: #1565c0; font-weight: 900; font-size: 18px; vertical-align: middle; display: table-cell;
-            padding: 15px 8px; letter-spacing: 0.5px; text-transform: uppercase;
-        }
-        .header-cell:first-child { width: 120px; }
-        .nine-box-table tr td:first-child { width: 120px; }
-        .box-1 { background-color: #90EE90; } .box-2 { background-color: #87CEEB; } .box-3 { background-color: #FFB6C1; }
-        .box-4 { background-color: #98FB98; } .box-5 { background-color: #FFFFE0; } .box-6 { background-color: #FFE4B5; }
-        .box-7 { background-color: #FFA500; } .box-8 { background-color: #FFA07A; } .box-9 { background-color: #FF6B6B; }
-        .nine-box-cell:hover { transform: scale(1.02); transition: transform 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -175,9 +189,25 @@
         </div>
     </section>
 
-    <!-- Matriz 9-Box -->
+    <!-- Matriz 9-Box Corrigida -->
     <section id="nine-box-section" style="display: none;">
         <h2>📊 Matriz 9-Box</h2>
+        <style>
+            #nine-box-section h2 {
+                text-align: center; font-size: 28px; font-weight: bold; color: #2c3e50; margin: 30px 0;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.1); letter-spacing: 1px;
+            }
+            .nine-box-table { border-collapse: collapse; margin: 20px auto; font-family: Arial, sans-serif; display: table; width: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+            .nine-box-table tr { display: table-row; }
+            .nine-box-table td { width: 200px; height: 120px; border: 2px solid #333; text-align: center; vertical-align: middle; padding: 10px; font-size: 11px; line-height: 1.3; overflow: hidden; display: table-cell; }
+            .header-cell { background: #e3f2fd; color: #1565c0; font-weight: 900; font-size: 18px; vertical-align: middle; display: table-cell; padding: 15px 8px; text-shadow: 1px 1px 2px rgba(0,0,0,0.0); letter-spacing: 0.5px; text-transform: uppercase; }
+            .header-cell:first-child { width: 120px; }
+            .nine-box-table tr td:first-child { width: 120px; }
+            .box-1 { background-color: #90EE90; } .box-2 { background-color: #87CEEB; } .box-3 { background-color: #FFB6C1; }
+            .box-4 { background-color: #98FB98; } .box-5 { background-color: #FFFFE0; } .box-6 { background-color: #FFE4B5; }
+            .box-7 { background-color: #FFA500; } .box-8 { background-color: #FFA07A; } .box-9 { background-color: #FF6B6B; }
+            .nine-box-cell:hover { transform: scale(1.02); transition: transform 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        </style>
         <table class="nine-box-table">
             <tr>
                 <td class="header-cell"></td>
@@ -215,59 +245,56 @@
 
                     <!-- Código da Rodada -->
                     <div class="evaluation-section" style="background: #e8f4fd; border: 2px solid #17a2b8; border-radius: 10px; padding: 20px; margin: 20px 0;">
-                      <h4><i class="fas fa-calendar-alt me-2"></i>Código da Rodada</h4>
-                      <div class="row">
-                        <div class="col-md-6">
-                          <label for="round-code" class="form-label"><strong>Código da Rodada:</strong></label>
-                          <input type="text" id="round-code" class="form-control" placeholder="Ex: Start2025, IR2025, YE2025" 
-                                 pattern="^(Start|IR|YE)\d{4}$" title="Formato: Start2025, IR2025, YE2025" readonly>
-                          <div class="form-text">
-                            <small class="text-muted">
-                              <strong>Formatos válidos:</strong><br>
-                              • Start2025 - Definição de Metas (EMPENHO)<br>
-                              • IR2025 - Interim Review (Estimativa)<br>
-                              • YE2025 - Year End Review (Final)
-                            </small>
-                          </div>
+                        <h4><i class="fas fa-calendar-alt me-2"></i>Código da Rodada</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="round-code" class="form-label"><strong>Código da Rodada:</strong></label>
+                                <input type="text" id="round-code" class="form-control" placeholder="Ex: Start2025, IR2025, YE2025"
+                                       pattern="^(Start|IR|YE)\d{4}$" title="Formato: Start2025, IR2025, YE2025" readonly>
+                                <div class="form-text">
+                                    <small class="text-muted">
+                                        <strong>Formatos válidos:</strong><br>
+                                        • Start2025 - Definição de Metas (EMPENHO)<br>
+                                        • IR2025 - Interim Review (Estimativa)<br>
+                                        • YE2025 - Year End Review (Final)
+                                    </small>
+                                </div>
+                            </div>
                         </div>
-                      </div>
                     </div>
 
-                    <!-- Cabeçalho do Avaliado -->
+                    <!-- Employee Info (cabeçalho completo) -->
                     <div class="evaluation-section" id="employee-header">
-                      <h4>Informações do Avaliado</h4>
-                      <style>
-                        .emp-grid{ display:grid; gap:10px; grid-template-columns: repeat(6, 1fr); }
-                        @media (max-width: 992px){ .emp-grid{ grid-template-columns: repeat(2, 1fr);} }
-                        .emp-cell{ background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:10px }
-                        .emp-label{ font-size:12px; color:#6b7280; margin-bottom:4px }
-                        .emp-value{ font-weight:700; color:#111; word-break:break-word }
-                        .emp-title{ grid-column: 1 / -1; text-align:center; font-size:18px; font-weight:800; padding:8px 0 }
-                      </style>
+                        <h4>Informações do Avaliado</h4>
+                        <style>
+                            .emp-grid{ display:grid; gap:10px; grid-template-columns: repeat(6, 1fr); }
+                            @media (max-width: 992px){ .emp-grid{grid-template-columns: repeat(2, 1fr);} }
+                            .emp-cell{ background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:10px }
+                            .emp-label{ font-size:12px; color:#6b7280; margin-bottom:4px }
+                            .emp-value{ font-weight:700; color:#111; word-break:break-word }
+                            .emp-title{ grid-column: 1 / -1; text-align:center; font-size:18px; font-weight:800; padding:8px 0 }
+                        </style>
 
-                      <div class="emp-grid">
-                        <div class="emp-cell emp-title" id="emp-title">-</div>
-
-                        <div class="emp-cell"><div class="emp-label">ID</div><div class="emp-value" id="employee-id">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Nome</div><div class="emp-value" id="employee-name">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Cargo</div><div class="emp-value" id="employee-role">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Departamento</div><div class="emp-value" id="employee-dept">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Empresa</div><div class="emp-value" id="employee-company">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Filial</div><div class="emp-value" id="employee-branch">-</div></div>
-
-                        <div class="emp-cell"><div class="emp-label">Data admissão</div><div class="emp-value" id="employee-admission">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Gestor imediato</div><div class="emp-value" id="employee-manager">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Data nascimento</div><div class="emp-value" id="employee-birth">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Situação</div><div class="emp-value" id="employee-status">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Motivo afastamento</div><div class="emp-value" id="employee-leave-reason">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Salário base</div><div class="emp-value" id="employee-salary">-</div></div>
-
-                        <div class="emp-cell"><div class="emp-label">% HAY (MED)</div><div class="emp-value" id="employee-hay">-</div></div>
-                        <div class="emp-cell"><div class="emp-label">Rating 2025</div><div class="emp-value" id="employee-rating">-</div></div>
-                      </div>
+                        <div class="emp-grid">
+                            <div class="emp-cell emp-title" id="emp-title">-</div>
+                            <div class="emp-cell"><div class="emp-label">ID</div><div class="emp-value" id="employee-id">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Nome</div><div class="emp-value" id="employee-name">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Cargo</div><div class="emp-value" id="employee-role">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Departamento</div><div class="emp-value" id="employee-dept">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Empresa</div><div class="emp-value" id="employee-company">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Filial</div><div class="emp-value" id="employee-branch">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Data admissão</div><div class="emp-value" id="employee-admission">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Gestor imediato</div><div class="emp-value" id="employee-manager">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Data nascimento</div><div class="emp-value" id="employee-birth">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Situação</div><div class="emp-value" id="employee-status">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Motivo afastamento</div><div class="emp-value" id="employee-leave-reason">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Salário base</div><div class="emp-value" id="employee-salary">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">% HAY (MED)</div><div class="emp-value" id="employee-hay">-</div></div>
+                            <div class="emp-cell"><div class="emp-label">Rating 2025</div><div class="emp-value" id="employee-rating">-</div></div>
+                        </div>
                     </div>
 
-                    <!-- Pesos por Dimensão -->
+                    <!-- Dimension Weights -->
                     <div class="dimension-weights">
                         <h3>Dimension Weights</h3>
                         <div class="weight-inputs">
@@ -301,13 +328,14 @@
                         </div>
                     </div>
 
-                    <!-- Critérios -->
+                    <!-- Evaluation Criteria -->
                     <div id="evaluation-criteria"></div>
 
-                    <!-- Metas -->
+                    <!-- Goals Section -->
                     <div class="goals-section">
                         <h4><i class="fas fa-bullseye me-2"></i>Metas Individuais (3 a 5 metas)</h4>
                         <div id="goals-container"></div>
+
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="d-flex gap-2">
                                 <button class="btn btn-success btn-sm" onclick="addGoal()">
@@ -321,19 +349,19 @@
                         </div>
                     </div>
 
-                    <!-- Rating final -->
+                    <!-- Final Rating -->
                     <div class="final-rating">
                         <h4>Rating Final</h4>
                         <div class="final-rating-value" id="final-rating">-</div>
                         <p class="mt-2">1 = Excelente | 2 = Superou | 3 = Atendeu | 4 = Não Atendeu | 5 = Insuficiente</p>
                     </div>
 
+                    <!-- Submit Button -->
                     <div class="text-center mt-4">
                         <button class="btn btn-success btn-lg" onclick="submitEvaluation()">
                             <i class="fas fa-save me-2"></i>Salvar Avaliação
                         </button>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -341,29 +369,22 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    /* =========================
-       URL param -> MANAGER_NAME (uma única definição)
-    ========================= */
-    function getParam(name) {
-      const url = new URL(window.location.href);
-      return url.searchParams.get(name);
-    }
-    const MANAGER_NAME = (getParam('manager_name') || '').replace(/^"+|"+$/g, '').trim();
-
-    /* =========================
-       Estado
-    ========================= */
-    let currentEmployee = null;
-    let evaluationData = {};
-    let dimensionWeights = { INSTITUCIONAL:15, FUNCIONAL:15, INDIVIDUAL:30, METAS:40 };
-
-    /* =========================
-       Helpers base
-    ========================= */
+    // ===== Utils básicos =====
     function qs(sel, el=document){ return el.querySelector(sel); }
     function qsa(sel, el=document){ return [...el.querySelectorAll(sel)]; }
     function toNumber(v, d=0){ const n = parseFloat(v); return isNaN(n) ? d : n; }
     function round(n){ return Math.round(n); }
+
+    // --- Util para ler parâmetros da URL e definir MANAGER_NAME (única definição) ---
+    function getParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+    const MANAGER_NAME = (getParam('manager_name') || getParam('manager') || '')
+      .replace(/^"+|"+$/g, '')
+      .trim();
+
+    // ===== Helpers de formatação (únicos) =====
     window.moneyBR = window.moneyBR || function(v){
       if (v==null || v==='') return '-';
       const n = Number(v);
@@ -376,15 +397,19 @@
       if (Number.isNaN(d.valueOf())) return v;
       return d.toLocaleDateString('pt-BR');
     };
+
     function fmtEmpCode(emp){
       const code = (emp?.employee_code ?? '').toString().trim();
       if (code) return code.padStart(4,'0');
       return (emp?.id != null) ? `INT-${emp.id}` : '-';
     }
 
-    /* =========================
-       Pesos (normalização e aplicação)
-    ========================= */
+    // ===== Estado =====
+    let currentEmployee = null;
+    let evaluationData = {};
+    let dimensionWeights = { INSTITUCIONAL: 15, FUNCIONAL: 15, INDIVIDUAL: 30, METAS: 40 };
+
+    // ===== Normalizadores =====
     function normalizeDimensionWeights(w) {
       const out = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
       if (!w || typeof w !== 'object') return out;
@@ -401,40 +426,12 @@
       }
       return out;
     }
-    function applyDimensionWeightsToInputs(weights, lock){
-      const w = {
-        INSTITUCIONAL: Number(weights.INSTITUCIONAL ?? 0),
-        FUNCIONAL:     Number(weights.FUNCIONAL     ?? 0),
-        INDIVIDUAL:    Number(weights.INDIVIDUAL    ?? 0),
-        METAS:         Number(weights.METAS         ?? 0),
-      };
-      const ids = {
-        INSTITUCIONAL: 'weight-institucional',
-        FUNCIONAL:     'weight-funcional',
-        INDIVIDUAL:    'weight-individual',
-        METAS:         'weight-metas'
-      };
-      Object.keys(ids).forEach(k=>{
-        const el = document.getElementById(ids[k]);
-        if (el){
-          el.value = w[k];
-          el.disabled = !!lock;
-          el.readOnly = !!lock;
-        }
-      });
-      dimensionWeights = w;
-      updateDimensionWeights();
-      calculateFinalRating();
-    }
 
-    /* =========================
-       Cabeçalho do avaliado
-    ========================= */
+    // ===== Cabeçalho do avaliado =====
     function setEmployeeHeader(emp, lastFinalRating = null){
       const get = (v, alt='-') => (v==null || v==='') ? alt : v;
       const titleEl = document.getElementById('emp-title');
       if (titleEl) titleEl.textContent = get(emp?.nome, '-').toUpperCase();
-
       const map = {
         'employee-id':        emp?.id,
         'employee-name':      emp?.nome,
@@ -457,11 +454,8 @@
       });
     }
 
-    /* =========================
-       Funcionários (lista + filtro por gestor)
-    ========================= */
+    /* ========================= Funcionários ========================= */
     async function loadEmployees() {
-      // Se veio com ?manager_name=... na URL, sempre filtra pelo gestor
       if (MANAGER_NAME) {
         const sec = document.getElementById('employees-section');
         if (sec) sec.style.display = 'block';
@@ -501,14 +495,12 @@
           console.error(e);
           alert('Erro ao carregar a lista do gestor.');
         }
-        return; // impede carregar “todos”
+        return;
       }
 
-      // ---- Fluxo normal (RH vê todos) ----
       try {
         const response = await fetch('/api/employees');
         const employees = await response.json();
-        if (!Array.isArray(employees)) { console.error('Dados não são um array:', employees); return; }
         const sec = document.getElementById('employees-section');
         if (sec) sec.style.display = 'block';
         const container = document.getElementById('employees-container');
@@ -539,17 +531,58 @@
       }
     }
 
-    /* =========================
-       NINE-BOX
-    ========================= */
+    function renderEmployeeCard(emp) {
+      const col = document.createElement('div');
+      col.className = 'col-md-6 col-lg-4';
+      const nome = emp?.nome || 'Sem nome';
+      const cargo = emp?.cargo || '—';
+      const empresa = emp?.empresa || emp?.company_name || '—';
+      const depto = emp?.department_name || '—';
+      const filial = emp?.branch_name || '—';
+      const gestor = emp?.manager_name || '—';
+      const salario = (typeof window.moneyBR === 'function') ? moneyBR(emp?.salario) : (emp?.salario ?? '—');
+      const empCode = (typeof fmtEmpCode === 'function') ? fmtEmpCode(emp) : (emp?.id ?? '—');
+      col.innerHTML = `
+        <div class="employee-card h-100 d-flex flex-column">
+          <div class="d-flex align-items-start justify-content-between mb-2">
+            <h5 class="mb-0">${nome}</h5>
+            <span class="badge bg-secondary">ID: ${empCode}</span>
+          </div>
+          <div class="text-muted small mb-3">
+            <div><strong>Cargo:</strong> ${cargo}</div>
+            <div><strong>Empresa:</strong> ${empresa}</div>
+            <div><strong>Departamento:</strong> ${depto}</div>
+            <div><strong>Filial:</strong> ${filial}</div>
+            <div><strong>Gestor:</strong> ${gestor}</div>
+            <div><strong>Salário:</strong> ${salario}</div>
+          </div>
+          <div class="mt-auto d-flex gap-2">
+            <button class="btn btn-primary btn-sm flex-fill" onclick="startEvaluationForEmployee(${emp.id})">
+              <i class="fas fa-clipboard-check me-1"></i> Nova Avaliação
+            </button>
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="viewEmployeeEvaluation(${emp.id})">
+              <i class="fas fa-eye me-1"></i> Ver Avaliação
+            </button>
+          </div>
+        </div>
+      `;
+      return col;
+    }
+
+    function startEvaluation() { alert('Selecione um funcionário para avaliar'); }
+    function editEmployee(id) { alert(`Editar funcionário ID: ${id} (em desenvolvimento)`); }
+
+    /* ========================= NINE-BOX ========================= */
     async function showNineBoxMatrix() {
       try {
         const respEval = await fetch('/api/evaluations');
         const evaluations = await respEval.json();
         const respEmp = await fetch('/api/employees');
         const employees = await respEmp.json();
+
         qsa('.nine-box-cell').forEach(c => c.innerHTML = '');
         const byPos = {1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[],9:[]};
+
         evaluations.forEach(ev => {
           const emp = employees.find(e => e.id === ev.employee_id);
           if (!emp) return;
@@ -561,6 +594,7 @@
           const pos = (linha - 1) * 3 + coluna;
           if (pos >= 1 && pos <= 9) byPos[pos].push(emp.nome);
         });
+
         for (let i=1;i<=9;i++){
           const cell = qs(`[data-position="${i}"]`);
           if (cell && byPos[i].length) cell.textContent = byPos[i].join(', ');
@@ -572,9 +606,48 @@
       }
     }
 
-    /* =========================
-       Critérios / Metas / Pesos
-    ========================= */
+    /* ========================= Avaliação ========================= */
+    async function startEvaluationForEmployee(employeeId) {
+      try {
+        const resp = await fetch('/api/employees');
+        const employees = await resp.json();
+        currentEmployee = employees.find(emp => emp.id === employeeId);
+        if (!currentEmployee) return alert('Funcionário não encontrado');
+
+        let lastFinalRating = null;
+        try {
+          const r = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
+          if (r.ok) {
+            const j = await r.json();
+            lastFinalRating = (j?.evaluation?.final_rating ?? null);
+          }
+        } catch (_) {}
+
+        setEmployeeHeader(currentEmployee, lastFinalRating);
+        const idEl = document.querySelector('#employee-id');
+        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
+
+        await loadEvaluationCriteria();
+        await loadActiveRoundCode();
+        await loadCentralDimensionWeights();
+
+        evaluationData = {};
+        const goalsContainer = document.querySelector('#goals-container');
+        if (goalsContainer) goalsContainer.innerHTML = '';
+        evaluationData = {};
+        await loadGoals();
+
+        initDimensionWeights();
+        calculateFinalRating();
+
+        document.getElementById('evaluation-section').style.display = 'block';
+        document.getElementById('evaluation-section').scrollIntoView({behavior:'smooth'});
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao iniciar avaliação');
+      }
+    }
+
     async function loadEvaluationCriteria() {
       try {
         const response = await fetch('/api/evaluation-criteria');
@@ -625,11 +698,25 @@
       }
     }
 
+    /* -------- Metas -------- */
+    async function loadGoals() {
+      try {
+        if (!currentEmployee) return;
+        const container = qs('#goals-container');
+        container.innerHTML = '';
+        updateGoalsWeight();
+        calculateFinalRating();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     function renderGoalsFrom(goalsList) {
       const box = document.querySelector('#goals-container');
       if (!box) return;
       box.innerHTML = '';
       if (!Array.isArray(goalsList) || goalsList.length === 0) return;
+
       goalsList.forEach((goal, idx) => {
         const w = Number(goal.weight ?? goal.peso ?? 0);
         const r = Number(goal.rating ?? goal.nota ?? 0);
@@ -641,7 +728,8 @@
           <div class="goal-header">
             <h4>Meta ${idx + 1}</h4>
             <div class="d-flex gap-2">
-              <input type="number" id="goal-weight-${idx}" min="0" max="100" value="${!Number.isNaN(w) ? w : 0}" placeholder="Peso %"/>
+              <input type="number" id="goal-weight-${idx}" min="0" max="100"
+                     value="${!Number.isNaN(w) ? w : 0}" placeholder="Peso %" />
               <button class="btn btn-danger btn-sm" onclick="removeGoal(${idx})">
                 <i class="fas fa-trash me-1"></i>Excluir
               </button>
@@ -670,27 +758,17 @@
           </div>`;
         box.appendChild(wrap);
       });
-      document.querySelectorAll('[id^="goal-weight-"]').forEach(inp => {
+
+      qsa('[id^="goal-weight-"]').forEach(inp => {
         inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
         inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
       });
-      document.querySelectorAll('[id^="goal-rating-"]').forEach(sel => {
+      qsa('[id^="goal-rating-"]').forEach(sel => {
         sel.addEventListener('change', () => calculateFinalRating());
       });
+
       updateGoalsWeight();
       calculateFinalRating();
-    }
-
-    async function loadGoals() {
-      try {
-        if (!currentEmployee) return;
-        const container = qs('#goals-container');
-        container.innerHTML = '';
-        updateGoalsWeight();
-        calculateFinalRating();
-      } catch (e) {
-        console.error(e);
-      }
     }
 
     function addGoal() {
@@ -730,6 +808,7 @@
           </select>
         </div>`;
       container.appendChild(el);
+
       qs(`#goal-weight-${index}`).addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
       qs(`#goal-weight-${index}`).addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
       qs(`#goal-rating-${index}`).addEventListener('change', () => calculateFinalRating());
@@ -740,12 +819,16 @@
       const goals = qsa('.goal-item');
       if (goals.length > 0 && goalIndex >= 0 && goalIndex < goals.length) {
         goals[goalIndex].remove();
-        const remaining = qsa('.goal-item');
-        remaining.forEach((goal, newIndex) => {
-          goal.querySelector(`[id^="goal-weight-"]`).id = `goal-weight-${newIndex}`;
-          goal.querySelector(`[id^="goal-name-"]`).id = `goal-name-${newIndex}`;
-          goal.querySelector(`[id^="goal-description-"]`).id = `goal-description-${newIndex}`;
-          goal.querySelector(`[id^="goal-rating-"]`).id = `goal-rating-${newIndex}`;
+        const remainingGoals = qsa('.goal-item');
+        remainingGoals.forEach((goal, newIndex) => {
+          const weightInput = goal.querySelector(`[id^="goal-weight-"]`);
+          const nameInput = goal.querySelector(`[id^="goal-name-"]`);
+          const descTextarea = goal.querySelector(`[id^="goal-description-"]`);
+          const ratingSelect = goal.querySelector(`[id^="goal-rating-"]`);
+          if (weightInput) weightInput.id = `goal-weight-${newIndex}`;
+          if (nameInput) nameInput.id = `goal-name-${newIndex}`;
+          if (descTextarea) descTextarea.id = `goal-description-${newIndex}`;
+          if (ratingSelect) ratingSelect.id = `goal-rating-${newIndex}`;
           for (let n = 1; n <= 5; n++) {
             const criteriaTextarea = goal.querySelector(`[id^="goal-rating${n}-"]`);
             if (criteriaTextarea) criteriaTextarea.id = `goal-rating${n}-${newIndex}`;
@@ -787,6 +870,18 @@
       return { goals, sumWeights, avgRating, missingCriteria };
     }
 
+    function saveGoals() {
+      const { goals, missingCriteria } = readGoalsFromDOM();
+      if (missingCriteria) {
+        alert('Preencha todos os critérios (Rating 1 a 5) de todas as metas.');
+        return;
+      }
+      localStorage.setItem('individual_goals', JSON.stringify(goals));
+      alert('Metas salvas com sucesso!');
+      updateGoalsWeight();
+    }
+
+    /* -------- Pesos por dimensão -------- */
     function initDimensionWeights() {
       ['weight-institucional','weight-funcional','weight-individual','weight-metas'].forEach(id => {
         const input = qs('#'+id);
@@ -795,7 +890,6 @@
       });
       updateDimensionWeights();
     }
-
     function updateDimensionWeights() {
       const wInst = toNumber(qs('#weight-institucional').value);
       const wFunc = toNumber(qs('#weight-funcional').value);
@@ -807,9 +901,10 @@
       const wrapper = span.closest('.total-weight');
       if (Math.abs(total - 100) < 0.01) wrapper.classList.remove('invalid');
       else wrapper.classList.add('invalid');
-      dimensionWeights = { INSTITUCIONAL:wInst, FUNCIONAL:wFunc, INDIVIDUAL:wInd, METAS:wMet };
+      dimensionWeights = { INSTITUCIONAL: wInst, FUNCIONAL: wFunc, INDIVIDUAL: wInd, METAS: wMet };
     }
 
+    /* -------- Pesos das metas -------- */
     function updateGoalsWeight() {
       let total = 0;
       qsa('[id^="goal-weight-"]').forEach(input => total += toNumber(input.value));
@@ -819,6 +914,7 @@
       else box.classList.add('invalid');
     }
 
+    /* -------- Ratings -------- */
     function setRating(criteriaId, rating) {
       qsa(`[data-criteria="${criteriaId}"]`).forEach(btn => btn.classList.remove('selected'));
       const sel = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
@@ -837,12 +933,10 @@
       });
       return count ? (total / count) : 0;
     }
-
     function calculateGoalsAverage() {
       const { avgRating } = readGoalsFromDOM();
       return avgRating || 0;
     }
-
     function calculateFinalRating() {
       const institucionalAvg = calculateDimensionAverage('INSTITUCIONAL');
       const funcionalAvg     = calculateDimensionAverage('FUNCIONAL');
@@ -863,39 +957,119 @@
       return finalRounded;
     }
 
-    /* =========================
-       Sistema de Rodadas (dinâmico + centralizado)
-    ========================= */
-    function generateRoundCode(type, year) { return `${type}${year}`; }
-    function getCurrentYear() { return new Date().getFullYear(); }
-    function generateCurrentRoundCodes() {
-        const year = getCurrentYear();
-        return { start: generateRoundCode('Start', year), ir: generateRoundCode('IR', year), ye: generateRoundCode('YE', year) };
-    }
-    async function loadActiveRoundCode() {
-        try {
-            const response = await fetch('/api/system-config');
-            const config = await response.json();
-            const roundCodeInput = document.getElementById('round-code');
-            if (roundCodeInput && config.active_round_code) {
-                roundCodeInput.value = config.active_round_code;
-            } else if (roundCodeInput) {
-                const codes = generateCurrentRoundCodes();
-                roundCodeInput.value = codes.start;
-            }
-        } catch (e) {
-            console.error('Erro ao carregar código da rodada:', e);
-            const roundCodeInput = document.getElementById('round-code');
-            if (roundCodeInput) {
-                const codes = generateCurrentRoundCodes();
-                roundCodeInput.value = codes.start;
-            }
+    async function submitEvaluation() {
+      if (!currentEmployee) return alert('Nenhum funcionário selecionado');
+      const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
+      if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
+      if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
+
+      const dimensionTotal = dimensionWeights.INSTITUCIONAL + dimensionWeights.FUNCIONAL + dimensionWeights.INDIVIDUAL + dimensionWeights.METAS;
+      if (Math.abs(dimensionTotal - 100) > 0.01) return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
+
+      const finalRating = calculateFinalRating();
+      const dimensionAverages = {
+        INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
+        FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
+        INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
+        METAS:         metasAvg
+      };
+      const roundCode = document.getElementById('round-code').value;
+      if (!roundCode || roundCode.trim() === '') {
+        return alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
+      }
+
+      const payload = {
+        employee_id: currentEmployee.id,
+        evaluator_id: 1,
+        evaluation_year: 2025,
+        round_code: roundCode,
+        responses: evaluationData,
+        goals,
+        goals_average: metasAvg,
+        dimension_weights: dimensionWeights,
+        dimension_averages: dimensionAverages,
+        final_rating: finalRating
+      };
+
+      try {
+        const resp = await fetch('/api/evaluations', {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          let msg = 'Erro ao salvar avaliação';
+          try {
+            const j = await resp.json();
+            if (j && (j.error || j.detail)) msg = j.error || j.detail;
+          } catch (_) {
+            try { msg = await resp.text(); } catch(__) {}
+          }
+          if (resp.status === 403) msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.';
+          alert(msg);
+          return;
         }
+        alert('Avaliação salva com sucesso!');
+        evaluationData = {};
+        qs('#evaluation-section').style.display = 'none';
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar avaliação');
+      }
     }
 
-    /* =========================
-       Pesos centrais (RH)
-    ========================= */
+    // ===== Sistema de Rodadas Dinâmico =====
+    function generateRoundCode(type, year) { return `${type}${year.toString()}`; }
+    function getCurrentYear() { return new Date().getFullYear(); }
+    function generateCurrentRoundCodes() {
+      const year = getCurrentYear();
+      return { start: generateRoundCode('Start', year), ir: generateRoundCode('IR', year), ye: generateRoundCode('YE', year) };
+    }
+    async function loadActiveRoundCode() {
+      try {
+        const response = await fetch('/api/system-config');
+        const config = await response.json();
+        const roundCodeInput = document.getElementById('round-code');
+        if (roundCodeInput && config.active_round_code) {
+          roundCodeInput.value = config.active_round_code;
+        } else if (roundCodeInput) {
+          const codes = generateCurrentRoundCodes();
+          roundCodeInput.value = codes.start;
+        }
+      } catch (e) {
+        console.error('Erro ao carregar código da rodada:', e);
+        const roundCodeInput = document.getElementById('round-code');
+        if (roundCodeInput) {
+          const codes = generateCurrentRoundCodes();
+          roundCodeInput.value = codes.start;
+        }
+      }
+    }
+
+    // ===== Pesos das Dimensões — centralizados pelo RH =====
+    function applyDimensionWeightsToInputs(weights, lock){
+      const w = {
+        INSTITUCIONAL: Number(weights.INSTITUCIONAL ?? 0),
+        FUNCIONAL:     Number(weights.FUNCIONAL     ?? 0),
+        INDIVIDUAL:    Number(weights.INDIVIDUAL    ?? 0),
+        METAS:         Number(weights.METAS         ?? 0),
+      };
+      const ids = {
+        INSTITUCIONAL: 'weight-institucional',
+        FUNCIONAL:     'weight-funcional',
+        INDIVIDUAL:    'weight-individual',
+        METAS:         'weight-metas'
+      };
+      Object.keys(ids).forEach(k=>{
+        const el = document.getElementById(ids[k]);
+        if (el){
+          el.value   = w[k];
+          el.disabled = !!lock;
+          el.readOnly = !!lock;
+        }
+      });
+      dimensionWeights = w;
+      updateDimensionWeights();
+      calculateFinalRating();
+    }
     async function loadCentralDimensionWeights(){
       try{
         const r = await fetch('/api/dimension-weights');
@@ -918,195 +1092,56 @@
       }
     }
 
-    /* =========================
-       Fluxo: iniciar avaliação / ver avaliação
-    ========================= */
-    function startEvaluation() { alert('Selecione um funcionário para avaliar'); }
-    function editEmployee(id) { alert(`Editar funcionário ID: ${id} (em desenvolvimento)`); }
-
-    async function startEvaluationForEmployee(employeeId) {
-      try {
-        const resp = await fetch('/api/employees');
-        const employees = await resp.json();
-        currentEmployee = employees.find(emp => emp.id === employeeId);
-        if (!currentEmployee) return alert('Funcionário não encontrado');
-
-        let lastFinalRating = null;
-        try {
-          const r = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
-          if (r.ok) {
-            const j = await r.json();
-            lastFinalRating = (j?.evaluation?.final_rating ?? null);
-          }
-        } catch (_) {}
-
-        setEmployeeHeader(currentEmployee, lastFinalRating);
-        const idEl = document.querySelector('#employee-id');
-        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
-
-        await loadEvaluationCriteria();
-        await loadActiveRoundCode();
-        await loadCentralDimensionWeights();
-
-        evaluationData = {};
-        const goalsContainer = document.querySelector('#goals-container');
-        if (goalsContainer) goalsContainer.innerHTML = '';
-        evaluationData = {};
-        await loadGoals();
-
-        initDimensionWeights();
-        calculateFinalRating();
-
-        document.getElementById('evaluation-section').style.display = 'block';
-        document.getElementById('evaluation-section').scrollIntoView({behavior:'smooth'});
-      } catch (e) {
+    <!-- === FILTRO POR GESTOR VIA URL (?manager_name=...) === -->
+    function getQueryParam(name){
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+    function renderEmployeesCards(employees){
+      const wrap = document.getElementById('employees-container');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      employees.forEach(emp => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        col.innerHTML = `
+          <div class="employee-card">
+            <h5 class="mb-1">${emp.nome || '-'}</h5>
+            <div class="text-muted mb-2">${emp.cargo || '-'}</div>
+            <div><strong>Departamento:</strong> ${emp.department_name || '-'}</div>
+            <div><strong>Empresa:</strong> ${emp.empresa || emp.company_name || '-'}</div>
+            <div class="mt-3 d-flex gap-2">
+              <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">Nova avaliação</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">Ver última</button>
+            </div>
+          </div>`;
+        wrap.appendChild(col);
+      });
+      const sec = document.getElementById('employees-section');
+      if (sec) sec.style.display = 'block';
+      const nine = document.getElementById('nine-box-section');
+      if (nine) nine.style.display = 'none';
+      const evalSec = document.getElementById('evaluation-section');
+      if (evalSec) evalSec.style.display = 'none';
+    }
+    async function loadEmployeesByManager(managerName){
+      try{
+        const url = `/api/employees/by-manager?manager_name=${encodeURIComponent(managerName)}`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('Falha ao buscar funcionários do gestor');
+        const data = await r.json();
+        renderEmployeesCards(data || []);
+      }catch(e){
         console.error(e);
-        alert('Erro ao iniciar avaliação');
+        alert('Erro ao carregar equipe do gestor.');
       }
     }
+    (function autoFilterByManager(){
+      const m = getQueryParam('manager_name') || getQueryParam('manager');
+      if (m) { loadEmployeesByManager(m); }
+    })();
 
-    async function viewEmployeeEvaluation(employeeId) {
-      try {
-        const resp = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
-        if (!resp.ok) {
-          if (resp.status === 404) return alert("Nenhuma avaliação encontrada para este funcionário.");
-          return alert("Erro ao carregar a última avaliação.");
-        }
-        const { evaluation: ev, responses, weights, goals } = await resp.json();
-
-        let employee = null;
-        try {
-          const er = await fetch('/api/employees');
-          const employees = await er.json();
-          employee = employees.find(e => Number(e.id) === Number(ev.employee_id));
-        } catch (_) {}
-
-        currentEmployee = employee || {
-          id: ev.employee_id, nome: `ID ${ev.employee_id}`, cargo: '-', empresa: '-', department_name: '-',
-          branch_name: '-', admission_date: null, manager_name: '-', birth_date: null, employment_status: 'ATIVO',
-          leave_reason: '', salario: null
-        };
-        setEmployeeHeader(currentEmployee, ev?.final_rating ?? null);
-        const idEl = document.querySelector('#employee-id');
-        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
-
-        await loadEvaluationCriteria();
-        if (typeof initDimensionWeights === 'function') { initDimensionWeights(); }
-
-        evaluationData = {};
-        (responses || []).forEach(row => {
-          const cid = String(row.criteria_id);
-          const r = Number(row.rating);
-          qsa(`[data-criteria="${cid}"]`).forEach(b => b.classList.remove('selected'));
-          const btn = qs(`[data-criteria="${cid}"][data-rating="${r}"]`);
-          if (btn) { btn.classList.add('selected'); evaluationData[cid] = r; }
-        });
-
-        const savedWeights = normalizeDimensionWeights(weights || ev?.dimension_weights || {});
-        document.getElementById('weight-institucional').value = savedWeights.INSTITUCIONAL;
-        document.getElementById('weight-funcional').value     = savedWeights.FUNCIONAL;
-        document.getElementById('weight-individual').value    = savedWeights.INDIVIDUAL;
-        document.getElementById('weight-metas').value         = savedWeights.METAS;
-        updateDimensionWeights();
-        calculateFinalRating();
-
-        let goalsList = goals;
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
-          try { goalsList = JSON.parse(ev.goals_json); } catch {}
-        }
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
-          goalsList = ev.goals;
-        }
-        if (Array.isArray(goalsList) && goalsList.length > 0) {
-          renderGoalsFrom(goalsList);
-        } else {
-          qs('#goals-container').innerHTML = '';
-          updateGoalsWeight();
-        }
-
-        if (qs('#avg-institucional')) qs('#avg-institucional').textContent = `Média: ${ev.institucional_avg ?? '-'}`;
-        if (qs('#avg-funcional'))     qs('#avg-funcional').textContent     = `Média: ${ev.funcional_avg ?? '-'}`;
-        if (qs('#avg-individual'))    qs('#avg-individual').textContent    = `Média: ${ev.individual_avg ?? '-'}`;
-        if (qs('#avg-metas'))         qs('#avg-metas').textContent         = `Média: ${ev.metas_avg ?? '-'}`;
-
-        calculateFinalRating();
-
-        const roundCodeInput = document.getElementById('round-code');
-        if (roundCodeInput && ev.round_code) roundCodeInput.value = ev.round_code;
-        else if (roundCodeInput) roundCodeInput.value = 'Start2025';
-
-        qs('#evaluation-section').style.display = 'block';
-        qs('#evaluation-section').scrollIntoView({ behavior: 'smooth' });
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao carregar avaliação');
-      }
-    }
-
-    async function submitEvaluation() {
-      if (!currentEmployee) return alert('Nenhum funcionário selecionado');
-
-      const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
-      if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
-      if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
-
-      const dimensionTotal = dimensionWeights.INSTITUCIONAL + dimensionWeights.FUNCIONAL + dimensionWeights.INDIVIDUAL + dimensionWeights.METAS;
-      if (Math.abs(dimensionTotal - 100) > 0.01) return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
-
-      const finalRating = calculateFinalRating();
-      const dimensionAverages = {
-        INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
-        FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
-        INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
-        METAS:         metasAvg
-      };
-
-      const roundCode = document.getElementById('round-code').value;
-      if (!roundCode || roundCode.trim() === '') return alert('ERRO: Código da rodada não definido. Contate o RH.');
-
-      const payload = {
-        employee_id: currentEmployee.id,
-        evaluator_id: 1,
-        evaluation_year: 2025,
-        round_code: roundCode,
-        responses: evaluationData,
-        goals,
-        goals_average: metasAvg,
-        dimension_weights: dimensionWeights,
-        dimension_averages: dimensionAverages,
-        final_rating: finalRating
-      };
-
-      try {
-        const resp = await fetch('/api/evaluations', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
-        });
-        if (!resp.ok) {
-          let msg = 'Erro ao salvar avaliação';
-          try {
-            const j = await resp.json();
-            if (j && (j.error || j.detail)) msg = j.error || j.detail;
-          } catch (_) {
-            try { msg = await resp.text(); } catch(__) {}
-          }
-          if (resp.status === 403) msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RH.';
-          alert(msg);
-          return;
-        }
-        alert('Avaliação salva com sucesso!');
-        evaluationData = {};
-        qs('#evaluation-section').style.display = 'none';
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao salvar avaliação');
-      }
-    }
-
-    /* =========================
-       Exports globais (uma única vez)
-    ========================= */
+    // ===== Exportação global =====
     window.loadEmployees = loadEmployees;
     window.startEvaluation = startEvaluation;
     window.editEmployee = editEmployee;
