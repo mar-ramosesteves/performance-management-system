@@ -17,361 +17,91 @@
             border: none;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-        .icon-large {
-            font-size: 3rem;
-            color: #667eea;
-        }
+        .feature-card:hover { transform: translateY(-5px); }
+        .icon-large { font-size: 3rem; color: #667eea; }
         .employee-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px;
+            background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .employee-card:hover {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
+        .employee-card:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
         .evaluation-section {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 10px;
-            margin: 20px 0;
+            background: #f8f9fa; padding: 30px; border-radius: 10px; margin: 20px 0;
         }
         .criteria-card {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
+            background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 15px;
         }
-        .rating-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
+        .rating-buttons { display: flex; gap: 10px; margin-top: 10px; }
         .rating-btn {
-            width: 40px;
-            height: 40px;
-            border: 2px solid #ddd;
-            border-radius: 50%;
-            background: white;
-            color: #666;
-            font-weight: bold;
-            transition: all 0.3s ease;
+            width: 40px; height: 40px; border: 2px solid #ddd; border-radius: 50%; background: white; color: #666;
+            font-weight: bold; transition: all 0.3s ease;
         }
-        .rating-btn:hover {
-            border-color: #667eea;
-            color: #667eea;
+        .rating-btn:hover { border-color: #667eea; color: #667eea; }
+        .rating-btn.selected { background: #667eea; border-color: #667eea; color: white; }
+        .dimension-header { background: #667eea; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .type-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .type-desempenho { background: #28a745; color: white; }
+        .type-potencial  { background: #17a2b8; color: white; }
+        .goals-section { background: #e8f4fd; border: 2px solid #17a2b8; border-radius: 10px; padding: 20px; margin: 20px 0; }
+        .goal-card { background: white; border: 1px solid #17a2b8; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
+        .weight-input { width: 80px; text-align: center; }
+        .total-weight { background: #28a745; color: white; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }
+        .total-weight.invalid { background: #dc3545; }
+        .dimension-weights { background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 20px; margin: 20px 0; }
+        .final-rating { background: #d4edda; border: 2px solid #28a745; border-radius: 10px; padding: 20px; margin: 20px 0; text-align: center; }
+        .final-rating-value { font-size: 2rem; font-weight: bold; color: #28a745; }
+        .nine-box-container { display: grid; grid-template-columns: 100px 120px 120px 120px; grid-template-rows: 40px 80px 80px 80px; gap: 5px; margin: 20px auto; max-width: 500px; }
+        .performance-header, .potential-header {
+            display: flex; align-items: center; justify-content: center; font-weight: bold; background-color: #f0f0f0;
+            border: 1px solid #ccc; padding: 5px;
         }
-        .rating-btn.selected {
-            background: #667eea;
-            border-color: #667eea;
-            color: white;
+        .potential-header { writing-mode: vertical-rl; text-orientation: mixed; }
+        .nine-box-cell { border: 2px solid #333; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px; min-height: 80px; max-height: 80px; overflow: hidden; }
+        .nine-box-cell.occupied { background-color: rgba(255, 255, 255, 0.9); }
+        .employee-name { font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 2px; }
+        .employee-rating { font-size: 10px; color: #666; text-align: center; }
+        .box-title { font-size: 10px; color: #999; text-align: center; }
+        .box-1 { background-color: #90EE90; } .box-2 { background-color: #ADD8E6; } .box-3 { background-color: #FFC0CB; }
+        .box-4 { background-color: #90EE90; } .box-5 { background-color: #FFFFE0; } .box-6 { background-color: #FFDAB9; }
+        .box-7 { background-color: #FFA500; } .box-8 { background-color: #FFDAB9; } .box-9 { background-color: #FF0000; }
+        .matrix-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; margin-bottom: 10px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .matrix-label { text-align: center; font-weight: bold; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; }
+        .matrix-y-labels { display: flex; flex-direction: column; justify-content: space-between; height: 360px; margin-right: 10px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .matrix-y-label { text-align: center; font-weight: bold; padding: 10px; background: #f8f9fa; border: 1px solid #dee2e6; writing-mode: vertical-rl; text-orientation: mixed; }
+        .dimension-average { background-color: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-left: 10px; font-size: 12px; }
+        .weight-item { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
+        .weight-item label { min-width: 100px; font-weight: bold; }
+        .goal-item { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px; background-color: #f9f9f9; }
+        .goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .goal-header h4 { margin: 0; color: #2c3e50; }
+        .goal-content { margin-bottom: 15px; }
+        .goal-content input, .goal-content textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .goal-criteria { margin-bottom: 15px; }
+        .goal-criteria h5 { margin-bottom: 10px; color: #34495e; }
+        .criteria-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        .criteria-item { display: flex; flex-direction: column; }
+        .criteria-item label { font-weight: bold; margin-bottom: 5px; color: #2c3e50; }
+        .criteria-item textarea { padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; min-height: 60px; }
+        .goal-rating { display: flex; align-items: center; gap: 10px; }
+        .goal-rating label { font-weight: bold; color: #2c3e50; }
+        .goal-rating select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 200px; }
+        /* Título Matriz 9-Box */
+        #nine-box-section h2 { text-align: center; font-size: 28px; font-weight: bold; color: #2c3e50; margin: 30px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); letter-spacing: 1px; }
+        .nine-box-table { border-collapse: collapse; margin: 20px auto; font-family: Arial, sans-serif; display: table; width: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        .nine-box-table tr { display: table-row; }
+        .nine-box-table td {
+            width: 200px; height: 120px; border: 2px solid #333; text-align: center; vertical-align: middle; padding: 10px;
+            font-size: 11px; line-height: 1.3; overflow: hidden; display: table-cell;
         }
-        .dimension-header {
-            background: #667eea;
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+        .header-cell {
+            background: #e3f2fd; color: #1565c0; font-weight: 900; font-size: 18px; vertical-align: middle; display: table-cell;
+            padding: 15px 8px; letter-spacing: 0.5px; text-transform: uppercase;
         }
-        .type-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .type-desempenho {
-            background: #28a745;
-            color: white;
-        }
-        .type-potencial {
-            background: #17a2b8;
-            color: white;
-        }
-        .goals-section {
-            background: #e8f4fd;
-            border: 2px solid #17a2b8;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .goal-card {
-            background: white;
-            border: 1px solid #17a2b8;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-        }
-        .weight-input {
-            width: 80px;
-            text-align: center;
-        }
-        .total-weight {
-            background: #28a745;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .total-weight.invalid {
-            background: #dc3545;
-        }
-        .dimension-weights {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .final-rating {
-            background: #d4edda;
-            border: 2px solid #28a745;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: center;
-        }
-        .final-rating-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #28a745;
-        }
-        
-        /* Estilos da Matriz 9-Box */
-        
-        .nine-box-container {
-            display: grid;
-            grid-template-columns: 100px 120px 120px 120px;
-            grid-template-rows: 40px 80px 80px 80px;
-            gap: 5px;
-            margin: 20px auto;
-            max-width: 500px;
-        }
-        
-        .performance-header {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            padding: 5px;
-        }
-        
-        .potential-header {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            padding: 5px;
-        }
-        
-        .nine-box-cell {
-            border: 2px solid #333;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 5px;
-            min-height: 80px;
-            max-height: 80px;
-            overflow: hidden;
-        }
-        
-        .nine-box-cell.occupied {
-            background-color: rgba(255, 255, 255, 0.9);
-        }
-        
-        .employee-name {
-            font-weight: bold;
-            font-size: 12px;
-            text-align: center;
-            margin-bottom: 2px;
-        }
-
-        .employee-rating {
-            font-size: 10px;
-            color: #666;
-            text-align: center;
-        }
-        
-        .box-title {
-            font-size: 10px;
-            color: #999;
-            text-align: center;
-        }
-
-        
-        
-        /* Cores da Matriz 9-Box baseadas na imagem */
-        .box-1 { background-color: #90EE90; } /* Alto Potencial, Alto Desempenho */
-        .box-2 { background-color: #ADD8E6; } /* Médio Potencial, Alto Desempenho */
-        .box-3 { background-color: #FFC0CB; } /* Baixo Potencial, Alto Desempenho */
-        .box-4 { background-color: #90EE90; } /* Alto Potencial, Médio Desempenho */
-        .box-5 { background-color: #FFFFE0; } /* Médio Potencial, Médio Desempenho */
-        .box-6 { background-color: #FFDAB9; } /* Baixo Potencial, Médio Desempenho */
-        .box-7 { background-color: #FFA500; } /* Alto Potencial, Baixo Desempenho */
-        .box-8 { background-color: #FFDAB9; } /* Médio Potencial, Baixo Desempenho */
-        .box-9 { background-color: #FF0000; } /* Baixo Potencial, Baixo Desempenho */
-        
-        .matrix-labels {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 2px;
-            margin-bottom: 10px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .matrix-label {
-            text-align: center;
-            font-weight: bold;
-            padding: 10px;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-        .matrix-y-labels {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 360px;
-            margin-right: 10px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .matrix-y-label {
-            text-align: center;
-            font-weight: bold;
-            padding: 10px;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-        }
-        
-        /* Estilo para as médias das dimensões */
-        .dimension-average {
-            background-color: #e3f2fd;
-            color: #1565c0;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: bold;
-            margin-left: 10px;
-            font-size: 12px;
-        }
-        
-        .weight-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            gap: 10px;
-        }
-        
-        .weight-item label {
-            min-width: 100px;
-            font-weight: bold;
-        }
-
-        
-        /* Estilo para as metas */
-        .goal-item {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            background-color: #f9f9f9;
-        }
-        
-        .goal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        
-        .goal-header h4 {
-            margin: 0;
-            color: #2c3e50;
-        }
-        
-        .goal-content {
-            margin-bottom: 15px;
-        }
-        
-        .goal-content input,
-        .goal-content textarea {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        
-        .goal-criteria {
-            margin-bottom: 15px;
-        }
-        
-        .goal-criteria h5 {
-            margin-bottom: 10px;
-            color: #34495e;
-        }
-        
-        .criteria-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-        }
-        
-        .criteria-item {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .criteria-item label {
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #2c3e50;
-        }
-        
-        .criteria-item textarea {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            resize: vertical;
-            min-height: 60px;
-        }
-        
-        .goal-rating {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .goal-rating label {
-            font-weight: bold;
-            color: #2c3e50;
-        }
-        
-        .goal-rating select {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            min-width: 200px;
-        }
-
-        
+        .header-cell:first-child { width: 120px; }
+        .nine-box-table tr td:first-child { width: 120px; }
+        .box-1 { background-color: #90EE90; } .box-2 { background-color: #87CEEB; } .box-3 { background-color: #FFB6C1; }
+        .box-4 { background-color: #98FB98; } .box-5 { background-color: #FFFFE0; } .box-6 { background-color: #FFE4B5; }
+        .box-7 { background-color: #FFA500; } .box-8 { background-color: #FFA07A; } .box-9 { background-color: #FF6B6B; }
+        .nine-box-cell:hover { transform: scale(1.02); transition: transform 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -439,103 +169,15 @@
             <div class="row">
                 <div class="col-12">
                     <h2 class="text-center mb-5">Funcionários Cadastrados</h2>
-                    <div id="employees-container" class="row">
-                        <!-- Os funcionários serão carregados aqui -->
-                    </div>
+                    <div id="employees-container" class="row"></div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Matriz 9-Box Corrigida -->
-    <!-- Matriz 9-Box - Exatamente como no Excel -->
+    <!-- Matriz 9-Box -->
     <section id="nine-box-section" style="display: none;">
         <h2>📊 Matriz 9-Box</h2>
-        
-        <style>
-            /* Título da Matriz 9-Box - Centralizado e Bonito */
-            #nine-box-section h2 {
-                text-align: center;
-                font-size: 28px;
-                font-weight: bold;
-                color: #2c3e50;
-                margin: 30px 0;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-                letter-spacing: 1px;
-            }
-            
-            .nine-box-table {
-                border-collapse: collapse;
-                margin: 20px auto;
-                font-family: Arial, sans-serif;
-                display: table;
-                width: auto;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            
-            .nine-box-table tr {
-                display: table-row;
-            }
-            
-            .nine-box-table td {
-                width: 200px;
-                height: 120px;
-                border: 2px solid #333;
-                text-align: center;
-                vertical-align: middle;
-                padding: 10px;
-                font-size: 11px;
-                line-height: 1.3;
-                overflow: hidden;
-                display: table-cell;
-            }
-            
-            /* Headers das Colunas e Linhas - Mais Estreitos e Bonitos */
-            .header-cell {
-                background: #e3f2fd;
-                color: #1565c0;
-                font-weight: bold;
-                font-size: 18px; /* CORREÇÃO: Letras ainda maiores */
-                vertical-align: middle;
-                display: table-cell;
-                padding: 15px 8px;
-                text-shadow: 1px 1px 2px rgba(0,0,0,0.0);
-                letter-spacing: 0.5px;
-                text-transform: uppercase; /* CORREÇÃO: Tudo maiúsculo */
-                font-weight: 900; /* CORREÇÃO: Negrito extra */
-            }
-            
-            /* Headers das Colunas (Desempenho) - Mais Estreitos */
-            .header-cell:first-child {
-                width: 120px; /* CORREÇÃO: Mais estreito */
-            }
-            
-            /* Headers das Linhas (Potencial) - Mais Estreitos */
-            .nine-box-table tr td:first-child {
-                width: 120px; /* CORREÇÃO: Mais estreito */
-            }
-            
-            /* Cores dos quadrants - baseado na sua imagem */
-            .box-1 { background-color: #90EE90; } /* Verde - Alto Potencial, Alto Desempenho */
-            .box-2 { background-color: #87CEEB; } /* Azul - Alto Potencial, Médio Desempenho */
-            .box-3 { background-color: #FFB6C1; } /* Rosa - Alto Potencial, Baixo Desempenho */
-            .box-4 { background-color: #98FB98; } /* Verde Claro - Médio Potencial, Alto Desempenho */
-            .box-5 { background-color: #FFFFE0; } /* Amarelo - Médio Potencial, Médio Desempenho */
-            .box-6 { background-color: #FFE4B5; } /* Laranja Claro - Médio Potencial, Baixo Desempenho */
-            .box-7 { background-color: #FFA500; } /* Laranja - Baixo Potencial, Alto Desempenho */
-            .box-8 { background-color: #FFA07A; } /* Salmão - Baixo Potencial, Médio Desempenho */
-            .box-9 { background-color: #FF6B6B; } /* Vermelho - Baixo Potencial, Baixo Desempenho */
-            
-            /* Efeito hover nos quadrants */
-            .nine-box-cell:hover {
-                transform: scale(1.02);
-                transition: transform 0.2s ease;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            }
-        </style>
-        
         <table class="nine-box-table">
             <tr>
                 <td class="header-cell"></td>
@@ -564,15 +206,13 @@
         </table>
     </section>
 
-    
     <!-- Evaluation Section -->
     <section class="py-5" id="evaluation-section" style="display: none;">
         <div class="container">
             <div class="row">
                 <div class="col-12">
                     <h2 class="text-center mb-5">Avaliação de Desempenho 2025</h2>
-                    
-                    <!-- Employee Info -->
+
                     <!-- Código da Rodada -->
                     <div class="evaluation-section" style="background: #e8f4fd; border: 2px solid #17a2b8; border-radius: 10px; padding: 20px; margin: 20px 0;">
                       <h4><i class="fas fa-calendar-alt me-2"></i>Código da Rodada</h4>
@@ -592,90 +232,42 @@
                         </div>
                       </div>
                     </div>
-                    
-                           
-                    <!-- Employee Info (cabeçalho completo) -->
+
+                    <!-- Cabeçalho do Avaliado -->
                     <div class="evaluation-section" id="employee-header">
                       <h4>Informações do Avaliado</h4>
-                    
                       <style>
-                        .emp-grid{
-                          display:grid;gap:10px;
-                          grid-template-columns: repeat(6, 1fr);
-                        }
-                        @media (max-width: 992px){ .emp-grid{grid-template-columns: repeat(2, 1fr);} }
-                        .emp-cell{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px}
-                        .emp-label{font-size:12px;color:#6b7280;margin-bottom:4px}
-                        .emp-value{font-weight:700;color:#111;word-break:break-word}
-                        .emp-title{grid-column: 1 / -1; text-align:center; font-size:18px; font-weight:800; padding:8px 0}
+                        .emp-grid{ display:grid; gap:10px; grid-template-columns: repeat(6, 1fr); }
+                        @media (max-width: 992px){ .emp-grid{ grid-template-columns: repeat(2, 1fr);} }
+                        .emp-cell{ background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:10px }
+                        .emp-label{ font-size:12px; color:#6b7280; margin-bottom:4px }
+                        .emp-value{ font-weight:700; color:#111; word-break:break-word }
+                        .emp-title{ grid-column: 1 / -1; text-align:center; font-size:18px; font-weight:800; padding:8px 0 }
                       </style>
-                    
+
                       <div class="emp-grid">
                         <div class="emp-cell emp-title" id="emp-title">-</div>
-                    
-                        <div class="emp-cell">
-                          <div class="emp-label">ID</div>
-                          <div class="emp-value" id="employee-id">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Nome</div>
-                          <div class="emp-value" id="employee-name">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Cargo</div>
-                          <div class="emp-value" id="employee-role">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Departamento</div>
-                          <div class="emp-value" id="employee-dept">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Empresa</div>
-                          <div class="emp-value" id="employee-company">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Filial</div>
-                          <div class="emp-value" id="employee-branch">-</div>
-                        </div>
-                    
-                        <div class="emp-cell">
-                          <div class="emp-label">Data admissão</div>
-                          <div class="emp-value" id="employee-admission">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Gestor imediato</div>
-                          <div class="emp-value" id="employee-manager">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Data nascimento</div>
-                          <div class="emp-value" id="employee-birth">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Situação</div>
-                          <div class="emp-value" id="employee-status">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Motivo afastamento</div>
-                          <div class="emp-value" id="employee-leave-reason">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Salário base</div>
-                          <div class="emp-value" id="employee-salary">-</div>
-                        </div>
-                    
-                        <div class="emp-cell">
-                          <div class="emp-label">% HAY (MED)</div>
-                          <div class="emp-value" id="employee-hay">-</div>
-                        </div>
-                        <div class="emp-cell">
-                          <div class="emp-label">Rating 2025</div>
-                          <div class="emp-value" id="employee-rating">-</div>
-                        </div>
+
+                        <div class="emp-cell"><div class="emp-label">ID</div><div class="emp-value" id="employee-id">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Nome</div><div class="emp-value" id="employee-name">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Cargo</div><div class="emp-value" id="employee-role">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Departamento</div><div class="emp-value" id="employee-dept">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Empresa</div><div class="emp-value" id="employee-company">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Filial</div><div class="emp-value" id="employee-branch">-</div></div>
+
+                        <div class="emp-cell"><div class="emp-label">Data admissão</div><div class="emp-value" id="employee-admission">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Gestor imediato</div><div class="emp-value" id="employee-manager">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Data nascimento</div><div class="emp-value" id="employee-birth">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Situação</div><div class="emp-value" id="employee-status">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Motivo afastamento</div><div class="emp-value" id="employee-leave-reason">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Salário base</div><div class="emp-value" id="employee-salary">-</div></div>
+
+                        <div class="emp-cell"><div class="emp-label">% HAY (MED)</div><div class="emp-value" id="employee-hay">-</div></div>
+                        <div class="emp-cell"><div class="emp-label">Rating 2025</div><div class="emp-value" id="employee-rating">-</div></div>
                       </div>
                     </div>
 
-
-                    <!-- Dimension Weights -->
+                    <!-- Pesos por Dimensão -->
                     <div class="dimension-weights">
                         <h3>Dimension Weights</h3>
                         <div class="weight-inputs">
@@ -709,52 +301,39 @@
                         </div>
                     </div>
 
-                    <!-- Evaluation Criteria -->
-                    <div id="evaluation-criteria">
-                        <!-- Os critérios serão carregados aqui -->
-                    </div>
+                    <!-- Critérios -->
+                    <div id="evaluation-criteria"></div>
 
-                    <!-- Goals Section -->
+                    <!-- Metas -->
                     <div class="goals-section">
                         <h4><i class="fas fa-bullseye me-2"></i>Metas Individuais (3 a 5 metas)</h4>
-                        <div id="goals-container">
-                            <!-- As metas serão carregadas aqui -->
-                        </div>
-
-                        
+                        <div id="goals-container"></div>
                         <div class="d-flex justify-content-between align-items-center mt-3">
                             <div class="d-flex gap-2">
                                 <button class="btn btn-success btn-sm" onclick="addGoal()">
                                     <i class="fas fa-plus me-1"></i>Adicionar Meta
                                 </button>
-                                
-
-                                    
-                                    
-                                </button>
                                 <button class="btn btn-primary btn-sm" onclick="saveGoals()">
                                     <i class="fas fa-save me-1"></i>Salvar Metas
                                 </button>
                             </div>
-                            <div class="total-weight" id="total-goals-weight">
-                                Total: 0%
-                            </div>
+                            <div class="total-weight" id="total-goals-weight">Total: 0%</div>
                         </div>
                     </div>
 
-                    <!-- Final Rating -->
+                    <!-- Rating final -->
                     <div class="final-rating">
                         <h4>Rating Final</h4>
                         <div class="final-rating-value" id="final-rating">-</div>
                         <p class="mt-2">1 = Excelente | 2 = Superou | 3 = Atendeu | 4 = Não Atendeu | 5 = Insuficiente</p>
                     </div>
 
-                    <!-- Submit Button -->
                     <div class="text-center mt-4">
                         <button class="btn btn-success btn-lg" onclick="submitEvaluation()">
                             <i class="fas fa-save me-2"></i>Salvar Avaliação
                         </button>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -762,48 +341,54 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-
-
-    // --- Util para ler parâmetros da URL e definir MANAGER_NAME ---
+    /* =========================
+       URL param -> MANAGER_NAME (uma única definição)
+    ========================= */
     function getParam(name) {
       const url = new URL(window.location.href);
       return url.searchParams.get(name);
     }
-    
-    // Ex.: ?manager_name=LUIZ%20FELIPE...
-    // Também remove aspas acidentais: "NOME"
-    const MANAGER_NAME = (getParam('manager_name') || '')
-      .replace(/^"+|"+$/g, '')
-      .trim();
+    const MANAGER_NAME = (getParam('manager_name') || '').replace(/^"+|"+$/g, '').trim();
 
     /* =========================
        Estado
     ========================= */
     let currentEmployee = null;
-    let evaluationData = {};       // { [criteriaId]: rating }
-    let dimensionWeights = {
-      'INSTITUCIONAL': 15,
-      'FUNCIONAL': 15,
-      'INDIVIDUAL': 30,
-      'METAS': 40
+    let evaluationData = {};
+    let dimensionWeights = { INSTITUCIONAL:15, FUNCIONAL:15, INDIVIDUAL:30, METAS:40 };
+
+    /* =========================
+       Helpers base
+    ========================= */
+    function qs(sel, el=document){ return el.querySelector(sel); }
+    function qsa(sel, el=document){ return [...el.querySelectorAll(sel)]; }
+    function toNumber(v, d=0){ const n = parseFloat(v); return isNaN(n) ? d : n; }
+    function round(n){ return Math.round(n); }
+    window.moneyBR = window.moneyBR || function(v){
+      if (v==null || v==='') return '-';
+      const n = Number(v);
+      if (Number.isNaN(n)) return String(v);
+      return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
     };
+    window.dateBR = window.dateBR || function(v){
+      if (!v) return '-';
+      const d = new Date(v);
+      if (Number.isNaN(d.valueOf())) return v;
+      return d.toLocaleDateString('pt-BR');
+    };
+    function fmtEmpCode(emp){
+      const code = (emp?.employee_code ?? '').toString().trim();
+      if (code) return code.padStart(4,'0');
+      return (emp?.id != null) ? `INT-${emp.id}` : '-';
+    }
 
-
-    // Modo Gestor: captura o gestor pela URL
-    const MANAGER_NAME = (()=>{
-      const p = new URLSearchParams(location.search);
-      return p.get('manager_name') || p.get('manager') || null;
-    })();
-
-
-    // Normaliza pesos vindos do backend (aceita chaves maiúsculas/minúsculas)
+    /* =========================
+       Pesos (normalização e aplicação)
+    ========================= */
     function normalizeDimensionWeights(w) {
       const out = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
       if (!w || typeof w !== 'object') return out;
-    
-      // tenta várias fontes de onde isso pode vir
       const src = (w.dimension_weights && typeof w.dimension_weights === 'object') ? w.dimension_weights : w;
-    
       for (const [k, v] of Object.entries(src)) {
         const key = String(k).toUpperCase().trim();
         const num = Number(v);
@@ -816,42 +401,247 @@
       }
       return out;
     }
-    
-            
+    function applyDimensionWeightsToInputs(weights, lock){
+      const w = {
+        INSTITUCIONAL: Number(weights.INSTITUCIONAL ?? 0),
+        FUNCIONAL:     Number(weights.FUNCIONAL     ?? 0),
+        INDIVIDUAL:    Number(weights.INDIVIDUAL    ?? 0),
+        METAS:         Number(weights.METAS         ?? 0),
+      };
+      const ids = {
+        INSTITUCIONAL: 'weight-institucional',
+        FUNCIONAL:     'weight-funcional',
+        INDIVIDUAL:    'weight-individual',
+        METAS:         'weight-metas'
+      };
+      Object.keys(ids).forEach(k=>{
+        const el = document.getElementById(ids[k]);
+        if (el){
+          el.value = w[k];
+          el.disabled = !!lock;
+          el.readOnly = !!lock;
+        }
+      });
+      dimensionWeights = w;
+      updateDimensionWeights();
+      calculateFinalRating();
+    }
 
-    // ====== Helpers de formatação + cabeçalho do avaliado ======
-    // ===== Helpers de formatação (únicos e seguros) =====
-    window.moneyBR = window.moneyBR || function(v){
-      if (v==null || v==='') return '-';
-      const n = Number(v);
-      if (Number.isNaN(n)) return String(v);
-      return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
-    };
+    /* =========================
+       Cabeçalho do avaliado
+    ========================= */
+    function setEmployeeHeader(emp, lastFinalRating = null){
+      const get = (v, alt='-') => (v==null || v==='') ? alt : v;
+      const titleEl = document.getElementById('emp-title');
+      if (titleEl) titleEl.textContent = get(emp?.nome, '-').toUpperCase();
 
+      const map = {
+        'employee-id':        emp?.id,
+        'employee-name':      emp?.nome,
+        'employee-role':      emp?.cargo,
+        'employee-dept':      emp?.department_name,
+        'employee-company':   emp?.empresa || emp?.company_name,
+        'employee-branch':    emp?.branch_name,
+        'employee-admission': dateBR(emp?.admission_date),
+        'employee-manager':   emp?.manager_name,
+        'employee-birth':     dateBR(emp?.birth_date),
+        'employee-status':    emp?.employment_status || 'ATIVO',
+        'employee-leave-reason': emp?.leave_reason,
+        'employee-salary':    moneyBR(emp?.salario),
+        'employee-hay':       emp?.hay_percent ?? '—',
+        'employee-rating':    (lastFinalRating != null) ? lastFinalRating : '-'
+      };
+      Object.entries(map).forEach(([id, val])=>{
+        const el = document.getElementById(id);
+        if (el) el.textContent = (val===undefined || val===null || val==='') ? '-' : val;
+      });
+    }
 
-    // --- Renderiza metas e liga eventos (usado em "Ver Avaliação" e pode ser reutilizado no "Novo") ---
+    /* =========================
+       Funcionários (lista + filtro por gestor)
+    ========================= */
+    async function loadEmployees() {
+      // Se veio com ?manager_name=... na URL, sempre filtra pelo gestor
+      if (MANAGER_NAME) {
+        const sec = document.getElementById('employees-section');
+        if (sec) sec.style.display = 'block';
+        try {
+          const resp = await fetch('/api/employees/by-manager?manager_name=' + encodeURIComponent(MANAGER_NAME));
+          const employees = await resp.json();
+          const container = document.getElementById('employees-container');
+          if (!container) return;
+          container.innerHTML = '';
+          if (!Array.isArray(employees) || employees.length === 0) {
+            container.innerHTML = `<div class="col-12"><div class="alert alert-warning">Não há colaboradores para o gestor <strong>${MANAGER_NAME}</strong>.</div></div>`;
+            return;
+          }
+          employees.forEach(emp => {
+            const col = document.createElement('div');
+            col.className = 'col-md-4';
+            col.innerHTML = `
+              <div class="employee-card">
+                <h5 class="mb-1">${emp.nome || '-'}</h5>
+                <div class="text-muted mb-2">${emp.cargo || '-'}</div>
+                <div><small>Empresa:</small> ${emp.empresa || emp.company_name || '-'}</div>
+                <div><small>Depto.:</small> ${emp.department_name || '-'}</div>
+                <div class="mt-3 d-flex gap-2">
+                  <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">
+                    <i class="fas fa-clipboard-check me-1"></i>Avaliar
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">
+                    <i class="fas fa-eye me-1"></i>Ver Avaliação
+                  </button>
+                </div>
+              </div>`;
+            container.appendChild(col);
+          });
+          const heroBtn = document.querySelector('button[onclick="loadEmployees()"]');
+          if (heroBtn) heroBtn.textContent = 'Meu Time';
+        } catch (e) {
+          console.error(e);
+          alert('Erro ao carregar a lista do gestor.');
+        }
+        return; // impede carregar “todos”
+      }
+
+      // ---- Fluxo normal (RH vê todos) ----
+      try {
+        const response = await fetch('/api/employees');
+        const employees = await response.json();
+        if (!Array.isArray(employees)) { console.error('Dados não são um array:', employees); return; }
+        const sec = document.getElementById('employees-section');
+        if (sec) sec.style.display = 'block';
+        const container = document.getElementById('employees-container');
+        if (!container) return;
+        container.innerHTML = '';
+        employees.forEach(emp => {
+          const col = document.createElement('div');
+          col.className = 'col-md-4';
+          col.innerHTML = `
+            <div class="employee-card">
+              <h5 class="mb-1">${emp.nome || '-'}</h5>
+              <div class="text-muted mb-2">${emp.cargo || '-'}</div>
+              <div><small>Empresa:</small> ${emp.empresa || emp.company_name || '-'}</div>
+              <div><small>Depto.:</small> ${emp.department_name || '-'}</div>
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">
+                  <i class="fas fa-clipboard-check me-1"></i>Avaliar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">
+                  <i class="fas fa-eye me-1"></i>Ver Avaliação
+                </button>
+              </div>
+            </div>`;
+          container.appendChild(col);
+        });
+      } catch (error) {
+        console.error('Erro ao carregar funcionários:', error);
+      }
+    }
+
+    /* =========================
+       NINE-BOX
+    ========================= */
+    async function showNineBoxMatrix() {
+      try {
+        const respEval = await fetch('/api/evaluations');
+        const evaluations = await respEval.json();
+        const respEmp = await fetch('/api/employees');
+        const employees = await respEmp.json();
+        qsa('.nine-box-cell').forEach(c => c.innerHTML = '');
+        const byPos = {1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[],9:[]};
+        evaluations.forEach(ev => {
+          const emp = employees.find(e => e.id === ev.employee_id);
+          if (!emp) return;
+          if (!ev.performance_rating || !ev.potential_rating) return;
+          const potencial = Math.round(ev.potential_rating);
+          const desempenho = Math.round(ev.performance_rating);
+          let linha = (potencial >= 7) ? 1 : (potencial >= 4) ? 2 : 3;
+          let coluna = (desempenho >= 7) ? 1 : (desempenho >= 4) ? 2 : 3;
+          const pos = (linha - 1) * 3 + coluna;
+          if (pos >= 1 && pos <= 9) byPos[pos].push(emp.nome);
+        });
+        for (let i=1;i<=9;i++){
+          const cell = qs(`[data-position="${i}"]`);
+          if (cell && byPos[i].length) cell.textContent = byPos[i].join(', ');
+        }
+        qs('#nine-box-section').style.display = 'block';
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar matriz 9-box');
+      }
+    }
+
+    /* =========================
+       Critérios / Metas / Pesos
+    ========================= */
+    async function loadEvaluationCriteria() {
+      try {
+        const response = await fetch('/api/evaluation-criteria');
+        const criteria = await response.json();
+        const container = qs('#evaluation-criteria');
+        container.innerHTML = '';
+        const dimensions = {};
+        criteria.forEach(c => {
+          const dim = (c.dimension || '').toUpperCase();
+          if (!dimensions[dim]) dimensions[dim] = [];
+          dimensions[dim].push(c);
+        });
+        Object.keys(dimensions).forEach(dimension => {
+          const section = document.createElement('div');
+          section.className = 'evaluation-section';
+          let html = `
+            <div class="dimension-header">
+              <h4>DIMENSÃO ${dimension}</h4>
+            </div>`;
+          dimensions[dimension].forEach(c => {
+            const typeClass = `type-${(c.type||'').toLowerCase()}`;
+            html += `
+              <div class="criteria-card" data-dimension="${dimension}">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <span class="type-badge ${typeClass}">${c.type}</span>
+                      <strong>${c.name}</strong>
+                    </div>
+                    <p class="text-muted mb-3">${c.description||''}</p>
+                  </div>
+                  <div class="rating-buttons">
+                    ${[1,2,3,4,5].map(r => `
+                      <button class="rating-btn" onclick="setRating(${c.id}, ${r})"
+                              data-criteria="${c.id}" data-rating="${r}">
+                        ${r}
+                      </button>`).join('')}
+                  </div>
+                </div>
+              </div>`;
+          });
+          section.innerHTML = html;
+          container.appendChild(section);
+        });
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar critérios de avaliação');
+      }
+    }
+
     function renderGoalsFrom(goalsList) {
       const box = document.querySelector('#goals-container');
       if (!box) return;
       box.innerHTML = '';
-    
-      // se vazio, nada a fazer
       if (!Array.isArray(goalsList) || goalsList.length === 0) return;
-    
       goalsList.forEach((goal, idx) => {
         const w = Number(goal.weight ?? goal.peso ?? 0);
         const r = Number(goal.rating ?? goal.nota ?? 0);
         const name = goal.name || goal.goal_name || goal.nome || '';
         const desc = goal.description || goal.goal_description || goal.descricao || '';
-    
         const wrap = document.createElement('div');
         wrap.className = 'goal-item';
         wrap.innerHTML = `
           <div class="goal-header">
             <h4>Meta ${idx + 1}</h4>
             <div class="d-flex gap-2">
-              <input type="number" id="goal-weight-${idx}" min="0" max="100"
-                     value="${!Number.isNaN(w) ? w : 0}" placeholder="Peso %" />
+              <input type="number" id="goal-weight-${idx}" min="0" max="100" value="${!Number.isNaN(w) ? w : 0}" placeholder="Peso %"/>
               <button class="btn btn-danger btn-sm" onclick="removeGoal(${idx})">
                 <i class="fas fa-trash me-1"></i>Excluir
               </button>
@@ -880,8 +670,6 @@
           </div>`;
         box.appendChild(wrap);
       });
-    
-      // liga eventos p/ recalcular sempre que usuário mexer
       document.querySelectorAll('[id^="goal-weight-"]').forEach(inp => {
         inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
         inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
@@ -889,438 +677,25 @@
       document.querySelectorAll('[id^="goal-rating-"]').forEach(sel => {
         sel.addEventListener('change', () => calculateFinalRating());
       });
-    
-      // sincroniza pesos de metas com DOM e força recálculo visual
       updateGoalsWeight();
       calculateFinalRating();
     }
 
-        
-    // Normaliza pesos vindos do backend (aceita várias formas)
-    function normalizeDimensionWeights(w) {
-      const out = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
-      if (!w || typeof w !== 'object') return out;
-      const src = (w.dimension_weights && typeof w.dimension_weights === 'object') ? w.dimension_weights : w;
-      for (const [k, v] of Object.entries(src)) {
-        const key = String(k).toUpperCase().trim();
-        const num = Number(v);
-        if (!Number.isNaN(num)) {
-          if (key === 'INSTITUCIONAL') out.INSTITUCIONAL = num;
-          if (key === 'FUNCIONAL')     out.FUNCIONAL     = num;
-          if (key === 'INDIVIDUAL')    out.INDIVIDUAL    = num;
-          if (key === 'METAS')         out.METAS         = num;
-        }
-      }
-      return out;
-    }
-    
-    // Média ponderada das metas (se peso total = 0, retorna null)
-    function computeGoalsAverage(goalsArr) {
-      if (!Array.isArray(goalsArr) || !goalsArr.length) return null;
-      let wsum = 0, psum = 0;
-      for (const g of goalsArr) {
-        const w = Number(g.weight ?? g.peso ?? 0);
-        const r = Number(g.rating ?? g.nota ?? 0);
-        if (!Number.isNaN(w) && !Number.isNaN(r)) {
-          wsum += w;
-          psum += (w * r);
-        }
-      }
-      if (wsum <= 0) return null;
-      return psum / wsum;
-    }
-
-
-        
-    
-    window.dateBR = window.dateBR || function(v){
-      if (!v) return '-';
-      const d = new Date(v);
-      if (Number.isNaN(d.valueOf())) return v;
-      return d.toLocaleDateString('pt-BR');
-    };
-
-    
-
-    function fmtEmpCode(emp){
-      const code = (emp?.employee_code ?? '').toString().trim();
-      if (code) return code.padStart(4,'0');   // ex.: 0009
-      return (emp?.id != null) ? `INT-${emp.id}` : '-'; // fallback
-    }
-    
-    function setEmployeeHeader(emp, lastFinalRating = null){
-      const get = (v, alt='-') => (v==null || v==='') ? alt : v;
-    
-      // título (nome grande)
-      const titleEl = document.getElementById('emp-title');
-      if (titleEl) titleEl.textContent = get(emp?.nome, '-').toUpperCase();
-    
-      // células
-      const map = {
-        'employee-id':        emp?.id,
-        'employee-name':      emp?.nome,
-        'employee-role':      emp?.cargo,
-        'employee-dept':      emp?.department_name,
-        'employee-company':   emp?.empresa || emp?.company_name,
-        'employee-branch':    emp?.branch_name,
-        'employee-admission': dateBR(emp?.admission_date),
-        'employee-manager':   emp?.manager_name,
-        'employee-birth':     dateBR(emp?.birth_date),
-        'employee-status':    emp?.employment_status || 'ATIVO',
-        'employee-leave-reason': emp?.leave_reason,
-        'employee-salary':    moneyBR(emp?.salario),
-        // campos que você já usava
-        'employee-hay':       emp?.hay_percent ?? '—',
-        'employee-rating':    (lastFinalRating != null) ? lastFinalRating : '-'
-      };
-    
-      Object.entries(map).forEach(([id, val])=>{
-        const el = document.getElementById(id);
-        if (el) el.textContent = (val===undefined || val===null || val==='') ? '-' : val;
-      });
-    }
-    
-
-
-        
-    /* =========================
-       Utilitários
-    ========================= */
-    function qs(sel, el=document){ return el.querySelector(sel); }
-    function qsa(sel, el=document){ return [...el.querySelectorAll(sel)]; }
-    function toNumber(v, d=0){ const n = parseFloat(v); return isNaN(n) ? d : n; }
-    function round(n){ return Math.round(n); }
-    
-    /* =========================
-       Funcionários
-    ========================= */
-    async function loadEmployees() {
-      // Se veio com ?manager_name=... na URL, sempre filtra pelo gestor
-      if (MANAGER_NAME) {
-        const sec = document.getElementById('employees-section');
-        if (sec) sec.style.display = 'block';
-    
-        try {
-          const resp = await fetch('/api/employees/by-manager?manager_name=' + encodeURIComponent(MANAGER_NAME));
-          const employees = await resp.json();
-    
-          const container = document.getElementById('employees-container');
-          if (!container) return;
-          container.innerHTML = '';
-    
-          if (!Array.isArray(employees) || employees.length === 0) {
-            container.innerHTML = `<div class="col-12"><div class="alert alert-warning">Não há colaboradores para o gestor <strong>${MANAGER_NAME}</strong>.</div></div>`;
-            return;
-          }
-    
-          employees.forEach(emp => {
-            const col = document.createElement('div');
-            col.className = 'col-md-4';
-            col.innerHTML = `
-              <div class="employee-card">
-                <h5 class="mb-1">${emp.nome || '-'}</h5>
-                <div class="text-muted mb-2">${emp.cargo || '-'}</div>
-                <div><small>Empresa:</small> ${emp.empresa || emp.company_name || '-'}</div>
-                <div><small>Depto.:</small> ${emp.department_name || '-'}</div>
-                <div class="mt-3 d-flex gap-2">
-                  <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">
-                    <i class="fas fa-clipboard-check me-1"></i>Avaliar
-                  </button>
-                  <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">
-                    <i class="fas fa-eye me-1"></i>Ver Avaliação
-                  </button>
-                </div>
-              </div>`;
-            container.appendChild(col);
-          });
-    
-          // Ajusta o texto do botão do herói (opcional)
-          const heroBtn = document.querySelector('button[onclick="loadEmployees()"]');
-          if (heroBtn) heroBtn.textContent = 'Meu Time';
-        } catch (e) {
-          console.error(e);
-          alert('Erro ao carregar a lista do gestor.');
-        }
-        return; // impede carregar “todos”
-      }
-    
-      // ---- Fluxo normal (RH vê todos) ----
-      try {
-        const response = await fetch('/api/employees');
-        const employees = await response.json();
-    
-        if (!Array.isArray(employees)) {
-          console.error('Dados não são um array:', employees);
-          return;
-        }
-    
-        const sec = document.getElementById('employees-section');
-        if (sec) sec.style.display = 'block';
-    
-        const container = document.getElementById('employees-container');
-        if (!container) return;
-        container.innerHTML = '';
-    
-        employees.forEach(emp => {
-          const col = document.createElement('div');
-          col.className = 'col-md-4';
-          col.innerHTML = `
-            <div class="employee-card">
-              <h5 class="mb-1">${emp.nome || '-'}</h5>
-              <div class="text-muted mb-2">${emp.cargo || '-'}</div>
-              <div><small>Empresa:</small> ${emp.empresa || emp.company_name || '-'}</div>
-              <div><small>Depto.:</small> ${emp.department_name || '-'}</div>
-              <div class="mt-3 d-flex gap-2">
-                <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">
-                  <i class="fas fa-clipboard-check me-1"></i>Avaliar
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">
-                  <i class="fas fa-eye me-1"></i>Ver Avaliação
-                </button>
-              </div>
-            </div>`;
-          container.appendChild(col);
-        });
-      } catch (error) {
-        console.error('Erro ao carregar funcionários:', error);
-      }
-    }
-
-    
-    function renderEmployeeCard(emp) {
-      const col = document.createElement('div');
-      col.className = 'col-md-6 col-lg-4';
-    
-      const nome = emp?.nome || 'Sem nome';
-      const cargo = emp?.cargo || '—';
-      const empresa = emp?.empresa || emp?.company_name || '—';
-      const depto = emp?.department_name || '—';
-      const filial = emp?.branch_name || '—';
-      const gestor = emp?.manager_name || '—';
-      const salario = (typeof window.moneyBR === 'function') ? moneyBR(emp?.salario) : (emp?.salario ?? '—');
-      const empCode = (typeof fmtEmpCode === 'function') ? fmtEmpCode(emp) : (emp?.id ?? '—');
-    
-      col.innerHTML = `
-        <div class="employee-card h-100 d-flex flex-column">
-          <div class="d-flex align-items-start justify-content-between mb-2">
-            <h5 class="mb-0">${nome}</h5>
-            <span class="badge bg-secondary">ID: ${empCode}</span>
-          </div>
-          <div class="text-muted small mb-3">
-            <div><strong>Cargo:</strong> ${cargo}</div>
-            <div><strong>Empresa:</strong> ${empresa}</div>
-            <div><strong>Departamento:</strong> ${depto}</div>
-            <div><strong>Filial:</strong> ${filial}</div>
-            <div><strong>Gestor:</strong> ${gestor}</div>
-            <div><strong>Salário:</strong> ${salario}</div>
-          </div>
-          <div class="mt-auto d-flex gap-2">
-            <button class="btn btn-primary btn-sm flex-fill" onclick="startEvaluationForEmployee(${emp.id})">
-              <i class="fas fa-clipboard-check me-1"></i> Nova Avaliação
-            </button>
-            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="viewEmployeeEvaluation(${emp.id})">
-              <i class="fas fa-eye me-1"></i> Ver Avaliação
-            </button>
-          </div>
-        </div>
-      `;
-      return col;
-    }
-
-    
-    function startEvaluation() {
-      alert('Selecione um funcionário para avaliar');
-    }
-    
-    function editEmployee(id) {
-      alert(`Editar funcionário ID: ${id} (em desenvolvimento)`);
-    }
-    
-    /* =========================
-       NINE-BOX
-    ========================= */
-    async function showNineBoxMatrix() {
-      try {
-        const respEval = await fetch('/api/evaluations');
-        const evaluations = await respEval.json();
-        const respEmp = await fetch('/api/employees');
-        const employees = await respEmp.json();
-    
-        qsa('.nine-box-cell').forEach(c => c.innerHTML = '');
-    
-        const byPos = {1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[],9:[]};
-    
-        evaluations.forEach(ev => {
-          const emp = employees.find(e => e.id === ev.employee_id);
-          if (!emp) return;
-          if (!ev.performance_rating || !ev.potential_rating) return;
-    
-          const potencial = Math.round(ev.potential_rating);
-          const desempenho = Math.round(ev.performance_rating);
-    
-          let linha = (potencial >= 7) ? 1 : (potencial >= 4) ? 2 : 3;
-          let coluna = (desempenho >= 7) ? 1 : (desempenho >= 4) ? 2 : 3;
-    
-          const pos = (linha - 1) * 3 + coluna;
-          if (pos >= 1 && pos <= 9) byPos[pos].push(emp.nome);
-        });
-    
-        for (let i=1;i<=9;i++){
-          const cell = qs(`[data-position="${i}"]`);
-          if (cell && byPos[i].length) cell.textContent = byPos[i].join(', ');
-        }
-    
-        qs('#nine-box-section').style.display = 'block';
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao carregar matriz 9-box');
-      }
-    }
-    
-    /* =========================Avaliação========================= */
-    async function startEvaluationForEmployee(employeeId) {
-      try {
-        // pega a lista e acha o funcionário
-        const resp = await fetch('/api/employees');
-        const employees = await resp.json();
-        currentEmployee = employees.find(emp => emp.id === employeeId);
-        if (!currentEmployee) return alert('Funcionário não encontrado');
-    
-        // pega a última avaliação para mostrar o último rating no cabeçalho
-        let lastFinalRating = null;
-        try {
-          const r = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
-          if (r.ok) {
-            const j = await r.json();
-            lastFinalRating = (j?.evaluation?.final_rating ?? null);
-          }
-        } catch (_) {}
-    
-        // preenche o cabeçalho (usa seus IDs do grid)
-        setEmployeeHeader(currentEmployee, lastFinalRating);
-        
-        // corrige o ID para mostrar o employee_code (0009) em vez do id interno
-        const idEl = document.querySelector('#employee-id');
-        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
-
-    
-        // carrega a avaliação
-       await loadEvaluationCriteria();
-       
-       // Carregar código da rodada ativa
-       await loadActiveRoundCode();
-       await loadCentralDimensionWeights();   // <<< NOVO: puxa os pesos definidos pelo RH
-
-        
-        
-        
-        // Limpa dados de avaliação anteriores
-        evaluationData = {};
-        
-        // Limpa metas anteriores
-        const goalsContainer = document.querySelector('#goals-container');
-        if (goalsContainer) {
-            goalsContainer.innerHTML = '';
-        }
-        
-        // Limpa dados de avaliação anteriores
-        evaluationData = {};
-        
-        await loadGoals();          // metas + eventos
-
-
-
-          
-        initDimensionWeights();     // pesos + eventos
-        calculateFinalRating();     // primeira passada
-    
-        document.getElementById('evaluation-section').style.display = 'block';
-        document.getElementById('evaluation-section').scrollIntoView({behavior:'smooth'});
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao iniciar avaliação');
-      }
-    }
-
-    
-    async function loadEvaluationCriteria() {
-      try {
-        const response = await fetch('/api/evaluation-criteria');
-        const criteria = await response.json();
-        const container = qs('#evaluation-criteria');
-        container.innerHTML = '';
-    
-        // Agrupar por dimensão (mantendo MAIÚSCULO)
-        const dimensions = {};
-        criteria.forEach(c => {
-          const dim = (c.dimension || '').toUpperCase();
-          if (!dimensions[dim]) dimensions[dim] = [];
-          dimensions[dim].push(c);
-        });
-    
-        Object.keys(dimensions).forEach(dimension => {
-          const section = document.createElement('div');
-          section.className = 'evaluation-section';
-    
-          let html = `
-            <div class="dimension-header">
-              <h4>DIMENSÃO ${dimension}</h4>
-            </div>`;
-    
-          dimensions[dimension].forEach(c => {
-            const typeClass = `type-${(c.type||'').toLowerCase()}`;
-            html += `
-              <div class="criteria-card" data-dimension="${dimension}">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div class="flex-grow-1">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                      <span class="type-badge ${typeClass}">${c.type}</span>
-                      <strong>${c.name}</strong>
-                    </div>
-                    <p class="text-muted mb-3">${c.description||''}</p>
-                  </div>
-                  <div class="rating-buttons">
-                    ${[1,2,3,4,5].map(r => `
-                      <button class="rating-btn" onclick="setRating(${c.id}, ${r})"
-                              data-criteria="${c.id}" data-rating="${r}">
-                        ${r}
-                      </button>`).join('')}
-                  </div>
-                </div>
-              </div>`;
-          });
-    
-          section.innerHTML = html;
-          container.appendChild(section);
-        });
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao carregar critérios de avaliação');
-      }
-    }
-    
-    /* -------- Metas -------- */
-    /* -------- Metas -------- */
     async function loadGoals() {
       try {
-        // NÃO carrega metas do banco quando é nova avaliação
         if (!currentEmployee) return;
-        
         const container = qs('#goals-container');
-        container.innerHTML = ''; // Limpa metas anteriores
-        
-        // Só carrega metas se for visualização de avaliação existente
-        // Para nova avaliação, deixa vazio
+        container.innerHTML = '';
         updateGoalsWeight();
         calculateFinalRating();
       } catch (e) {
         console.error(e);
       }
     }
-    
+
     function addGoal() {
       const container = qs('#goals-container');
-      const index = qsa('.goal-item').length;   // próximo índice
+      const index = qsa('.goal-item').length;
       const el = document.createElement('div');
       el.className = 'goal-item';
       el.innerHTML = `
@@ -1355,80 +730,42 @@
           </select>
         </div>`;
       container.appendChild(el);
-    
-      // eventos do novo item
       qs(`#goal-weight-${index}`).addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
       qs(`#goal-weight-${index}`).addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
       qs(`#goal-rating-${index}`).addEventListener('change', () => calculateFinalRating());
-    
       updateGoalsWeight();
     }
 
-
     function removeGoal(goalIndex) {
-      const container = qs('#goals-container');
       const goals = qsa('.goal-item');
       if (goals.length > 0 && goalIndex >= 0 && goalIndex < goals.length) {
         goals[goalIndex].remove();
-        
-        // Reindexar metas restantes
-        const remainingGoals = qsa('.goal-item');
-        remainingGoals.forEach((goal, newIndex) => {
-          // Atualiza IDs dos elementos
-          const weightInput = goal.querySelector(`[id^="goal-weight-"]`);
-          const nameInput = goal.querySelector(`[id^="goal-name-"]`);
-          const descTextarea = goal.querySelector(`[id^="goal-description-"]`);
-          const ratingSelect = goal.querySelector(`[id^="goal-rating-"]`);
-          
-          if (weightInput) weightInput.id = `goal-weight-${newIndex}`;
-          if (nameInput) nameInput.id = `goal-name-${newIndex}`;
-          if (descTextarea) descTextarea.id = `goal-description-${newIndex}`;
-          if (ratingSelect) ratingSelect.id = `goal-rating-${newIndex}`;
-          
-          // Atualiza critérios
+        const remaining = qsa('.goal-item');
+        remaining.forEach((goal, newIndex) => {
+          goal.querySelector(`[id^="goal-weight-"]`).id = `goal-weight-${newIndex}`;
+          goal.querySelector(`[id^="goal-name-"]`).id = `goal-name-${newIndex}`;
+          goal.querySelector(`[id^="goal-description-"]`).id = `goal-description-${newIndex}`;
+          goal.querySelector(`[id^="goal-rating-"]`).id = `goal-rating-${newIndex}`;
           for (let n = 1; n <= 5; n++) {
             const criteriaTextarea = goal.querySelector(`[id^="goal-rating${n}-"]`);
             if (criteriaTextarea) criteriaTextarea.id = `goal-rating${n}-${newIndex}`;
           }
-          
-          // Atualiza título
           const title = goal.querySelector('h4');
           if (title) title.textContent = `Meta ${newIndex + 1}`;
-          
-          // Atualiza onclick do botão excluir
           const deleteBtn = goal.querySelector('button[onclick*="removeGoal"]');
           if (deleteBtn) deleteBtn.setAttribute('onclick', `removeGoal(${newIndex})`);
         });
-        
         updateGoalsWeight();
         calculateFinalRating();
       }
     }
 
-
-
-        
-    function saveGoals() {
-      const { goals, missingCriteria } = readGoalsFromDOM();
-      if (missingCriteria) {
-        alert('Preencha todos os critérios (Rating 1 a 5) de todas as metas.');
-        return;
-      }
-      localStorage.setItem('individual_goals', JSON.stringify(goals));
-      alert('Metas salvas com sucesso!');
-      updateGoalsWeight();
-    }
-    
-    /* Lê metas direto do DOM (corrige envio para Supabase) */
     function readGoalsFromDOM() {
       const items = qsa('.goal-item');
       const goals = [];
       let missingCriteria = false;
-    
       items.forEach((item, idx) => {
-        // Verifica se o item ainda existe no DOM
         if (!item.parentNode) return;
-        
         const goal = {
           index: idx + 1,
           name: qs(`#goal-name-${idx}`)?.value || '',
@@ -1436,8 +773,6 @@
           weight: toNumber(qs(`#goal-weight-${idx}`)?.value, 0),
           rating: toNumber(qs(`#goal-rating-${idx}`)?.value, null),
         };
-        
-        // critérios 1..5
         for (let n=1;n<=5;n++){
           const t = qs(`#goal-rating${n}-${idx}`);
           const key = `rating_${n}_criteria`;
@@ -1446,16 +781,12 @@
         }
         goals.push(goal);
       });
-    
-      // médias/total auxiliares
       const sumWeights = goals.reduce((s,g)=>s+toNumber(g.weight,0),0);
       const ratings = goals.map(g=>g.rating).filter(v=>!!v);
       const avgRating = ratings.length ? ratings.reduce((s,v)=>s+v,0)/ratings.length : 0;
-    
       return { goals, sumWeights, avgRating, missingCriteria };
     }
-    
-    /* -------- Pesos por dimensão -------- */
+
     function initDimensionWeights() {
       ['weight-institucional','weight-funcional','weight-individual','weight-metas'].forEach(id => {
         const input = qs('#'+id);
@@ -1464,43 +795,30 @@
       });
       updateDimensionWeights();
     }
-    
+
     function updateDimensionWeights() {
       const wInst = toNumber(qs('#weight-institucional').value);
       const wFunc = toNumber(qs('#weight-funcional').value);
       const wInd  = toNumber(qs('#weight-individual').value);
       const wMet  = toNumber(qs('#weight-metas').value);
-    
       const total = wInst + wFunc + wInd + wMet;
-    
-      // atualiza apenas o número dentro do span
-      const span = qs('#total-weight'); // este é o <span id="total-weight">
+      const span = qs('#total-weight');
       span.textContent = total.toFixed(2);
-    
-      // valida no wrapper (div .total-weight)
       const wrapper = span.closest('.total-weight');
       if (Math.abs(total - 100) < 0.01) wrapper.classList.remove('invalid');
       else wrapper.classList.add('invalid');
-    
-      dimensionWeights = {
-        'INSTITUCIONAL': wInst,
-        'FUNCIONAL': wFunc,
-        'INDIVIDUAL': wInd,
-        'METAS': wMet
-      };
+      dimensionWeights = { INSTITUCIONAL:wInst, FUNCIONAL:wFunc, INDIVIDUAL:wInd, METAS:wMet };
     }
-    
-    /* -------- Pesos das metas -------- */
+
     function updateGoalsWeight() {
       let total = 0;
       qsa('[id^="goal-weight-"]').forEach(input => total += toNumber(input.value));
-      const box = qs('#total-goals-weight'); // é um DIV .total-weight
+      const box = qs('#total-goals-weight');
       box.textContent = `Total: ${total.toFixed(2)}%`;
       if (Math.abs(total - 100) < 0.01) box.classList.remove('invalid');
       else box.classList.add('invalid');
     }
-    
-    /* -------- Ratings -------- */
+
     function setRating(criteriaId, rating) {
       qsa(`[data-criteria="${criteriaId}"]`).forEach(btn => btn.classList.remove('selected'));
       const sel = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
@@ -1508,8 +826,7 @@
       evaluationData[criteriaId] = rating;
       calculateFinalRating();
     }
-    
-    /* Médias por dimensão (agora case-insensitive) */
+
     function calculateDimensionAverage(dimensionKey) {
       const key = (dimensionKey || '').toUpperCase();
       const cards = qsa(`[data-dimension="${key}"]`);
@@ -1520,127 +837,265 @@
       });
       return count ? (total / count) : 0;
     }
-    
-    /* Média das metas (do DOM) */
+
     function calculateGoalsAverage() {
       const { avgRating } = readGoalsFromDOM();
       return avgRating || 0;
     }
-    
-    /* Cálculo geral + atualização visual */
+
     function calculateFinalRating() {
-      // médias
       const institucionalAvg = calculateDimensionAverage('INSTITUCIONAL');
       const funcionalAvg     = calculateDimensionAverage('FUNCIONAL');
       const individualAvg    = calculateDimensionAverage('INDIVIDUAL');
       const metasAvg         = calculateGoalsAverage();
-    
-      // mostrar médias (arredondadas) nos badges
       qs('#avg-institucional').textContent = `Média: ${round(institucionalAvg) || '-'}`;
       qs('#avg-funcional').textContent     = `Média: ${round(funcionalAvg) || '-'}`;
       qs('#avg-individual').textContent    = `Média: ${round(individualAvg) || '-'}`;
       qs('#avg-metas').textContent         = `Média: ${round(metasAvg) || '-'}`;
-    
-      // pesos
       const w = dimensionWeights;
       const final =
         (institucionalAvg * (w.INSTITUCIONAL/100)) +
         (funcionalAvg     * (w.FUNCIONAL/100)) +
         (individualAvg    * (w.INDIVIDUAL/100)) +
         (metasAvg         * (w.METAS/100));
-    
       const finalRounded = round(final || 0);
-    
-      // exibir apenas o número (se preferir)
       qs('#final-rating').textContent = finalRounded ? finalRounded : '-';
-    
       return finalRounded;
     }
-    
-    /* Envio (inclui médias/dados para o Supabase via seu /api) */
+
+    /* =========================
+       Sistema de Rodadas (dinâmico + centralizado)
+    ========================= */
+    function generateRoundCode(type, year) { return `${type}${year}`; }
+    function getCurrentYear() { return new Date().getFullYear(); }
+    function generateCurrentRoundCodes() {
+        const year = getCurrentYear();
+        return { start: generateRoundCode('Start', year), ir: generateRoundCode('IR', year), ye: generateRoundCode('YE', year) };
+    }
+    async function loadActiveRoundCode() {
+        try {
+            const response = await fetch('/api/system-config');
+            const config = await response.json();
+            const roundCodeInput = document.getElementById('round-code');
+            if (roundCodeInput && config.active_round_code) {
+                roundCodeInput.value = config.active_round_code;
+            } else if (roundCodeInput) {
+                const codes = generateCurrentRoundCodes();
+                roundCodeInput.value = codes.start;
+            }
+        } catch (e) {
+            console.error('Erro ao carregar código da rodada:', e);
+            const roundCodeInput = document.getElementById('round-code');
+            if (roundCodeInput) {
+                const codes = generateCurrentRoundCodes();
+                roundCodeInput.value = codes.start;
+            }
+        }
+    }
+
+    /* =========================
+       Pesos centrais (RH)
+    ========================= */
+    async function loadCentralDimensionWeights(){
+      try{
+        const r = await fetch('/api/dimension-weights');
+        if(!r.ok) return;
+        const rows = await r.json();
+        const map = {INSTITUCIONAL:null,FUNCIONAL:null,INDIVIDUAL:null,METAS:null};
+        rows.forEach(row=>{
+          const k = String(row.dimension || row.name || '').toUpperCase().trim();
+          const v = Number(row.weight);
+          if(!Number.isNaN(v) && map.hasOwnProperty(k)) map[k] = v;
+        });
+        const complete = Object.values(map).every(v=>typeof v==='number' && v!=null);
+        const total    = Object.values(map).reduce((s,v)=> s + (Number(v)||0), 0);
+        if (complete){
+          const lock = Math.abs(total - 100) < 0.01;
+          applyDimensionWeightsToInputs(map, lock);
+        }
+      }catch(e){
+        console.warn('Falha carregando pesos centrais:', e);
+      }
+    }
+
+    /* =========================
+       Fluxo: iniciar avaliação / ver avaliação
+    ========================= */
+    function startEvaluation() { alert('Selecione um funcionário para avaliar'); }
+    function editEmployee(id) { alert(`Editar funcionário ID: ${id} (em desenvolvimento)`); }
+
+    async function startEvaluationForEmployee(employeeId) {
+      try {
+        const resp = await fetch('/api/employees');
+        const employees = await resp.json();
+        currentEmployee = employees.find(emp => emp.id === employeeId);
+        if (!currentEmployee) return alert('Funcionário não encontrado');
+
+        let lastFinalRating = null;
+        try {
+          const r = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
+          if (r.ok) {
+            const j = await r.json();
+            lastFinalRating = (j?.evaluation?.final_rating ?? null);
+          }
+        } catch (_) {}
+
+        setEmployeeHeader(currentEmployee, lastFinalRating);
+        const idEl = document.querySelector('#employee-id');
+        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
+
+        await loadEvaluationCriteria();
+        await loadActiveRoundCode();
+        await loadCentralDimensionWeights();
+
+        evaluationData = {};
+        const goalsContainer = document.querySelector('#goals-container');
+        if (goalsContainer) goalsContainer.innerHTML = '';
+        evaluationData = {};
+        await loadGoals();
+
+        initDimensionWeights();
+        calculateFinalRating();
+
+        document.getElementById('evaluation-section').style.display = 'block';
+        document.getElementById('evaluation-section').scrollIntoView({behavior:'smooth'});
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao iniciar avaliação');
+      }
+    }
+
+    async function viewEmployeeEvaluation(employeeId) {
+      try {
+        const resp = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
+        if (!resp.ok) {
+          if (resp.status === 404) return alert("Nenhuma avaliação encontrada para este funcionário.");
+          return alert("Erro ao carregar a última avaliação.");
+        }
+        const { evaluation: ev, responses, weights, goals } = await resp.json();
+
+        let employee = null;
+        try {
+          const er = await fetch('/api/employees');
+          const employees = await er.json();
+          employee = employees.find(e => Number(e.id) === Number(ev.employee_id));
+        } catch (_) {}
+
+        currentEmployee = employee || {
+          id: ev.employee_id, nome: `ID ${ev.employee_id}`, cargo: '-', empresa: '-', department_name: '-',
+          branch_name: '-', admission_date: null, manager_name: '-', birth_date: null, employment_status: 'ATIVO',
+          leave_reason: '', salario: null
+        };
+        setEmployeeHeader(currentEmployee, ev?.final_rating ?? null);
+        const idEl = document.querySelector('#employee-id');
+        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee);
+
+        await loadEvaluationCriteria();
+        if (typeof initDimensionWeights === 'function') { initDimensionWeights(); }
+
+        evaluationData = {};
+        (responses || []).forEach(row => {
+          const cid = String(row.criteria_id);
+          const r = Number(row.rating);
+          qsa(`[data-criteria="${cid}"]`).forEach(b => b.classList.remove('selected'));
+          const btn = qs(`[data-criteria="${cid}"][data-rating="${r}"]`);
+          if (btn) { btn.classList.add('selected'); evaluationData[cid] = r; }
+        });
+
+        const savedWeights = normalizeDimensionWeights(weights || ev?.dimension_weights || {});
+        document.getElementById('weight-institucional').value = savedWeights.INSTITUCIONAL;
+        document.getElementById('weight-funcional').value     = savedWeights.FUNCIONAL;
+        document.getElementById('weight-individual').value    = savedWeights.INDIVIDUAL;
+        document.getElementById('weight-metas').value         = savedWeights.METAS;
+        updateDimensionWeights();
+        calculateFinalRating();
+
+        let goalsList = goals;
+        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
+          try { goalsList = JSON.parse(ev.goals_json); } catch {}
+        }
+        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
+          goalsList = ev.goals;
+        }
+        if (Array.isArray(goalsList) && goalsList.length > 0) {
+          renderGoalsFrom(goalsList);
+        } else {
+          qs('#goals-container').innerHTML = '';
+          updateGoalsWeight();
+        }
+
+        if (qs('#avg-institucional')) qs('#avg-institucional').textContent = `Média: ${ev.institucional_avg ?? '-'}`;
+        if (qs('#avg-funcional'))     qs('#avg-funcional').textContent     = `Média: ${ev.funcional_avg ?? '-'}`;
+        if (qs('#avg-individual'))    qs('#avg-individual').textContent    = `Média: ${ev.individual_avg ?? '-'}`;
+        if (qs('#avg-metas'))         qs('#avg-metas').textContent         = `Média: ${ev.metas_avg ?? '-'}`;
+
+        calculateFinalRating();
+
+        const roundCodeInput = document.getElementById('round-code');
+        if (roundCodeInput && ev.round_code) roundCodeInput.value = ev.round_code;
+        else if (roundCodeInput) roundCodeInput.value = 'Start2025';
+
+        qs('#evaluation-section').style.display = 'block';
+        qs('#evaluation-section').scrollIntoView({ behavior: 'smooth' });
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao carregar avaliação');
+      }
+    }
+
     async function submitEvaluation() {
       if (!currentEmployee) return alert('Nenhum funcionário selecionado');
-    
-      // Verificar se é uma edição (se já existe evaluationData preenchido)
-      const isEdit = Object.keys(evaluationData).length > 0;
-      const actionText = isEdit ? 'atualizada' : 'salva';
-    
-      // ler metas do DOM (corrige transporte das metas)
+
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
       if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
-      
-      // Validar pesos das DIMENSÕES
-      const dimensionTotal = dimensionWeights.INSTITUCIONAL + dimensionWeights.FUNCIONAL + 
-                           dimensionWeights.INDIVIDUAL + dimensionWeights.METAS;
-      if (Math.abs(dimensionTotal - 100) > 0.01) {
-        return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
-      }
-    
+
+      const dimensionTotal = dimensionWeights.INSTITUCIONAL + dimensionWeights.FUNCIONAL + dimensionWeights.INDIVIDUAL + dimensionWeights.METAS;
+      if (Math.abs(dimensionTotal - 100) > 0.01) return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
+
       const finalRating = calculateFinalRating();
-    
-      // construir médias por dimensão (não-arredondadas para maior precisão)
       const dimensionAverages = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
         FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
         INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
         METAS:         metasAvg
       };
-    
-        // payload completo
-        const roundCode = document.getElementById('round-code').value;
-           
-        // Validar se tem código da rodada
-        if (!roundCode || roundCode.trim() === '') {
-            return alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
-        }
-           
-        console.log('Código da rodada sendo enviado:', roundCode); // DEBUG
-        
-        const payload = {      
+
+      const roundCode = document.getElementById('round-code').value;
+      if (!roundCode || roundCode.trim() === '') return alert('ERRO: Código da rodada não definido. Contate o RH.');
+
+      const payload = {
         employee_id: currentEmployee.id,
         evaluator_id: 1,
         evaluation_year: 2025,
-        round_code: roundCode,  // NOVO: código da rodada
-        responses: evaluationData,             // { criteriaId: rating }
-        goals,                                  // metas detalhadas
-        goals_average: metasAvg,                // média de metas
-        dimension_weights: dimensionWeights,    // pesos
-        dimension_averages: dimensionAverages,  // médias por dimensão
-        final_rating: finalRating               // rating final consolidado
+        round_code: roundCode,
+        responses: evaluationData,
+        goals,
+        goals_average: metasAvg,
+        dimension_weights: dimensionWeights,
+        dimension_averages: dimensionAverages,
+        final_rating: finalRating
       };
-        console.log('Payload completo sendo enviado:', payload); // DEBUG
-    
+
       try {
         const resp = await fetch('/api/evaluations', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify(payload)
         });
-    
         if (!resp.ok) {
-          // tenta extrair mensagem específica do backend
           let msg = 'Erro ao salvar avaliação';
           try {
             const j = await resp.json();
-            if (j && (j.error || j.detail)) {
-              msg = j.error || j.detail;
-            }
+            if (j && (j.error || j.detail)) msg = j.error || j.detail;
           } catch (_) {
-            // se não for JSON, tenta texto
             try { msg = await resp.text(); } catch(__) {}
           }
-    
-          // mensagens mais amigáveis para bloqueio de janela
-          if (resp.status === 403) {
-            // se o backend mandou texto técnico, trocamos por mensagem amigável
-            msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.';
-          }
+          if (resp.status === 403) msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RH.';
           alert(msg);
           return;
         }
-    
-        alert(`Avaliação ${actionText} com sucesso!`);
+        alert('Avaliação salva com sucesso!');
         evaluationData = {};
         qs('#evaluation-section').style.display = 'none';
       } catch (e) {
@@ -1649,286 +1104,9 @@
       }
     }
 
-    /* ===== Helpers ===== */
-    function parseJSONish(val, fallback=null){
-      if (val == null) return fallback;
-      if (typeof val === 'object') return val;
-      if (typeof val === 'string') { try { return JSON.parse(val); } catch { return fallback; } }
-      return fallback;
-    }
-    function pickLatestEvaluation(list){
-      if (!Array.isArray(list) || !list.length) return null;
-      const getDate = (ev) => ev.evaluation_date || ev.created_at || ev.updated_at || ev.inserted_at;
-      return [...list]
-        .filter(ev => getDate(ev))
-        .sort((a,b) => new Date(getDate(b)) - new Date(getDate(a)))[0] || list[0];
-    }
-    function qs(s){ return document.querySelector(s); }
-    function qsa(s){ return document.querySelectorAll(s); }
-    
-    /* Extrai pesos de várias formas (JSON na avaliação ou colunas soltas) */
-    function extractWeightsFromEvaluation(ev){
-      // 1) JSON comum
-      const wJSON = parseJSONish(
-        ev.dimension_weights || ev.weights || ev.dimensionWeights || ev.data?.dimension_weights,
-        null
-      );
-      if (wJSON && typeof wJSON === 'object'){
-        const up = (k)=>String(k||'').toUpperCase();
-        const map = {}; Object.keys(wJSON).forEach(k => map[up(k)] = wJSON[k]);
-        return {
-          INSTITUCIONAL: Number(map.INSTITUCIONAL ?? 0),
-          FUNCIONAL:     Number(map.FUNCIONAL ?? 0),
-          INDIVIDUAL:    Number(map.INDIVIDUAL ?? 0),
-          METAS:         Number(map.METAS ?? 0),
-        };
-      }
-      // 2) Colunas soltas na avaliação (fallback)
-      return {
-        INSTITUCIONAL: Number(ev.weight_institucional ?? 0),
-        FUNCIONAL:     Number(ev.weight_funcional ?? 0),
-        INDIVIDUAL:    Number(ev.weight_individual ?? 0),
-        METAS:         Number(ev.weight_metas ?? 0),
-      };
-    }
-    
-    /* Tenta obter metas de várias formas (JSON em evaluations ou endpoint opcional) */
-    async function extractGoalsForEvaluation(ev){
-      // 1) JSON na própria avaliação
-      const arrLocal = parseJSONish(ev.goals || ev.individual_goals || ev.data?.goals, null);
-      if (Array.isArray(arrLocal) && arrLocal.length) return arrLocal;
-    
-      // 2) Endpoint opcional (se existir no seu backend)
-      try{
-        const r = await fetch('/api/evaluation-goals?evaluation_id=' + encodeURIComponent(ev.id));
-        if (r.ok){
-          const g = await r.json();
-          if (Array.isArray(g) && g.length) return g;
-        }
-      }catch(_){}
-      return []; // sem metas salvas: front vai mostrar "virgens"
-    }
-    
-    /* Mapeia evaluation_responses -> pares [criteriaId, rating] */
-    function rowsToResponsePairs(rows){
-      // aceita coluna criteria_id/criterion_id/criteriaId + rating/score
-      return (rows||[])
-        .map(x => x || {})
-        .filter(x => (x.criteria_id!=null || x.criterion_id!=null || x.criteriaId!=null) &&
-                     (x.rating!=null || x.score!=null))
-        .map(x => [
-          String(x.criteria_id ?? x.criterion_id ?? x.criteriaId),
-          Number(x.rating ?? x.score)
-        ]);
-    }
-    
-    /* =========================   VISUALIZAR AVALIAÇÃO (JOIN evaluations + evaluation_responses)   ========================= */
-    async function viewEmployeeEvaluation(employeeId) {
-      try {
-        console.log("[viewEmployeeEvaluation] employeeId=", employeeId);
-    
-        // 1) Buscar a última avaliação já preenchida
-        const resp = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
-        if (!resp.ok) {
-          if (resp.status === 404) return alert("Nenhuma avaliação encontrada para este funcionário.");
-          return alert("Erro ao carregar a última avaliação.");
-        }
-        const { evaluation: ev, responses, weights, goals } = await resp.json();
-        console.log("[payload]", { ev, responses, weights, goals });
-    
-        // 2) Buscar dados do funcionário para o cabeçalho
-        let employee = null;
-        try {
-          const er = await fetch('/api/employees');
-          const employees = await er.json();
-          employee = employees.find(e => Number(e.id) === Number(ev.employee_id));
-        } catch (_) {}
-    
-        // 3) Define currentEmployee e preenche o cabeçalho com setEmployeeHeader
-        currentEmployee = employee || {
-          id: ev.employee_id,
-          nome: `ID ${ev.employee_id}`,
-          cargo: '-',
-          empresa: '-',
-          department_name: '-',
-          branch_name: '-',
-          admission_date: null,
-          manager_name: '-',
-          birth_date: null,
-          employment_status: 'ATIVO',
-          leave_reason: '',
-          salario: null
-        };
-        // 👉 Aqui preenche tudo no cabeçalho (inclui a nota final da última avaliação)
-        setEmployeeHeader(currentEmployee, ev?.final_rating ?? null);
-
-        // força o campo "ID" a exibir o employee_code (ex.: 0009) em vez do id interno
-        const idEl = document.querySelector('#employee-id');
-        if (idEl) idEl.textContent = fmtEmpCode(currentEmployee); // usa employee_code se existir
-  
-    
-        // 4) Gera DOM dos critérios (precisa existir antes de marcar botões)
-        await loadEvaluationCriteria();
-        
-        // 👉 importante no fluxo "ver": liga os listeners dos pesos
-        if (typeof initDimensionWeights === 'function') {
-          initDimensionWeights();
-}
-        
-        // 👉 importante no fluxo "ver": liga os listeners dos pesos
-        if (typeof initDimensionWeights === 'function') {
-          initDimensionWeights();
-        }
-
-    
-        // 5) Marcar respostas critério a critério
-        evaluationData = {};
-        (responses || []).forEach(row => {
-          const cid = String(row.criteria_id);
-          const r = Number(row.rating);
-          // limpa seleção anterior e marca a resposta salva
-          qsa(`[data-criteria="${cid}"]`).forEach(b => b.classList.remove('selected'));
-          const btn = qs(`[data-criteria="${cid}"][data-rating="${r}"]`);
-          if (btn) { btn.classList.add('selected'); evaluationData[cid] = r; }
-        });
-    
-        // 6) Pesos das dimensões — use o que foi salvo
-        const savedWeights = normalizeDimensionWeights(weights || ev?.dimension_weights || {});
-        console.log('Pesos salvos:', savedWeights);
-        
-        // Preenche os campos de peso
-        document.getElementById('weight-institucional').value = savedWeights.INSTITUCIONAL;
-        document.getElementById('weight-funcional').value = savedWeights.FUNCIONAL;
-        document.getElementById('weight-individual').value = savedWeights.INDIVIDUAL;
-        document.getElementById('weight-metas').value = savedWeights.METAS;
-        
-        // força atualizar barra e nota
-        updateDimensionWeights();
-        calculateFinalRating();
-        
-        // 7) Metas — pegue do payload (goals) ou de ev.goals_json
-        let goalsList = goals;
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
-          try { goalsList = JSON.parse(ev.goals_json); } catch {}
-        }
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
-          goalsList = ev.goals;
-        }
-        
-        console.log('Metas encontradas:', goalsList);
-        
-        // Renderiza metas salvas (e liga eventos)
-        if (Array.isArray(goalsList) && goalsList.length > 0) {
-          renderGoalsFrom(goalsList);
-        } else {
-          // Se não há metas, deixa vazio
-          qs('#goals-container').innerHTML = '';
-          updateGoalsWeight();
-        }
-    
-        // 8) Exibir médias no topo (se seus spans existem)
-        if (qs('#avg-institucional')) qs('#avg-institucional').textContent = `Média: ${ev.institucional_avg ?? '-'}`;
-        if (qs('#avg-funcional'))     qs('#avg-funcional').textContent     = `Média: ${ev.funcional_avg ?? '-'}`;
-        if (qs('#avg-individual'))    qs('#avg-individual').textContent    = `Média: ${ev.individual_avg ?? '-'}`;
-        if (qs('#avg-metas'))         qs('#avg-metas').textContent         = `Média: ${ev.metas_avg ?? '-'}`;
-    
-        // 9) Recalcula/exibe o rating final na UI
-        calculateFinalRating();
-
-
-        // 9.5) Carregar código da rodada da avaliação salva
-        const roundCodeInput = document.getElementById('round-code');
-        if (roundCodeInput && ev.round_code) {
-            roundCodeInput.value = ev.round_code;
-        } else if (roundCodeInput) {
-            roundCodeInput.value = 'Start2025'; // fallback
-        }
-    
-        // 10) Mostra a seção
-        qs('#evaluation-section').style.display = 'block';
-        qs('#evaluation-section').scrollIntoView({ behavior: 'smooth' });
-    
-      } catch (e) {
-        console.error(e);
-        alert('Erro ao carregar avaliação');
-      }
-    }
-
-    
-    /* =========================   PREENCHER AVALIAÇÃO EXISTENTE (caso você use noutro fluxo)   ========================= */
-    async function populateExistingEvaluation(evaluation) {
-      // Pesos
-      const w = extractWeightsFromEvaluation(evaluation);
-      qs('#weight-institucional').value = w.INSTITUCIONAL;
-      qs('#weight-funcional').value     = w.FUNCIONAL;
-      qs('#weight-individual').value    = w.INDIVIDUAL;
-      qs('#weight-metas').value         = w.METAS;
-      initDimensionWeights();
-    
-      // Metas (se existirem no objeto)
-      const goalsArr = await extractGoalsForEvaluation(evaluation);
-      if (Array.isArray(goalsArr) && goalsArr.length && !document.querySelector('.goal-item')) {
-        qs('#goals-container').innerHTML = '';
-        goalsArr.forEach((goal, index) => {
-          const wrap = document.createElement('div');
-          wrap.className = 'goal-item';
-          wrap.innerHTML = `
-            <div class="goal-header">
-              <h4>Meta ${index + 1}</h4>
-              <input type="number" id="goal-weight-${index}" min="0" max="100" value="${goal.weight ?? 0}" placeholder="Peso %">
-            </div>
-            <div class="goal-content">
-              <input type="text" id="goal-name-${index}" value="${goal.name || goal.goal_name || ''}" placeholder="Nome da Meta">
-              <textarea id="goal-description-${index}" placeholder="Descrição da Meta">${goal.description || goal.goal_description || ''}</textarea>
-            </div>
-            <div class="goal-criteria">
-              <h5>Critérios de Avaliação:</h5>
-              <div class="criteria-grid">
-                ${[1,2,3,4,5].map(n => `
-                  <div class="criteria-item">
-                    <label>Rating ${n}:</label>
-                    <textarea id="goal-rating${n}-${index}" placeholder="Descrição do Rating ${n}" required>${goal[`rating_${n}_criteria`] || ''}</textarea>
-                  </div>`).join('')}
-              </div>
-            </div>
-            <div class="goal-rating">
-              <label>Rating Atual:</label>
-              <select id="goal-rating-${index}">
-                <option value="">Selecione</option>
-                ${[1,2,3,4,5].map(n => `<option value="${n}" ${(Number(goal.rating)===n)?'selected':''}>${n}</option>`).join('')}
-              </select>
-            </div>`;
-          qs('#goals-container').appendChild(wrap);
-        });
-        qsa('[id^="goal-weight-"]').forEach(inp => {
-          inp.addEventListener('input', () => { updateGoalsWeight(); calculateFinalRating(); });
-          inp.addEventListener('change', () => { updateGoalsWeight(); calculateFinalRating(); });
-        });
-        qsa('[id^="goal-rating-"]').forEach(sel => {
-          sel.addEventListener('change', () => calculateFinalRating());
-        });
-        updateGoalsWeight();
-      }
-    
-      // Responses: se quiser reusar aqui, faça uma chamada ao endpoint de responses com evaluation.id
-      try{
-        const rr = await fetch('/api/evaluation-responses?evaluation_id=' + encodeURIComponent(evaluation.id));
-        if (rr.ok){
-          const rows = await rr.json();
-          const pairs = rowsToResponsePairs(rows);
-          evaluationData = {};
-          pairs.forEach(([criteriaId, rating]) => {
-            qsa(`[data-criteria="${criteriaId}"]`).forEach(b => b.classList.remove('selected'));
-            const btn = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
-            if (btn){ btn.classList.add('selected'); evaluationData[criteriaId] = rating; }
-          });
-        }
-      }catch(_){}
-    
-      calculateFinalRating();
-    }
-    
-    /* =========================       EXPORTAÇÃO GLOBAL    ========================= */
+    /* =========================
+       Exports globais (uma única vez)
+    ========================= */
     window.loadEmployees = loadEmployees;
     window.startEvaluation = startEvaluation;
     window.editEmployee = editEmployee;
@@ -1939,230 +1117,7 @@
     window.setRating = setRating;
     window.viewEmployeeEvaluation = viewEmployeeEvaluation;
     window.removeGoal = removeGoal;
-    
-        
-        
-    /* =========================
-       Sistema de Rodadas
-    ========================= */
-    // =========================
-    // Sistema de Rodadas Dinâmico
-    // =========================
-    
-    // Função para gerar códigos de rodada dinâmicos
-    function generateRoundCode(type, year) {
-        const yearStr = year.toString();
-        return `${type}${yearStr}`;
-    }
-    
-    // Função para obter o ano atual
-    function getCurrentYear() {
-        return new Date().getFullYear();
-    }
-    
-    // Função para gerar códigos de rodada baseados no ano atual
-    function generateCurrentRoundCodes() {
-        const year = getCurrentYear();
-        return {
-            start: generateRoundCode('Start', year),
-            ir: generateRoundCode('IR', year),
-            ye: generateRoundCode('YE', year)
-        };
-    }
-    
-    // Função para carregar código da rodada ativa (dinâmico)
-    // =========================
-    // Sistema de Rodadas Dinâmico (Centralizado pelo RH)
-    // =========================
-    
-    // Função para gerar códigos de rodada dinâmicos
-    function generateRoundCode(type, year) {
-        const yearStr = year.toString();
-        return `${type}${yearStr}`;
-    }
-    
-    // Função para obter o ano atual
-    function getCurrentYear() {
-        return new Date().getFullYear();
-    }
-    
-    // Função para gerar códigos de rodada baseados no ano atual
-    function generateCurrentRoundCodes() {
-        const year = getCurrentYear();
-        return {
-            start: generateRoundCode('Start', year),
-            ir: generateRoundCode('IR', year),
-            ye: generateRoundCode('YE', year)
-        };
-    }
-    
-    // Função para carregar código da rodada ativa (centralizado pelo RH)
-    async function loadActiveRoundCode() {
-        try {
-            // Busca do backend (controlado pelo RH)
-            const response = await fetch('/api/system-config');
-            const config = await response.json();
-            const roundCodeInput = document.getElementById('round-code');
-            
-            if (roundCodeInput && config.active_round_code) {
-                // RH definiu o código - usa o que está no sistema
-                roundCodeInput.value = config.active_round_code;
-            } else if (roundCodeInput) {
-                // RH não definiu - gera automaticamente baseado no ano
-                const codes = generateCurrentRoundCodes();
-                roundCodeInput.value = codes.start; // Default: Start2025, Start2026, etc.
-            }
-        } catch (e) {
-            console.error('Erro ao carregar código da rodada:', e);
-            // Fallback: gera automaticamente
-            const roundCodeInput = document.getElementById('round-code');
-            if (roundCodeInput) {
-                const codes = generateCurrentRoundCodes();
-                roundCodeInput.value = codes.start;
-            }
-        }
-    }
-
-
-    
-    /* ===== Pesos das Dimensões — centralizados pelo RH ===== */
-    function applyDimensionWeightsToInputs(weights, lock){
-      const w = {
-        INSTITUCIONAL: Number(weights.INSTITUCIONAL ?? 0),
-        FUNCIONAL:     Number(weights.FUNCIONAL     ?? 0),
-        INDIVIDUAL:    Number(weights.INDIVIDUAL    ?? 0),
-        METAS:         Number(weights.METAS         ?? 0),
-      };
-      const ids = {
-        INSTITUCIONAL: 'weight-institucional',
-        FUNCIONAL:     'weight-funcional',
-        INDIVIDUAL:    'weight-individual',
-        METAS:         'weight-metas'
-      };
-      Object.keys(ids).forEach(k=>{
-        const el = document.getElementById(ids[k]);
-        if (el){
-          el.value   = w[k];
-          el.disabled = !!lock;   // trava edição
-          el.readOnly = !!lock;   // redundante, só por segurança
-        }
-      });
-      // atualiza o objeto usado no cálculo e a UI
-      dimensionWeights = w;
-      updateDimensionWeights();
-      calculateFinalRating();
-    }
-    
-    async function loadCentralDimensionWeights(){
-      try{
-        const r = await fetch('/api/dimension-weights');
-        if(!r.ok) return;
-        const rows = await r.json();
-    
-        // monta {INSTITUCIONAL, FUNCIONAL, INDIVIDUAL, METAS}
-        const map = {INSTITUCIONAL:null,FUNCIONAL:null,INDIVIDUAL:null,METAS:null};
-        rows.forEach(row=>{
-          const k = String(row.dimension || row.name || '').toUpperCase().trim();
-          const v = Number(row.weight);
-          if(!Number.isNaN(v) && map.hasOwnProperty(k)) map[k] = v;
-        });
-    
-        // se vieram os 4, aplica; se somarem 100%, trava os campos
-        const complete = Object.values(map).every(v=>typeof v==='number' && v!=null);
-        const total    = Object.values(map).reduce((s,v)=> s + (Number(v)||0), 0);
-        if (complete){
-          const lock = Math.abs(total - 100) < 0.01; // trava se 100%
-          applyDimensionWeightsToInputs(map, lock);
-        }
-      }catch(e){
-        console.warn('Falha carregando pesos centrais:', e);
-      }
-    }
-
-    <!-- === FILTRO POR GESTOR VIA URL (?manager_name=...) === -->
-    
-      // Lê parâmetro de URL
-      function getQueryParam(name){
-        const url = new URL(window.location.href);
-        return url.searchParams.get(name);
-      }
-    
-      // Renderiza cartões no #employees-container (mesmo layout da página)
-      function renderEmployeesCards(employees){
-        const wrap = document.getElementById('employees-container');
-        if (!wrap) return;
-        wrap.innerHTML = '';
-        employees.forEach(emp => {
-          const col = document.createElement('div');
-          col.className = 'col-md-4';
-          col.innerHTML = `
-            <div class="employee-card">
-              <h5 class="mb-1">${emp.nome || '-'}</h5>
-              <div class="text-muted mb-2">${emp.cargo || '-'}</div>
-              <div><strong>Departamento:</strong> ${emp.department_name || '-'}</div>
-              <div><strong>Empresa:</strong> ${emp.empresa || emp.company_name || '-'}</div>
-              <div class="mt-3 d-flex gap-2">
-                <button class="btn btn-sm btn-primary" onclick="startEvaluationForEmployee(${emp.id})">
-                  Nova avaliação
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="viewEmployeeEvaluation(${emp.id})">
-                  Ver última
-                </button>
-              </div>
-            </div>
-          `;
-          wrap.appendChild(col);
-        });
-        // mostra a seção de funcionários
-        const sec = document.getElementById('employees-section');
-        if (sec) sec.style.display = 'block';
-        // esconde a matriz e a avaliação, se estiverem abertas
-        const nine = document.getElementById('nine-box-section');
-        if (nine) nine.style.display = 'none';
-        const evalSec = document.getElementById('evaluation-section');
-        if (evalSec) evalSec.style.display = 'none';
-      }
-    
-      // Carrega somente o time do gestor
-      async function loadEmployeesByManager(managerName){
-        try{
-          const url = `/api/employees/by-manager?manager_name=${encodeURIComponent(managerName)}`;
-          const r = await fetch(url);
-          if (!r.ok) throw new Error('Falha ao buscar funcionários do gestor');
-          const data = await r.json();
-          renderEmployeesCards(data || []);
-        }catch(e){
-          console.error(e);
-          alert('Erro ao carregar equipe do gestor.');
-        }
-      }
-    
-      // Auto-aplica se a URL tiver ?manager_name=...
-      (function autoFilterByManager(){
-        const m = getQueryParam('manager_name');
-        if (m) {
-          loadEmployeesByManager(m);
-        }
-      })();
-    
-    // === MODO GESTOR VIA URL ?manager_name=... ===
-    (function () {
-      const params = new URLSearchParams(window.location.search);
-      const manager = params.get('manager_name') || params.get('manager'); // aceita ambos
-    
-      if (manager) {
-        // Mostra a seção e carrega somente o time do gestor informado
-        const sec = document.getElementById('employees-section');
-        if (sec) sec.style.display = 'block';
-        if (typeof loadEmployeesByManager === 'function') {
-          loadEmployeesByManager(manager);
-        }
-      }
-    })();
-
-            
-          
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    </body>
-    </html>
+</body>
+</html>
