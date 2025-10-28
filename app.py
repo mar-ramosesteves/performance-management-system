@@ -1,4 +1,6 @@
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
+
 import os
 import json
 from datetime import datetime
@@ -75,6 +77,22 @@ def is_window_open():
 
 
 app = Flask(__name__)
+
+
+CORS(
+    app,
+    resources={r"/api/*": {
+        "origins": [
+            "https://gestor.thehrkey.tech",
+            "https://*.thehrkey.tech"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": False
+    }},
+)
+
 
 # ===================== Configurações / Conexão =====================
 SUPABASE_URL = os.getenv('SUPABASE_URL')
