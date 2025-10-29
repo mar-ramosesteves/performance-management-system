@@ -119,93 +119,106 @@
     </style>
 </head>
 
-    <script>
+<script>
 /* ============================================================
    BOOTSTRAP DO MODO DE LINK DIRETO (?employee_id=...&open=...)
-   - Autoabre avaliação ao entrar com employee_id
-   - Preseleciona time do gestor se vier manager_name
-   - Garante que window.viewEmployeeEvaluation exista (evita ReferenceError)
+   - Com open=latest: NUNCA abre avaliação em branco
+   - Espera a função real viewEmployeeEvaluation e chama só ela
+   - Se ela não carregar a tempo, usa fallback que lê /api/evaluations/latest
    ============================================================ */
 
 (function () {
-  // --- 1) Garante que a função global exista (evita "viewEmployeeEvaluation is not defined")
-  if (typeof window.viewEmployeeEvaluation !== 'function') {
-    // fallback mínimo: se não houver implementação, tenta abrir a própria página com os params
-    window.viewEmployeeEvaluation = function (employeeId) {
-      try {
-        // Se a função real existir mais tarde, delega:
-        if (typeof startEvaluationForEmployee === 'function') {
-          // Tenta carregar a avaliação do colaborador
-          startEvaluationForEmployee(Number(employeeId));
-          return;
-        }
-      } catch (_) {}
-      // Fallback absoluto: recarrega com os parâmetros para edição
-      const url = new URL(window.location.href);
-      url.searchParams.set('employee_id', employeeId);
-      url.searchParams.set('open', 'latest');
-      url.searchParams.set('mode', 'edit');
-      window.location.href = url.toString();
-    };
-  }
-
-  // --- 2) Lê parâmetros
-  const params = new URLSearchParams(window.location.search);
-  const empId   = params.get('employee_id');
+  const params  = new URLSearchParams(window.location.search);
+  const empId   = params.get('employee_id');         // ex.: 149
   const manager = params.get('manager_name') || params.get('manager');
-  const open    = params.get('open'); // ex.: "latest"
-  const mode    = params.get('mode'); // ex.: "edit"
+  const open    = (params.get('open') || '').toLowerCase();  // "latest", "new", etc.
+  const mode    = (params.get('mode') || '').toLowerCase();  // "edit" (opcional)
 
-  // --- 3) Se veio manager_name, tenta aplicar o filtro do gestor (se a página tiver esse recurso)
-  // Observação: só executa se a função existir nesta página.
-  if (manager && typeof window.loadEmployeesByManager === 'function') {
-    // Em algumas telas, isso mostra a lista do gestor
-    try { window.loadEmployeesByManager(manager); } catch (_) {}
+  // Util: espera até N tentativas a função global existir
+  function waitFor(fnName, cb, tries=30) {
+    if (typeof window[fnName] === 'function') return cb(null, window[fnName]);
+    if (tries <= 0) return cb(new Error('timeout'));
+    setTimeout(() => waitFor(fnName, cb, tries - 1), 200);
   }
 
-  // --- 4) Se veio employee_id, abre a avaliação automaticamente
-  // Faz retry até as funções carregarem (útil se o bundle principal demora alguns ms)
-  if (empId) {
-    const maxTries = 30;   // ~6s de tentativas (30 * 200ms)
-    let tries = 0;
+  // Fallback: carrega a ÚLTIMA avaliação direto do backend e preenche a tela
+  async function fallbackLoadLatest(id) {
+    try {
+      const r = await fetch(`/api/evaluations/latest?employee_id=${encodeURIComponent(id)}`);
+      if (!r.ok) throw new Error('latest not found');
+      const payload = await r.json();
+      const { evaluation: ev } = payload;
 
-    const tryOpen = function () {
-      tries++;
+      // Garante que a UI de critérios exista antes de popular
+      if (typeof window.loadEvaluationCriteria === 'function') {
+        await window.loadEvaluationCriteria();
+      }
 
-      // preferencial: abre direto a avaliação completa
+      // Usa o populador existente da sua página (preenche pesos, metas, respostas)
+      if (typeof window.populateExistingEvaluation === 'function') {
+        await window.populateExistingEvaluation(ev);
+      } else if (typeof window.viewEmployeeEvaluation === 'function') {
+        // Se a função real aparecer, chama ela
+        return window.viewEmployeeEvaluation(Number(id));
+      }
+
+      // Mostra a seção
+      const sec = document.getElementById('evaluation-section');
+      if (sec) {
+        sec.style.display = 'block';
+        sec.scrollIntoView({ behavior: 'smooth' });
+      }
+    } catch (e) {
+      console.warn('[fallbackLoadLatest] falhou, abrindo formulário vazio como último recurso.', e);
       if (typeof window.startEvaluationForEmployee === 'function') {
-        try {
-          window.startEvaluationForEmployee(Number(empId));
-          // Se pediram explicitamente "open=latest", tenta mostrar a última também (quando houver função)
-          if (open === 'latest' && typeof window.viewEmployeeEvaluation === 'function') {
-            setTimeout(function () {
-              try { window.viewEmployeeEvaluation(Number(empId)); } catch (_) {}
-            }, 500);
-          }
-          return; // sucesso
-        } catch (_) {
-          // continua tentando
+        window.startEvaluationForEmployee(Number(id));
+      }
+    }
+  }
+
+  // 1) Se veio manager_name, tenta listar o time do gestor (se a página tiver isso)
+  if (manager && typeof window.loadEmployeesByManager === 'function') {
+    try { window.loadEmployeesByManager(manager); } catch {}
+  }
+
+  // 2) Se veio employee_id, decide o que abrir
+  if (empId) {
+    // Caso explícito: open=latest -> sempre abrir a ÚLTIMA avaliação (NÃO abre formulário novo)
+    if (open === 'latest') {
+      waitFor('viewEmployeeEvaluation', (err) => {
+        if (!err) {
+          try { window.viewEmployeeEvaluation(Number(empId)); }
+          catch { fallbackLoadLatest(Number(empId)); }
+        } else {
+          // Se a função ainda não carregou, usa fallback direto no endpoint
+          fallbackLoadLatest(Number(empId));
         }
-      }
+      });
+      return; // Evita qualquer chamada ao formulário novo
+    }
 
-      // ainda não carregou: tenta de novo até o limite
-      if (tries < maxTries) {
-        setTimeout(tryOpen, 200);
+    // Outros casos: se quiser “novo”, chame explicitamente com open=new
+    if (open === 'new') {
+      waitFor('startEvaluationForEmployee', (err) => {
+        if (!err) window.startEvaluationForEmployee(Number(empId));
+        else fallbackLoadLatest(Number(empId)); // se não carregou, pelo menos mostra a última
+      });
+      return;
+    }
+
+    // Sem 'open' definido: padrão amigável = tentar última; se não houver, abre novo
+    waitFor('viewEmployeeEvaluation', (err) => {
+      if (!err) {
+        try { window.viewEmployeeEvaluation(Number(empId)); }
+        catch { fallbackLoadLatest(Number(empId)); }
       } else {
-        // fallback final: força um redirect simples com os mesmos parâmetros (garantia de não travar)
-        const url = new URL(window.location.href);
-        url.searchParams.set('employee_id', empId);
-        if (manager) url.searchParams.set('manager_name', manager);
-        if (open)    url.searchParams.set('open', open);
-        if (mode)    url.searchParams.set('mode', mode);
-        window.location.href = url.toString();
+        fallbackLoadLatest(Number(empId));
       }
-    };
-
-    tryOpen();
+    });
   }
 })();
 </script>
+
 
     
     
