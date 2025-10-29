@@ -1196,7 +1196,7 @@
       }
     }
 
-    <!-- === FILTRO POR GESTOR VIA URL (?manager_name=...) === -->
+    // === FILTRO POR GESTOR VIA URL (?manager_name=...) ===
     function getQueryParam(name){
       const url = new URL(window.location.href);
       return url.searchParams.get(name);
@@ -1254,9 +1254,150 @@
     window.addGoal = addGoal;
     window.saveGoals = saveGoals;
     window.setRating = setRating;
-    window.viewEmployeeEvaluation = viewEmployeeEvaluation;
+   /* REMOVIDO:
+       window.viewEmployeeEvaluation = viewEmployeeEvaluation;
+    */
     window.removeGoal = removeGoal;
     </script>
+
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+/* === VIEW (espelhado da página /manager) ===
+   Abre SEMPRE a ÚLTIMA avaliação do colaborador, preenchendo:
+   - Cabeçalho do avaliado
+   - Critérios marcados
+   - Pesos por dimensão
+   - Metas (se existirem)
+   - Código da rodada
+   Mostra a seção de avaliação pronta para VER/EDITAR.
+*/
+window.viewEmployeeEvaluation = async function(employeeId){
+  try {
+    employeeId = Number(employeeId);
+    if (!employeeId) { alert('ID de colaborador inválido.'); return; }
+
+    // 1) Buscar última avaliação
+    const rEval = await fetch('/api/evaluations/latest?employee_id=' + encodeURIComponent(employeeId));
+    if (!rEval.ok) {
+      if (rEval.status === 404) { alert('Nenhuma avaliação encontrada para este colaborador.'); return; }
+      alert('Erro ao carregar a última avaliação.'); return;
+    }
+    const { evaluation: ev, responses, weights, goals } = await rEval.json();
+
+    // 2) Buscar dados do colaborador para o cabeçalho
+    let employee = null;
+    try {
+      const rEmp = await fetch('/api/employees');
+      const list = await rEmp.json();
+      employee = Array.isArray(list) ? list.find(e => Number(e.id) === Number(ev.employee_id)) : null;
+    } catch (_) {}
+
+    // 3) Preencher cabeçalho
+    if (typeof window.setEmployeeHeader === 'function') {
+      const stub = employee || {
+        id: ev.employee_id, nome: 'ID ' + ev.employee_id, cargo: '-', empresa: '-',
+        department_name: '-', branch_name: '-', admission_date: null, manager_name: '-',
+        birth_date: null, employment_status: 'ATIVO', leave_reason: '', salario: null
+      };
+      window.setEmployeeHeader(stub, ev?.final_rating ?? null);
+      const idEl = document.getElementById('employee-id');
+      if (idEl && typeof window.fmtEmpCode === 'function') idEl.textContent = window.fmtEmpCode(stub);
+    }
+
+    // 4) Carregar critérios na tela
+    if (typeof window.loadEvaluationCriteria === 'function') {
+      await window.loadEvaluationCriteria();
+    }
+
+    // 5) Marcar respostas critério a critério
+    window.evaluationData = {};
+    (responses || []).forEach(row => {
+      const cid = String(row.criteria_id);
+      const r = Number(row.rating);
+      document.querySelectorAll('[data-criteria="'+cid+'"]').forEach(b => b.classList.remove('selected'));
+      const btn = document.querySelector('[data-criteria="'+cid+'"][data-rating="'+r+'"]');
+      if (btn) { btn.classList.add('selected'); window.evaluationData[cid] = r; }
+    });
+
+    // 6) Pesos por dimensão (usa o que veio salvo)
+    const norm = (typeof window.normalizeDimensionWeights === 'function')
+      ? window.normalizeDimensionWeights(weights || ev?.dimension_weights || {})
+      : (weights || ev?.dimension_weights || {INSTITUCIONAL:0,FUNCIONAL:0,INDIVIDUAL:0,METAS:0});
+
+    const wi = document.getElementById('weight-institucional');
+    const wf = document.getElementById('weight-funcional');
+    const wn = document.getElementById('weight-individual');
+    const wm = document.getElementById('weight-metas');
+    if (wi) wi.value = norm.INSTITUCIONAL ?? 0;
+    if (wf) wf.value = norm.FUNCIONAL ?? 0;
+    if (wn) wn.value = norm.INDIVIDUAL ?? 0;
+    if (wm) wm.value = norm.METAS ?? 0;
+
+    if (typeof window.updateDimensionWeights === 'function') window.updateDimensionWeights();
+
+    // 7) Metas (se existirem)
+    let goalsList = goals;
+    if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
+      try { goalsList = JSON.parse(ev.goals_json); } catch {}
+    }
+    if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
+      goalsList = ev.goals;
+    }
+    const goalsBox = document.querySelector('#goals-container');
+    if (goalsBox) {
+      if (Array.isArray(goalsList) && goalsList.length && typeof window.renderGoalsFrom === 'function') {
+        window.renderGoalsFrom(goalsList);
+      } else {
+        goalsBox.innerHTML = ''; // sem metas
+        if (typeof window.updateGoalsWeight === 'function') window.updateGoalsWeight();
+      }
+    }
+
+    // 8) Código da rodada
+    const roundCodeInput = document.getElementById('round-code');
+    if (roundCodeInput) {
+      if (ev?.round_code) roundCodeInput.value = ev.round_code;
+      else if (typeof window.loadActiveRoundCode === 'function') await window.loadActiveRoundCode();
+    }
+
+    // 9) Recalcular/mostrar rating final
+    if (typeof window.calculateFinalRating === 'function') window.calculateFinalRating();
+
+    // 10) Mostrar seção
+    const sec = document.getElementById('evaluation-section');
+    if (sec) { sec.style.display = 'block'; sec.scrollIntoView({behavior:'smooth'}); }
+  } catch(e) {
+    console.error('[viewEmployeeEvaluation]', e);
+    alert('Falha ao abrir a avaliação.');
+  }
+};
+
+/* Autoabrir “última avaliação” quando vier por URL:
+   ?employee_id=149&open=latest[&mode=edit]
+*/
+(function autoOpenFromURL(){
+  try {
+    const u = new URL(location.href);
+    const open = (u.searchParams.get('open')||'').toLowerCase();
+    const empId = Number(u.searchParams.get('employee_id'));
+    if (open === 'latest' && empId) {
+      // executa depois que o DOM e scripts de critérios existirem
+      const tryOpen = () => {
+        if (typeof window.viewEmployeeEvaluation === 'function' &&
+            typeof window.loadEvaluationCriteria === 'function') {
+          window.viewEmployeeEvaluation(empId);
+        } else {
+          setTimeout(tryOpen, 120);
+        }
+      };
+      tryOpen();
+    }
+  } catch(_) {}
+})();
+</script>
+
+    
 </body>
 </html>
