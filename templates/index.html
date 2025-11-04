@@ -1062,28 +1062,46 @@
     }
 
     async function submitEvaluation() {
-      // pega de onde estiver: do window OU da variável antiga
+      // 1. garante que temos o funcionário (pega do window ou da variável)
       const emp = window.currentEmployee || currentEmployee;
-    
-      if (!emp) {
+      if (!emp || !emp.id) {
         alert('Nenhum funcionário selecionado');
+        console.warn('submitEvaluation: currentEmployee ausente', { emp });
         return;
       }
     
+      // 2. lê metas do DOM
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
-      if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
-      if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
+      if (missingCriteria) {
+        alert('Preencha os critérios (Rating 1 a 5) de todas as metas.');
+        return;
+      }
+      if (Math.abs(sumWeights - 100) > 0.01) {
+        alert('Os pesos das metas devem totalizar 100%.');
+        return;
+      }
     
+      // 3. valida pesos das dimensões
       const dimensionTotal =
-        dimensionWeights.INSTITUCIONAL +
-        dimensionWeights.FUNCIONAL +
-        dimensionWeights.INDIVIDUAL +
-        dimensionWeights.METAS;
+        (dimensionWeights?.INSTITUCIONAL || 0) +
+        (dimensionWeights?.FUNCIONAL     || 0) +
+        (dimensionWeights?.INDIVIDUAL    || 0) +
+        (dimensionWeights?.METAS         || 0);
     
-      if (Math.abs(dimensionTotal - 100) > 0.01)
-        return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
+      if (Math.abs(dimensionTotal - 100) > 0.01) {
+        alert('Os pesos das DIMENSÕES devem totalizar 100%.');
+        return;
+      }
     
-      const finalRating = calculateFinalRating();
+      // 4. recalcula o rating AGORA
+      const finalRatingRaw = calculateFinalRating();
+      // se por algum motivo veio 0/NaN/undefined, o backend derruba
+      const finalRating =
+        (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0)
+          ? finalRatingRaw
+          : 1; // fallback mínimo pra não tomar 400
+    
+      // médias por dimensão
       const dimensionAverages = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
         FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
@@ -1091,52 +1109,74 @@
         METAS:         metasAvg
       };
     
-      const roundCode = document.getElementById('round-code').value;
+      // 5. código da rodada
+      const roundCodeInput = document.getElementById('round-code');
+      const roundCode = roundCodeInput ? roundCodeInput.value : '';
       if (!roundCode || roundCode.trim() === '') {
-        return alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
+        alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
+        return;
       }
     
+      // 6. monta o payload
       const payload = {
-        employee_id: emp.id,             // 👈 usa o emp daqui
-        evaluator_id: 1,
+        employee_id: Number(emp.id),
+        evaluator_id: 1,              // se o backend precisar de outro, trocamos depois
         evaluation_year: 2025,
         round_code: roundCode,
-        responses: evaluationData,
+        responses: evaluationData || {},          // garante objeto
         goals,
         goals_average: metasAvg,
         dimension_weights: dimensionWeights,
         dimension_averages: dimensionAverages,
-        final_rating: finalRating
+        final_rating: Number(finalRating)
       };
     
+      // loga antes de mandar
+      console.log('[submitEvaluation] payload que será enviado:', payload);
+    
+      // 7. envia
       try {
         const resp = await fetch('/api/evaluations', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
     
+        // se deu erro, tenta mostrar a mensagem verdadeira do backend
         if (!resp.ok) {
-          let msg = 'Erro ao salvar avaliação';
+          let backendMsg = '';
           try {
-            const j = await resp.json();
-            if (j && (j.error || j.detail)) msg = j.error || j.detail;
+            // pode vir JSON...
+            const data = await resp.json();
+            backendMsg = data?.error || data?.detail || JSON.stringify(data);
           } catch (_) {
-            try { msg = await resp.text(); } catch(__) {}
+            // ...ou texto
+            try {
+              backendMsg = await resp.text();
+            } catch (_) {
+              backendMsg = '';
+            }
           }
-          if (resp.status === 403) {
-            msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.';
+    
+          console.warn('[submitEvaluation] resposta 400/erro do backend:', backendMsg);
+    
+          if (resp.status === 400 && backendMsg) {
+            alert('Erro ao salvar: ' + backendMsg);
+          } else if (resp.status === 403) {
+            alert('O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.');
+          } else {
+            alert('Erro ao salvar avaliação.');
           }
-          alert(msg);
           return;
         }
     
         alert('Avaliação salva com sucesso!');
         evaluationData = {};
-        qs('#evaluation-section').style.display = 'none';
+        const sec = document.querySelector('#evaluation-section');
+        if (sec) sec.style.display = 'none';
       } catch (e) {
         console.error(e);
-        alert('Erro ao salvar avaliação');
+        alert('Erro ao salvar avaliação (ver console).');
       }
     }
     // ===== Sistema de Rodadas Dinâmico =====
