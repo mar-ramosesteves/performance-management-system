@@ -1062,7 +1062,7 @@
     }
 
     async function submitEvaluation() {
-      // 0. tenta pegar o employee atual
+      // 0. funcionário
       const emp = window.currentEmployee || currentEmployee;
       if (!emp || !emp.id) {
         alert('Nenhum funcionário selecionado');
@@ -1081,26 +1081,20 @@
         return;
       }
     
-      // 2. valida pesos das dimensões
+      // 2. pesos das dimensões
       const dimensionTotal =
         (dimensionWeights?.INSTITUCIONAL || 0) +
         (dimensionWeights?.FUNCIONAL     || 0) +
         (dimensionWeights?.INDIVIDUAL    || 0) +
         (dimensionWeights?.METAS         || 0);
-    
       if (Math.abs(dimensionTotal - 100) > 0.01) {
         alert('Os pesos das DIMENSÕES devem totalizar 100%.');
         return;
       }
     
-      // 3. recalcula nota final
+      // 3. nota final e médias
       const finalRatingRaw = calculateFinalRating();
-      const finalRating =
-        (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0)
-          ? finalRatingRaw
-          : 1;
-    
-      // 4. médias por dimensão
+      const finalRating = (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0) ? finalRatingRaw : 1;
       const dimensionAverages = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
         FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
@@ -1108,7 +1102,7 @@
         METAS:         metasAvg
       };
     
-      // 5. pega código de rodada
+      // 4. rodada
       const roundCodeEl = document.getElementById('round-code');
       const roundCode = roundCodeEl ? (roundCodeEl.value || '').trim() : '';
       if (!roundCode) {
@@ -1116,40 +1110,52 @@
         return;
       }
     
-      // 6. pega manager da URL (muitos backends pedem isso)
+      // 5. manager da URL (se houver)
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      // 7. converter o objeto de respostas para array também
-      const responsesObj = evaluationData || {};
+      // 6. respostas em 2 formatos
+      const responsesObj = window.evaluationData || evaluationData || {};
       const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
         criteria_id: Number(criteria_id),
         rating: Number(rating)
       }));
     
-      // 8. monta payload “gordo”
+      // 7. se veio de "ver/editar", teremos esse id aqui
+      const existingEvalId = window.lastLoadedEvaluationId || null;
+    
+      // 8. payload “gordo”
       const payload = {
+        // identificação do avaliado
         employee_id: Number(emp.id),
         employee_name: emp.nome || emp.name || undefined,
         manager_name: managerFromUrl || emp.manager_name || undefined,
     
-        evaluator_id: 1,
+        // identificação da avaliação
         evaluation_year: 2025,
         round_code: roundCode,
-    
-        // data de avaliação – muitos backends exigem
         evaluation_date: new Date().toISOString(),
+        evaluator_id: 1,
     
-        // o que você já mandava:
-        responses: responsesObj,               // objeto
-        evaluation_responses: responsesArray,  // array (extra, pra aumentar compatibilidade)
+        // SE ESTIVERMOS EDITANDO, MANDA TAMBÉM O ID
+        // (manda com vários nomes pra aumentar a chance)
+        id: existingEvalId || undefined,
+        evaluation_id: existingEvalId || undefined,
+        evaluationId: existingEvalId || undefined,
     
+        // respostas
+        responses: responsesObj,
+        evaluation_responses: responsesArray,
+    
+        // metas
         goals,
         goals_average: metasAvg,
     
+        // pesos
         dimension_weights: dimensionWeights,
         dimension_averages: dimensionAverages,
     
+        // nota final
         final_rating: Number(finalRating)
       };
     
@@ -1170,10 +1176,7 @@
           } catch (_) {
             try { backendMsg = await resp.text(); } catch (_) {}
           }
-    
           console.warn('[submitEvaluation] erro backend:', backendMsg);
-    
-          // mostra exatamente o que veio
           alert('Erro ao salvar: ' + (backendMsg || 'veja o console'));
           return;
         }
@@ -1353,6 +1356,9 @@ window.viewEmployeeEvaluation = async function(employeeId){
       alert('Erro ao carregar a última avaliação.'); return;
     }
     const { evaluation: ev, responses, weights, goals } = await rEval.json();
+
+    window.lastLoadedEvaluationId = ev?.id || ev?.evaluation_id || null;
+
 
     // 2) Buscar dados do colaborador para o cabeçalho
     let employee = null;
