@@ -1062,15 +1062,15 @@
     }
 
     async function submitEvaluation() {
-      // 1. garante que temos o funcionário (pega do window ou da variável)
+      // 0. tenta pegar o employee atual
       const emp = window.currentEmployee || currentEmployee;
       if (!emp || !emp.id) {
         alert('Nenhum funcionário selecionado');
-        console.warn('submitEvaluation: currentEmployee ausente', { emp });
+        console.warn('[submitEvaluation] sem currentEmployee');
         return;
       }
     
-      // 2. lê metas do DOM
+      // 1. metas
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) {
         alert('Preencha os critérios (Rating 1 a 5) de todas as metas.');
@@ -1081,7 +1081,7 @@
         return;
       }
     
-      // 3. valida pesos das dimensões
+      // 2. valida pesos das dimensões
       const dimensionTotal =
         (dimensionWeights?.INSTITUCIONAL || 0) +
         (dimensionWeights?.FUNCIONAL     || 0) +
@@ -1093,15 +1093,14 @@
         return;
       }
     
-      // 4. recalcula o rating AGORA
+      // 3. recalcula nota final
       const finalRatingRaw = calculateFinalRating();
-      // se por algum motivo veio 0/NaN/undefined, o backend derruba
       const finalRating =
         (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0)
           ? finalRatingRaw
-          : 1; // fallback mínimo pra não tomar 400
+          : 1;
     
-      // médias por dimensão
+      // 4. médias por dimensão
       const dimensionAverages = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
         FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
@@ -1109,32 +1108,53 @@
         METAS:         metasAvg
       };
     
-      // 5. código da rodada
-      const roundCodeInput = document.getElementById('round-code');
-      const roundCode = roundCodeInput ? roundCodeInput.value : '';
-      if (!roundCode || roundCode.trim() === '') {
-        alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
+      // 5. pega código de rodada
+      const roundCodeEl = document.getElementById('round-code');
+      const roundCode = roundCodeEl ? (roundCodeEl.value || '').trim() : '';
+      if (!roundCode) {
+        alert('ERRO: Código da rodada não definido. Contate o RH.');
         return;
       }
     
-      // 6. monta o payload
+      // 6. pega manager da URL (muitos backends pedem isso)
+      const params = new URLSearchParams(location.search);
+      const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
+    
+      // 7. converter o objeto de respostas para array também
+      const responsesObj = evaluationData || {};
+      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
+        criteria_id: Number(criteria_id),
+        rating: Number(rating)
+      }));
+    
+      // 8. monta payload “gordo”
       const payload = {
         employee_id: Number(emp.id),
-        evaluator_id: 1,              // se o backend precisar de outro, trocamos depois
+        employee_name: emp.nome || emp.name || undefined,
+        manager_name: managerFromUrl || emp.manager_name || undefined,
+    
+        evaluator_id: 1,
         evaluation_year: 2025,
         round_code: roundCode,
-        responses: evaluationData || {},          // garante objeto
+    
+        // data de avaliação – muitos backends exigem
+        evaluation_date: new Date().toISOString(),
+    
+        // o que você já mandava:
+        responses: responsesObj,               // objeto
+        evaluation_responses: responsesArray,  // array (extra, pra aumentar compatibilidade)
+    
         goals,
         goals_average: metasAvg,
+    
         dimension_weights: dimensionWeights,
         dimension_averages: dimensionAverages,
+    
         final_rating: Number(finalRating)
       };
     
-      // loga antes de mandar
       console.log('[submitEvaluation] payload que será enviado:', payload);
     
-      // 7. envia
       try {
         const resp = await fetch('/api/evaluations', {
           method: 'POST',
@@ -1142,36 +1162,24 @@
           body: JSON.stringify(payload)
         });
     
-        // se deu erro, tenta mostrar a mensagem verdadeira do backend
         if (!resp.ok) {
           let backendMsg = '';
           try {
-            // pode vir JSON...
             const data = await resp.json();
             backendMsg = data?.error || data?.detail || JSON.stringify(data);
           } catch (_) {
-            // ...ou texto
-            try {
-              backendMsg = await resp.text();
-            } catch (_) {
-              backendMsg = '';
-            }
+            try { backendMsg = await resp.text(); } catch (_) {}
           }
     
-          console.warn('[submitEvaluation] resposta 400/erro do backend:', backendMsg);
+          console.warn('[submitEvaluation] erro backend:', backendMsg);
     
-          if (resp.status === 400 && backendMsg) {
-            alert('Erro ao salvar: ' + backendMsg);
-          } else if (resp.status === 403) {
-            alert('O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.');
-          } else {
-            alert('Erro ao salvar avaliação.');
-          }
+          // mostra exatamente o que veio
+          alert('Erro ao salvar: ' + (backendMsg || 'veja o console'));
           return;
         }
     
         alert('Avaliação salva com sucesso!');
-        evaluationData = {};
+        window.evaluationData = {};
         const sec = document.querySelector('#evaluation-section');
         if (sec) sec.style.display = 'none';
       } catch (e) {
@@ -1179,6 +1187,7 @@
         alert('Erro ao salvar avaliação (ver console).');
       }
     }
+
     // ===== Sistema de Rodadas Dinâmico =====
     function generateRoundCode(type, year) { return `${type}${year.toString()}`; }
     function getCurrentYear() { return new Date().getFullYear(); }
