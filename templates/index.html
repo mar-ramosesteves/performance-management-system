@@ -1062,14 +1062,27 @@
     }
 
     async function submitEvaluation() {
-      if (!currentEmployee) return alert('Nenhum funcionário selecionado');
+      // pega de onde estiver: do window OU da variável antiga
+      const emp = window.currentEmployee || currentEmployee;
+    
+      if (!emp) {
+        alert('Nenhum funcionário selecionado');
+        return;
+      }
+    
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) return alert('Preencha os critérios (1 a 5) de todas as metas.');
       if (Math.abs(sumWeights - 100) > 0.01) return alert('Os pesos das metas devem totalizar 100%.');
-
-      const dimensionTotal = dimensionWeights.INSTITUCIONAL + dimensionWeights.FUNCIONAL + dimensionWeights.INDIVIDUAL + dimensionWeights.METAS;
-      if (Math.abs(dimensionTotal - 100) > 0.01) return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
-
+    
+      const dimensionTotal =
+        dimensionWeights.INSTITUCIONAL +
+        dimensionWeights.FUNCIONAL +
+        dimensionWeights.INDIVIDUAL +
+        dimensionWeights.METAS;
+    
+      if (Math.abs(dimensionTotal - 100) > 0.01)
+        return alert('Os pesos das DIMENSÕES devem totalizar 100%.');
+    
       const finalRating = calculateFinalRating();
       const dimensionAverages = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
@@ -1077,13 +1090,14 @@
         INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
         METAS:         metasAvg
       };
+    
       const roundCode = document.getElementById('round-code').value;
       if (!roundCode || roundCode.trim() === '') {
         return alert('ERRO: Código da rodada não definido. Contate o RH para definir a rodada ativa.');
       }
-
+    
       const payload = {
-        employee_id: currentEmployee.id,
+        employee_id: emp.id,             // 👈 usa o emp daqui
         evaluator_id: 1,
         evaluation_year: 2025,
         round_code: roundCode,
@@ -1094,11 +1108,14 @@
         dimension_averages: dimensionAverages,
         final_rating: finalRating
       };
-
+    
       try {
         const resp = await fetch('/api/evaluations', {
-          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
         });
+    
         if (!resp.ok) {
           let msg = 'Erro ao salvar avaliação';
           try {
@@ -1107,10 +1124,13 @@
           } catch (_) {
             try { msg = await resp.text(); } catch(__) {}
           }
-          if (resp.status === 403) msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.';
+          if (resp.status === 403) {
+            msg = 'O PERÍODO DE AVALIAÇÃO NÃO INICIOU OU ESTÁ ENCERRADO. DÚVIDAS, CONSULTE RECURSOS HUMANOS.';
+          }
           alert(msg);
           return;
         }
+    
         alert('Avaliação salva com sucesso!');
         evaluationData = {};
         qs('#evaluation-section').style.display = 'none';
@@ -1119,7 +1139,6 @@
         alert('Erro ao salvar avaliação');
       }
     }
-
     // ===== Sistema de Rodadas Dinâmico =====
     function generateRoundCode(type, year) { return `${type}${year.toString()}`; }
     function getCurrentYear() { return new Date().getFullYear(); }
@@ -1304,6 +1323,7 @@ window.viewEmployeeEvaluation = async function(employeeId){
 
       // 👇 ESTA É A LINHA QUE RESOLVE
       window.currentEmployee = employee || stub;
+      currentEmployee = window.currentEmployee;   // 👈 garante que o outro script veja
         
       window.setEmployeeHeader(stub, ev?.final_rating ?? null);
       const idEl = document.getElementById('employee-id');
