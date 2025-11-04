@@ -1301,6 +1301,10 @@ window.viewEmployeeEvaluation = async function(employeeId){
         department_name: '-', branch_name: '-', admission_date: null, manager_name: '-',
         birth_date: null, employment_status: 'ATIVO', leave_reason: '', salario: null
       };
+
+      // 👇 ESTA É A LINHA QUE RESOLVE
+      window.currentEmployee = employee || stub;
+        
       window.setEmployeeHeader(stub, ev?.final_rating ?? null);
       const idEl = document.getElementById('employee-id');
       if (idEl && typeof window.fmtEmpCode === 'function') idEl.textContent = window.fmtEmpCode(stub);
