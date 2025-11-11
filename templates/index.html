@@ -1119,12 +1119,15 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      // 6. respostas NO FORMATO QUE O BACKEND DEVE ENTENDER (array)
-      const responsesMap = window.evaluationData || evaluationData || {};
-      const responses = Object.entries(responsesMap).map(([criteria_id, rating]) => ({
+      // 6. respostas em 2 formatos
+      // (a) objeto -> é o que o backend espera em `responses` (senão dá 'list' has no attribute 'items')
+      // (b) array  -> a gente manda em `evaluation_responses` pra ele conseguir atualizar item a item
+      const responsesObj = window.evaluationData || evaluationData || {};
+      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
         criteria_id: Number(criteria_id),
         rating: Number(rating)
       }));
+
 
         
     
@@ -1150,10 +1153,12 @@
         id: existingEvalId || undefined,
         evaluation_id: existingEvalId || undefined,
         evaluationId: existingEvalId || undefined,
+
+        
     
         // respostas
-        responses: responses,              // <--- agora vai como array
-        evaluation_responses: responses,   // <--- manda igual aqui também, pra garantir
+        responses: responsesObj,          // OBJETO -> não quebra o backend
+        evaluation_responses: responsesArray, // ARRAY  -> dá a ele a lista certinha
 
     
         // metas
