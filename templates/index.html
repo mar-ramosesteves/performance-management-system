@@ -1066,6 +1066,7 @@
       return finalRounded;
     }
 
+    
     async function submitEvaluation() {
       // 0. funcionário
       const emp = window.currentEmployee || currentEmployee;
@@ -1119,36 +1120,25 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      
       // 6. respostas em 2 formatos
-      // pega o id da avaliação que foi carregada (quando você clicou em "ver/editar")
+      // 👇 AQUI declaramos UMA VEZ SÓ
       const existingEvalId = window.lastLoadedEvaluationId || null;
     
-      // objeto: é o que o backend quer em `responses`
       const responsesObj = window.evaluationData || evaluationData || {};
     
-      // array: é o que vamos mandar em `evaluation_responses`
-      // AGORA com o evaluation_id dentro de cada item, se estivermos editando
       const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => {
         const item = {
           criteria_id: Number(criteria_id),
           rating: Number(rating)
         };
+        // se estamos editando uma avaliação já existente, manda o id dentro de cada resposta
         if (existingEvalId) {
           item.evaluation_id = Number(existingEvalId);
         }
         return item;
       });
-
-
-
-        
     
-      // 7. se veio de "ver/editar", teremos esse id aqui
-      const existingEvalId = currentEvaluationId || window.lastLoadedEvaluationId || null;
-
-    
-      // 8. payload “gordo”
+      // 7. montar payload
       const payload = {
         // identificação do avaliado
         employee_id: Number(emp.id),
@@ -1161,18 +1151,14 @@
         evaluation_date: new Date().toISOString(),
         evaluator_id: 1,
     
-        // SE ESTIVERMOS EDITANDO, MANDA TAMBÉM O ID
-        // (manda com vários nomes pra aumentar a chance)
+        // ids da avaliação (se for edição)
         id: existingEvalId || undefined,
         evaluation_id: existingEvalId || undefined,
         evaluationId: existingEvalId || undefined,
-
-        
     
         // respostas
-        responses: responsesObj,          // OBJETO -> não quebra o backend
-        evaluation_responses: responsesArray, // ARRAY  -> dá a ele a lista certinha
-
+        responses: responsesObj,
+        evaluation_responses: responsesArray,
     
         // metas
         goals,
@@ -1217,6 +1203,7 @@
         alert('Erro ao salvar avaliação (ver console).');
       }
     }
+
 
     // ===== Sistema de Rodadas Dinâmico =====
     function generateRoundCode(type, year) { return `${type}${year.toString()}`; }
