@@ -1119,12 +1119,14 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      // 6. respostas em 2 formatos
-      const responsesObj = window.evaluationData || evaluationData || {};
-      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
+      // 6. respostas NO FORMATO QUE O BACKEND DEVE ENTENDER (array)
+      const responsesMap = window.evaluationData || evaluationData || {};
+      const responses = Object.entries(responsesMap).map(([criteria_id, rating]) => ({
         criteria_id: Number(criteria_id),
         rating: Number(rating)
       }));
+
+        
     
       // 7. se veio de "ver/editar", teremos esse id aqui
       const existingEvalId = currentEvaluationId || window.lastLoadedEvaluationId || null;
@@ -1150,8 +1152,9 @@
         evaluationId: existingEvalId || undefined,
     
         // respostas
-        responses: responsesObj,
-        evaluation_responses: responsesArray,
+        responses: responses,              // <--- agora vai como array
+        evaluation_responses: responses,   // <--- manda igual aqui também, pra garantir
+
     
         // metas
         goals,
