@@ -1119,14 +1119,27 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
+      
       // 6. respostas em 2 formatos
-      // (a) objeto -> é o que o backend espera em `responses` (senão dá 'list' has no attribute 'items')
-      // (b) array  -> a gente manda em `evaluation_responses` pra ele conseguir atualizar item a item
+      // pega o id da avaliação que foi carregada (quando você clicou em "ver/editar")
+      const existingEvalId = window.lastLoadedEvaluationId || null;
+    
+      // objeto: é o que o backend quer em `responses`
       const responsesObj = window.evaluationData || evaluationData || {};
-      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
-        criteria_id: Number(criteria_id),
-        rating: Number(rating)
-      }));
+    
+      // array: é o que vamos mandar em `evaluation_responses`
+      // AGORA com o evaluation_id dentro de cada item, se estivermos editando
+      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => {
+        const item = {
+          criteria_id: Number(criteria_id),
+          rating: Number(rating)
+        };
+        if (existingEvalId) {
+          item.evaluation_id = Number(existingEvalId);
+        }
+        return item;
+      });
+
 
 
         
