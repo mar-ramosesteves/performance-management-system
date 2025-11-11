@@ -512,6 +512,11 @@
     let currentEmployee = null;
     let evaluationData = {};
     let dimensionWeights = { INSTITUCIONAL: 15, FUNCIONAL: 15, INDIVIDUAL: 30, METAS: 40 };
+    let currentEvaluationId = null; // id da avaliação que está aberta (para edição)
+
+
+
+    
 
     // ===== Normalizadores =====
     function normalizeDimensionWeights(w) {
@@ -1122,7 +1127,8 @@
       }));
     
       // 7. se veio de "ver/editar", teremos esse id aqui
-      const existingEvalId = window.lastLoadedEvaluationId || null;
+      const existingEvalId = currentEvaluationId || window.lastLoadedEvaluationId || null;
+
     
       // 8. payload “gordo”
       const payload = {
@@ -1355,9 +1361,13 @@ window.viewEmployeeEvaluation = async function(employeeId){
       if (rEval.status === 404) { alert('Nenhuma avaliação encontrada para este colaborador.'); return; }
       alert('Erro ao carregar a última avaliação.'); return;
     }
-    const { evaluation: ev, responses, weights, goals } = await rEval.json();
+    
+   const { evaluation: ev, responses, weights, goals } = await rEval.json();
 
+    // guardar o id da avaliação que veio do backend
     window.lastLoadedEvaluationId = ev?.id || ev?.evaluation_id || null;
+    currentEvaluationId = window.lastLoadedEvaluationId; // <-- nova linha
+
 
 
     // 2) Buscar dados do colaborador para o cabeçalho
