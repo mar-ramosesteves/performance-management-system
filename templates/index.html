@@ -1069,7 +1069,7 @@
     
     async function submitEvaluation() {
       // 0. funcionário
-      const emp = window.currentEmployee || currentEmployee;
+      const emp = window.currentEmployee || window.current_employee || currentEmployee;
       if (!emp || !emp.id) {
         alert('Nenhum funcionário selecionado');
         console.warn('[submitEvaluation] sem currentEmployee');
@@ -1120,55 +1120,29 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      // 6. respostas em 2 formatos
-      // 👇 AQUI declaramos UMA VEZ SÓ
-      const existingEvalId = window.lastLoadedEvaluationId || null;
-    
+      // 6. respostas marcadas nas dimensões
       const responsesObj = window.evaluationData || evaluationData || {};
+      console.log('[submitEvaluation] respostas marcadas (devem ter mudado):', responsesObj);
     
-      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => {
-        const item = {
-          criteria_id: Number(criteria_id),
-          rating: Number(rating)
-        };
-        // se estamos editando uma avaliação já existente, manda o id dentro de cada resposta
-        if (existingEvalId) {
-          item.evaluation_id = Number(existingEvalId);
-        }
-        return item;
-      });
-    
-      // 7. montar payload
+      // 7. montar payload SEM id / SEM evaluation_id → sempre cria nova
       const payload = {
-        // identificação do avaliado
         employee_id: Number(emp.id),
         employee_name: emp.nome || emp.name || undefined,
         manager_name: managerFromUrl || emp.manager_name || undefined,
     
-        // identificação da avaliação
         evaluation_year: 2025,
         round_code: roundCode,
         evaluation_date: new Date().toISOString(),
         evaluator_id: 1,
     
-        // ids da avaliação (se for edição)
-        id: existingEvalId || undefined,
-        evaluation_id: existingEvalId || undefined,
-        evaluationId: existingEvalId || undefined,
-    
-        // respostas
         responses: responsesObj,
-        evaluation_responses: responsesArray,
     
-        // metas
         goals,
         goals_average: metasAvg,
     
-        // pesos
         dimension_weights: dimensionWeights,
         dimension_averages: dimensionAverages,
     
-        // nota final
         final_rating: Number(finalRating)
       };
     
@@ -1181,20 +1155,21 @@
           body: JSON.stringify(payload)
         });
     
+        // se der erro, vamos ver o corpo
         if (!resp.ok) {
-          let backendMsg = '';
+          let body;
           try {
-            const data = await resp.json();
-            backendMsg = data?.error || data?.detail || JSON.stringify(data);
+            body = await resp.json();
           } catch (_) {
-            try { backendMsg = await resp.text(); } catch (_) {}
+            try { body = await resp.text(); } catch (_) { body = '(sem corpo)'; }
           }
-          console.warn('[submitEvaluation] erro backend:', backendMsg);
-          alert('Erro ao salvar: ' + (backendMsg || 'veja o console'));
+          console.warn('[submitEvaluation] erro backend:', body);
+          alert('Erro ao salvar (veja console).');
           return;
         }
     
         alert('Avaliação salva com sucesso!');
+        // limpa só o objeto de respostas
         window.evaluationData = {};
         const sec = document.querySelector('#evaluation-section');
         if (sec) sec.style.display = 'none';
@@ -1203,7 +1178,6 @@
         alert('Erro ao salvar avaliação (ver console).');
       }
     }
-
 
     // ===== Sistema de Rodadas Dinâmico =====
     function generateRoundCode(type, year) { return `${type}${year.toString()}`; }
