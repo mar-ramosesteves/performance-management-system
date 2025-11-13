@@ -1330,6 +1330,15 @@
       if (m) { loadEmployeesByManager(m); }
     })();
 
+    function openManagerLatest(employeeId){
+      const params = new URLSearchParams(window.location.search);
+      const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
+      const url = `/manager?employee_id=${encodeURIComponent(employeeId)}&open=latest&mode=edit`
+                + (managerFromUrl ? `&manager_name=${encodeURIComponent(managerFromUrl)}` : '');
+      window.open(url, '_blank');
+    }
+
+
     // ===== Exportação global =====
     window.loadEmployees = loadEmployees;
     window.startEvaluation = startEvaluation;
@@ -1339,10 +1348,12 @@
     window.addGoal = addGoal;
     window.saveGoals = saveGoals;
     window.setRating = setRating;
-   /* REMOVIDO:
+    /* REMOVIDO:
        window.viewEmployeeEvaluation = viewEmployeeEvaluation;
     */
+    window.openManagerLatest = openManagerLatest;   // <<< ADICIONE ESTA LINHA AQUI
     window.removeGoal = removeGoal;
+
     </script>
 
     
