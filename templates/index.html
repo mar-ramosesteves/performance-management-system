@@ -1338,6 +1338,23 @@
       window.open(url, '_blank');
     }
 
+    // Redireciona para /manager abrindo SEMPRE a última avaliação do colaborador
+    function openManagerLatest(empId){
+      const base = new URL('/manager', location.origin);
+      base.searchParams.set('employee_id', Number(empId));
+      base.searchParams.set('open', 'latest');
+      // preserva manager_name da URL atual, se existir
+      try{
+        const cur = new URL(location.href);
+        const m = cur.searchParams.get('manager_name') || cur.searchParams.get('manager');
+        if (m) base.searchParams.set('manager_name', m);
+      }catch(_){}
+      window.location.href = base.toString();
+    }
+
+    window.viewEmployeeEvaluation = openManagerLatest; // <<< mantém o botão atual funcionando
+    window.openManagerLatest = openManagerLatest;      // <<< opcional para uso direto
+
 
     // ===== Exportação global =====
     window.loadEmployees = loadEmployees;
