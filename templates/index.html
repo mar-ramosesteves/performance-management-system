@@ -1068,7 +1068,7 @@
 
     
     async function submitEvaluation() {
-      // 0. funcionário
+      // 0) Funcionário atual
       const emp = window.currentEmployee || window.current_employee || currentEmployee;
       if (!emp || !emp.id) {
         alert('Nenhum funcionário selecionado');
@@ -1076,7 +1076,7 @@
         return;
       }
     
-      // 1. metas
+      // 1) Metas
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
       if (missingCriteria) {
         alert('Preencha os critérios (Rating 1 a 5) de todas as metas.');
@@ -1087,28 +1087,29 @@
         return;
       }
     
-      // 2. pesos das dimensões
+      // 2) Pesos de dimensões devem somar 100
+      const w = dimensionWeights || { INSTITUCIONAL:0, FUNCIONAL:0, INDIVIDUAL:0, METAS:0 };
       const dimensionTotal =
-        (dimensionWeights?.INSTITUCIONAL || 0) +
-        (dimensionWeights?.FUNCIONAL     || 0) +
-        (dimensionWeights?.INDIVIDUAL    || 0) +
-        (dimensionWeights?.METAS         || 0);
+        (Number(w.INSTITUCIONAL)||0) +
+        (Number(w.FUNCIONAL)||0) +
+        (Number(w.INDIVIDUAL)||0) +
+        (Number(w.METAS)||0);
       if (Math.abs(dimensionTotal - 100) > 0.01) {
         alert('Os pesos das DIMENSÕES devem totalizar 100%.');
         return;
       }
     
-      // 3. nota final e médias
-      const finalRatingRaw = calculateFinalRating();
-      const finalRating = (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0) ? finalRatingRaw : 1;
-      const dimensionAverages = {
+      // 3) Médias por dimensão + nota final
+      const dimAvgs = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
         FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
         INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
-        METAS:         metasAvg
+        METAS:         metasAvg || 0
       };
+      const finalRatingRaw = calculateFinalRating();
+      const finalRating = (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0) ? finalRatingRaw : 1;
     
-      // 4. rodada
+      // 4) Rodada ativa
       const roundCodeEl = document.getElementById('round-code');
       const roundCode = roundCodeEl ? (roundCodeEl.value || '').trim() : '';
       if (!roundCode) {
@@ -1116,16 +1117,21 @@
         return;
       }
     
-      // 5. manager da URL (se houver)
+      // 5) Manager (se vier na URL)
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      // 6. respostas marcadas nas dimensões
+      // 6) Respostas marcadas nas dimensões
       const responsesObj = window.evaluationData || evaluationData || {};
-      console.log('[submitEvaluation] respostas marcadas (devem ter mudado):', responsesObj);
+      // Também em formato array (compat /manager)
+      const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
+        criteria_id: Number(criteria_id),
+        rating: Number(rating)
+      }));
     
-      // 7. montar payload SEM id / SEM evaluation_id → sempre cria nova
+      // 7) Montar payload "compatível com /manager"
       const payload = {
+        // Identificação
         employee_id: Number(emp.id),
         employee_name: emp.nome || emp.name || undefined,
         manager_name: managerFromUrl || emp.manager_name || undefined,
@@ -1135,42 +1141,77 @@
         evaluation_date: new Date().toISOString(),
         evaluator_id: 1,
     
-        responses: responsesObj,
+        // Respostas em ambos os formatos + aliases comuns
+        responses: responsesObj,                // { "12": 3, "13": 5, ... }
+        evaluation_responses: responsesArray,   // [ {criteria_id, rating}, ... ]
+        responses_array: responsesArray,        // alias
+        answers: responsesObj,                  // alias
+        answers_array: responsesArray,          // alias
     
+        // Metas
         goals,
-        goals_average: metasAvg,
+        goals_average: metasAvg || 0,
     
-        dimension_weights: dimensionWeights,
-        dimension_averages: dimensionAverages,
+        // Pesos e médias
+        dimension_weights: {
+          INSTITUCIONAL: Number(w.INSTITUCIONAL)||0,
+          FUNCIONAL:     Number(w.FUNCIONAL)||0,
+          INDIVIDUAL:    Number(w.INDIVIDUAL)||0,
+          METAS:         Number(w.METAS)||0
+        },
+        dimension_averages: {
+          INSTITUCIONAL: Number(dimAvgs.INSTITUCIONAL)||0,
+          FUNCIONAL:     Number(dimAvgs.FUNCIONAL)||0,
+          INDIVIDUAL:    Number(dimAvgs.INDIVIDUAL)||0,
+          METAS:         Number(dimAvgs.METAS)||0
+        },
     
+        // Nota final
         final_rating: Number(finalRating)
       };
     
-      console.log('[submitEvaluation] payload que será enviado:', payload);
+      // 8) Decidir POST x PUT (edição)
+      const existingEvalId =
+        window.lastLoadedEvaluationId ||
+        window.currentEvaluationId ||
+        window.existingEvalId ||
+        null;
     
+      let url = '/api/evaluations';
+      let method = 'POST';
+      if (existingEvalId) {
+        url = `/api/evaluations/${encodeURIComponent(existingEvalId)}`;
+        method = 'PUT';
+        payload.id = existingEvalId;            // compat
+        payload.evaluation_id = existingEvalId; // compat
+      }
+    
+      console.log('[submitEvaluation] método/URL:', method, url);
+      console.log('[submitEvaluation] payload:', payload);
+    
+      // 9) Enviar
       try {
-        const resp = await fetch('/api/evaluations', {
-          method: 'POST',
+        const resp = await fetch(url, {
+          method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
     
-        // se der erro, vamos ver o corpo
         if (!resp.ok) {
-          let body;
+          let backendMsg = '';
           try {
-            body = await resp.json();
+            const data = await resp.json();
+            backendMsg = data?.error || data?.detail || JSON.stringify(data);
           } catch (_) {
-            try { body = await resp.text(); } catch (_) { body = '(sem corpo)'; }
+            try { backendMsg = await resp.text(); } catch (_) {}
           }
-          console.warn('[submitEvaluation] erro backend:', body);
-          alert('Erro ao salvar (veja console).');
+          console.warn('[submitEvaluation] erro backend:', backendMsg);
+          alert('Erro ao salvar: ' + (backendMsg || 'veja o console'));
           return;
         }
     
         alert('Avaliação salva com sucesso!');
-        // limpa só o objeto de respostas
-        window.evaluationData = {};
+        window.evaluationData = {}; // limpa apenas as respostas
         const sec = document.querySelector('#evaluation-section');
         if (sec) sec.style.display = 'none';
       } catch (e) {
