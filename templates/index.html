@@ -728,26 +728,26 @@
       try {
         const resp = await fetch('/api/employees');
         const employees = await resp.json();
-        currentEmployee = employees.find(emp => emp.id === employeeId);
-
+        const foundEmployee = employees.find(emp => Number(emp.id) === Number(employeeId));
+        if (!foundEmployee) {
+          alert('Funcionário não encontrado');
+          return;
+        }
         
-
-        // ✅ CORREÇÃO CRÍTICA: Limpar TODOS os IDs de avaliação ao iniciar nova avaliação
-        window.currentEvaluationId = null;
-        window.lastLoadedEvaluationId = null;
-        currentEvaluationId = null;
-        console.log('[startEvaluationForEmployee] IDs limpos. Novo funcionário ID:', currentEmployee.id);
-          
-        if (!currentEmployee) return alert('Funcionário não encontrado');
-
-        // ✅ CORREÇÃO: Limpar IDs de avaliação ao iniciar nova avaliação
+        // ✅ CORREÇÃO CRÍTICA: Sempre definir o funcionário correto
+        currentEmployee = foundEmployee;
+        window.currentEmployee = foundEmployee;
+        
+        // ✅ Limpar TUDO
         window.currentEvaluationId = null;
         window.lastLoadedEvaluationId = null;
         currentEvaluationId = null;
         window.evaluationData = {};
         evaluationData = {};
-        console.log('[startEvaluationForEmployee] IDs limpos para funcionário:', currentEmployee.id);
+        
+        console.log('[startEvaluationForEmployee] ✅ Funcionário:', foundEmployee.id, foundEmployee.nome);
 
+          
         let lastFinalRating = null;
         try {
           const r = await fetch(`/api/evaluations/latest?employee_id=${employeeId}`);
