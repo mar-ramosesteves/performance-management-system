@@ -1486,20 +1486,49 @@
           await window.loadEvaluationCriteria();
         }
     
-        // 5) Marcar respostas critério a critério
-        window.evaluationData = {};
-        evaluationData = {};
-        (responses || []).forEach(row => {
-          const cid = String(row.criteria_id);
-          const r = Number(row.rating);
-          document.querySelectorAll('[data-criteria="'+cid+'"]').forEach(b => b.classList.remove('selected'));
-          const btn = document.querySelector('[data-criteria="'+cid+'"][data-rating="'+r+'"]');
-          if (btn) { 
-            btn.classList.add('selected'); 
-            window.evaluationData[cid] = r;
-            evaluationData[cid] = r;
-          }
-        });
+            // 5) Marcar respostas critério a critério
+            window.evaluationData = {};
+            evaluationData = {};
+            
+            console.log('[viewEmployeeEvaluation] Carregando respostas:', responses);
+            
+            // Aguardar um pouco para garantir que os botões de rating já foram criados
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            if (Array.isArray(responses) && responses.length > 0) {
+              responses.forEach(row => {
+                const cid = String(row.criteria_id || row.criteriaId || row.id);
+                const r = Number(row.rating || row.value);
+                
+                if (!cid || !r) {
+                  console.warn('[viewEmployeeEvaluation] Resposta inválida:', row);
+                  return;
+                }
+                
+                // Remove seleção anterior de TODOS os botões desse critério
+                document.querySelectorAll(`[data-criteria="${cid}"]`).forEach(b => {
+                  b.classList.remove('selected');
+                });
+                
+                // Marca o botão correto
+                const btn = document.querySelector(`[data-criteria="${cid}"][data-rating="${r}"]`);
+                if (btn) {
+                  btn.classList.add('selected');
+                  window.evaluationData[cid] = r;
+                  evaluationData[cid] = r;
+                  console.log('[viewEmployeeEvaluation] ✅ Critério', cid, 'Rating', r, 'marcado');
+                } else {
+                  console.warn('[viewEmployeeEvaluation] ⚠️ Botão não encontrado para critério', cid, 'rating', r);
+                  // Tenta encontrar o critério de outra forma
+                  const allBtns = document.querySelectorAll(`[data-criteria="${cid}"]`);
+                  console.log('[viewEmployeeEvaluation] Botões encontrados para critério', cid, ':', allBtns.length);
+                }
+              });
+            } else {
+              console.warn('[viewEmployeeEvaluation] Nenhuma resposta encontrada ou formato inválido');
+            }
+            
+            console.log('[viewEmployeeEvaluation] evaluationData após carregar:', window.evaluationData);
     
         // 6) Pesos por dimensão (usa o que veio salvo)
         const norm = (typeof window.normalizeDimensionWeights === 'function')
