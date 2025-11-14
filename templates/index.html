@@ -1208,29 +1208,43 @@
             } else {
               throw new Error('PUT não disponível');
             }
-          } catch (putError) {
-            console.log('[submitEvaluation] PUT falhou, tentando POST com update...');
-            const postPayload = {
-              ...basePayload,
-              id: existingEvalId,
-              evaluation_id: existingEvalId,
-              update: true,
-              action: 'update'
-            };
+          
+          
+              } catch (putError) {
+                console.log('[submitEvaluation] PUT falhou, tentando POST com update...');
+                
+                const postPayload = {
+                  ...basePayload,
+                  id: existingEvalId,
+                  evaluation_id: existingEvalId,
+                  update: true,
+                  action: 'update',
+                  replace_responses: true
+                };
+                
+                resp = await fetch('/api/evaluations', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Update-Evaluation': 'true'
+                  },
+                  body: JSON.stringify(postPayload)
+                });
+                
+                if (resp.ok) {
+                  result = await resp.json();
+                  console.log('[submitEvaluation] ✅ Atualizado via POST!', result);
+                  
+                  if (result.id && result.id !== existingEvalId) {
+                    console.warn('[submitEvaluation] ⚠️ Backend criou NOVA avaliação ao invés de atualizar! Nova ID:', result.id);
+                  }
+                } else {
+                  throw new Error('Falha ao atualizar');
+                }
+              }
+
+
             
-            resp = await fetch('/api/evaluations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(postPayload)
-            });
-            
-            if (resp.ok) {
-              result = await resp.json();
-              console.log('[submitEvaluation] ✅ Atualizado via POST!', result);
-            } else {
-              throw new Error('Falha ao atualizar');
-            }
-          }
         } else {
           console.log('[submitEvaluation] CRIANDO nova avaliação...');
           resp = await fetch('/api/evaluations', {
@@ -1511,24 +1525,19 @@
         // ✅ CORREÇÃO: Filtrar apenas as respostas mais recentes de cada critério
         let latestResponses = {};
         if (Array.isArray(responses) && responses.length > 0) {
-          // Agrupar por criteria_id e pegar a mais recente (maior created_at ou id)
           responses.forEach(row => {
             const cid = String(row.criteria_id || row.criteriaId || row.id);
             const rating = Number(row.rating || row.value);
-            const createdAt = row.created_at || row.createdAt || '';
             const rowId = Number(row.id || 0);
             
             if (!cid || !rating) return;
             
-            // Se não tem essa resposta ainda, ou se esta é mais recente
-            if (!latestResponses[cid] || 
-                rowId > (latestResponses[cid].id || 0) ||
-                (createdAt && latestResponses[cid].created_at && createdAt > latestResponses[cid].created_at)) {
+            // Se não tem essa resposta ainda, ou se esta é mais recente (id maior)
+            if (!latestResponses[cid] || rowId > (latestResponses[cid].id || 0)) {
               latestResponses[cid] = {
                 criteria_id: cid,
                 rating: rating,
-                id: rowId,
-                created_at: createdAt
+                id: rowId
               };
             }
           });
@@ -1537,33 +1546,46 @@
           console.log('[viewEmployeeEvaluation] Últimas respostas:', latestResponses);
         }
         
-        // Aguardar um pouco para garantir que os botões de rating já foram criados
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // ✅ CORREÇÃO: Aguardar mais tempo e garantir que os botões existam
+        let attempts = 0;
+        const maxAttempts = 10;
         
-        // Agora marcar apenas as respostas mais recentes
-        Object.values(latestResponses).forEach(row => {
-          const cid = String(row.criteria_id);
-          const r = Number(row.rating);
+        const markRatings = () => {
+          let allFound = true;
           
-          // Remove seleção anterior de TODOS os botões desse critério
-          document.querySelectorAll(`[data-criteria="${cid}"]`).forEach(b => {
-            b.classList.remove('selected');
+          Object.values(latestResponses).forEach(row => {
+            const cid = String(row.criteria_id);
+            const r = Number(row.rating);
+            
+            // Remove seleção anterior
+            document.querySelectorAll(`[data-criteria="${cid}"]`).forEach(b => {
+              b.classList.remove('selected');
+            });
+            
+            // Marca o botão correto
+            const btn = document.querySelector(`[data-criteria="${cid}"][data-rating="${r}"]`);
+            if (btn) {
+              btn.classList.add('selected');
+              window.evaluationData[cid] = r;
+              evaluationData[cid] = r;
+            } else {
+              allFound = false;
+            }
           });
           
-          // Marca o botão correto
-          const btn = document.querySelector(`[data-criteria="${cid}"][data-rating="${r}"]`);
-          if (btn) {
-            btn.classList.add('selected');
-            window.evaluationData[cid] = r;
-            evaluationData[cid] = r;
-            console.log('[viewEmployeeEvaluation] ✅ Critério', cid, 'Rating', r, 'marcado (última resposta)');
+          if (!allFound && attempts < maxAttempts) {
+            attempts++;
+            setTimeout(markRatings, 100);
           } else {
-            console.warn('[viewEmployeeEvaluation] ⚠️ Botão não encontrado para critério', cid, 'rating', r);
+            console.log('[viewEmployeeEvaluation] evaluationData após carregar:', window.evaluationData);
           }
-        });
+        };
         
-        console.log('[viewEmployeeEvaluation] evaluationData após carregar:', window.evaluationData);
-    
+        // Aguardar um pouco antes de começar
+        await new Promise(resolve => setTimeout(resolve, 300));
+        markRatings();
+
+          
         // 6) Pesos por dimensão (usa o que veio salvo)
         const norm = (typeof window.normalizeDimensionWeights === 'function')
           ? window.normalizeDimensionWeights(weights || ev?.dimension_weights || {})
