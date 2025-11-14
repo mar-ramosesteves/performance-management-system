@@ -1076,7 +1076,7 @@
 
     
     async function submitEvaluation() {
-      const emp = window.currentEmployee || window.current_employee || currentEmployee;
+      const emp = window.currentEmployee || currentEmployee;
       if (!emp || !emp.id) { alert('Nenhum funcionário selecionado'); return; }
     
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
@@ -1150,10 +1150,15 @@
         final_rating: Number(finalRating)
       };
     
+      // ✅ CORREÇÃO: Buscar o ID da avaliação de múltiplas fontes
       const existingEvalId =
-        window.lastLoadedEvaluationId ||
         window.currentEvaluationId ||
-        window.existingEvalId || null;
+        window.lastLoadedEvaluationId ||
+        currentEvaluationId ||
+        null;
+    
+      console.log('[submitEvaluation] ID da avaliação existente:', existingEvalId);
+      console.log('[submitEvaluation] Payload:', basePayload);
     
       // === Tenta PUT primeiro; se 405/404, cai para POST "update-like" ===
       let method = 'POST';
@@ -1165,10 +1170,10 @@
         url = `/api/evaluations/${encodeURIComponent(existingEvalId)}`;
         payload.id = existingEvalId;
         payload.evaluation_id = existingEvalId;
+        console.log('[submitEvaluation] Tentando ATUALIZAR avaliação ID:', existingEvalId);
+      } else {
+        console.log('[submitEvaluation] Criando NOVA avaliação');
       }
-    
-      console.log('[submitEvaluation] método/URL (tentativa 1):', method, url);
-      console.log('[submitEvaluation] payload:', payload);
     
       try {
         let resp = await fetch(url, {
@@ -1196,20 +1201,38 @@
     
         if (!resp.ok) {
           let backendMsg = '';
-          try { backendMsg = (await resp.json())?.error || (await resp.json())?.detail || ''; } catch(_){}
-          if (!backendMsg) { try { backendMsg = await resp.text(); } catch(_){ backendMsg = ''; } }
-          console.warn('[submitEvaluation] erro backend:', backendMsg);
-          alert('Erro ao salvar: ' + (backendMsg || 'veja o console'));
+          try { 
+            const json = await resp.json();
+            backendMsg = json?.error || json?.detail || json?.message || '';
+          } catch(_){}
+          if (!backendMsg) { 
+            try { backendMsg = await resp.text(); } catch(_){ backendMsg = ''; } 
+          }
+          console.error('[submitEvaluation] erro backend:', backendMsg, 'Status:', resp.status);
+          alert('Erro ao salvar: ' + (backendMsg || `Status ${resp.status} - veja o console`));
           return;
+        }
+    
+        const result = await resp.json();
+        console.log('[submitEvaluation] Sucesso!', result);
+        
+        // ✅ CORREÇÃO: Atualizar o ID da avaliação após salvar
+        if (result?.id || result?.evaluation_id) {
+          const newId = result.id || result.evaluation_id;
+          window.currentEvaluationId = newId;
+          window.lastLoadedEvaluationId = newId;
+          currentEvaluationId = newId;
+          console.log('[submitEvaluation] ID atualizado para:', newId);
         }
     
         alert('Avaliação salva com sucesso!');
         window.evaluationData = {};
+        evaluationData = {};
         const sec = document.querySelector('#evaluation-section');
         if (sec) sec.style.display = 'none';
       } catch (e) {
-        console.error(e);
-        alert('Erro ao salvar avaliação (ver console).');
+        console.error('[submitEvaluation] Erro:', e);
+        alert('Erro ao salvar avaliação (ver console): ' + e.message);
       }
     }
 
@@ -1378,14 +1401,16 @@
           alert('Erro ao carregar a última avaliação.'); return;
         }
         
-       const { evaluation: ev, responses, weights, goals } = await rEval.json();
+        const { evaluation: ev, responses, weights, goals } = await rEval.json();
     
-        // guardar o id da avaliação que veio do backend
-        window.lastLoadedEvaluationId = ev?.id || ev?.evaluation_id || null;
-        currentEvaluationId = window.lastLoadedEvaluationId; // <-- nova linha
-    
-    
-    
+        // ✅ CORREÇÃO: Garantir que o ID da avaliação seja salvo em múltiplas variáveis
+        const evalId = ev?.id || ev?.evaluation_id || null;
+        window.lastLoadedEvaluationId = evalId;
+        window.currentEvaluationId = evalId;
+        currentEvaluationId = evalId;
+        
+        console.log('[viewEmployeeEvaluation] Avaliação encontrada. ID:', evalId);
+        
         // 2) Buscar dados do colaborador para o cabeçalho
         let employee = null;
         try {
@@ -1394,21 +1419,36 @@
           employee = Array.isArray(list) ? list.find(e => Number(e.id) === Number(ev.employee_id)) : null;
         } catch (_) {}
     
+        // ✅ CORREÇÃO: Definir currentEmployee GLOBALMENTE
+        if (employee) {
+          window.currentEmployee = employee;
+          currentEmployee = employee;
+        } else {
+          const stub = {
+            id: ev.employee_id, 
+            nome: 'ID ' + ev.employee_id, 
+            cargo: '-', 
+            empresa: '-',
+            department_name: '-', 
+            branch_name: '-', 
+            admission_date: null, 
+            manager_name: '-',
+            birth_date: null, 
+            employment_status: 'ATIVO', 
+            leave_reason: '', 
+            salario: null
+          };
+          window.currentEmployee = stub;
+          currentEmployee = stub;
+        }
+    
         // 3) Preencher cabeçalho
         if (typeof window.setEmployeeHeader === 'function') {
-          const stub = employee || {
-            id: ev.employee_id, nome: 'ID ' + ev.employee_id, cargo: '-', empresa: '-',
-            department_name: '-', branch_name: '-', admission_date: null, manager_name: '-',
-            birth_date: null, employment_status: 'ATIVO', leave_reason: '', salario: null
-          };
-    
-          // 👇 ESTA É A LINHA QUE RESOLVE
-          window.currentEmployee = employee || stub;
-          currentEmployee = window.currentEmployee;   // 👈 garante que o outro script veja
-            
-          window.setEmployeeHeader(stub, ev?.final_rating ?? null);
+          window.setEmployeeHeader(currentEmployee, ev?.final_rating ?? null);
           const idEl = document.getElementById('employee-id');
-          if (idEl && typeof window.fmtEmpCode === 'function') idEl.textContent = window.fmtEmpCode(stub);
+          if (idEl && typeof window.fmtEmpCode === 'function') {
+            idEl.textContent = window.fmtEmpCode(currentEmployee);
+          }
         }
     
         // 4) Carregar critérios na tela
@@ -1418,12 +1458,17 @@
     
         // 5) Marcar respostas critério a critério
         window.evaluationData = {};
+        evaluationData = {};
         (responses || []).forEach(row => {
           const cid = String(row.criteria_id);
           const r = Number(row.rating);
           document.querySelectorAll('[data-criteria="'+cid+'"]').forEach(b => b.classList.remove('selected'));
           const btn = document.querySelector('[data-criteria="'+cid+'"][data-rating="'+r+'"]');
-          if (btn) { btn.classList.add('selected'); window.evaluationData[cid] = r; }
+          if (btn) { 
+            btn.classList.add('selected'); 
+            window.evaluationData[cid] = r;
+            evaluationData[cid] = r;
+          }
         });
     
         // 6) Pesos por dimensão (usa o que veio salvo)
@@ -1431,6 +1476,8 @@
           ? window.normalizeDimensionWeights(weights || ev?.dimension_weights || {})
           : (weights || ev?.dimension_weights || {INSTITUCIONAL:0,FUNCIONAL:0,INDIVIDUAL:0,METAS:0});
     
+        dimensionWeights = norm; // ✅ CORREÇÃO: Atualizar dimensionWeights global
+        
         const wi = document.getElementById('weight-institucional');
         const wf = document.getElementById('weight-funcional');
         const wn = document.getElementById('weight-individual');
@@ -1473,9 +1520,11 @@
         // 10) Mostrar seção
         const sec = document.getElementById('evaluation-section');
         if (sec) { sec.style.display = 'block'; sec.scrollIntoView({behavior:'smooth'}); }
+        
+        console.log('[viewEmployeeEvaluation] Avaliação carregada com sucesso. ID:', evalId);
       } catch(e) {
-        console.error('[viewEmployeeEvaluation]', e);
-        alert('Falha ao abrir a avaliação.');
+        console.error('[viewEmployeeEvaluation] Erro:', e);
+        alert('Falha ao abrir a avaliação: ' + e.message);
       }
     };
     
