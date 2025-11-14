@@ -748,6 +748,9 @@
         await loadActiveRoundCode();
         await loadCentralDimensionWeights();
 
+        // ✅ Bloquear campos se for gestor
+        lockDimensionWeightsForManager();
+          
         evaluationData = {};
         const goalsContainer = document.querySelector('#goals-container');
         if (goalsContainer) goalsContainer.innerHTML = '';
@@ -1007,6 +1010,42 @@
       });
       updateDimensionWeights();
     }
+
+    
+    // ✅ NOVA FUNÇÃO: Bloquear campos de peso para gestores
+    function lockDimensionWeightsForManager() {
+      const isManager = !!MANAGER_NAME; // Se tem manager_name na URL, é gestor
+      
+      const weightInputs = [
+        'weight-institucional',
+        'weight-funcional', 
+        'weight-individual',
+        'weight-metas'
+      ];
+      
+      weightInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+          if (isManager) {
+            input.readOnly = true;
+            input.disabled = false; // disabled remove o estilo, readonly mantém
+            input.style.backgroundColor = '#f5f5f5';
+            input.style.cursor = 'not-allowed';
+            input.title = 'Este campo só pode ser alterado pelo RH';
+          } else {
+            input.readOnly = false;
+            input.style.backgroundColor = '';
+            input.style.cursor = '';
+            input.title = '';
+          }
+        }
+      });
+      
+      console.log('[lockDimensionWeightsForManager] Campos bloqueados para gestor:', isManager);
+    }
+
+
+        
     function updateDimensionWeights() {
       const wInst = toNumber(qs('#weight-institucional').value);
       const wFunc = toNumber(qs('#weight-funcional').value);
@@ -1367,6 +1406,11 @@
           const lock = Math.abs(total - 100) < 0.01;
           applyDimensionWeightsToInputs(map, lock);
         }
+
+        // ✅ Bloquear campos se for gestor
+        lockDimensionWeightsForManager();
+
+          
       }catch(e){
         console.warn('Falha carregando pesos centrais:', e);
       }
@@ -1601,9 +1645,10 @@
         if (wf) wf.value = norm.FUNCIONAL ?? 0;
         if (wn) wn.value = norm.INDIVIDUAL ?? 0;
         if (wm) wm.value = norm.METAS ?? 0;
-    
+        
         if (typeof window.updateDimensionWeights === 'function') window.updateDimensionWeights();
-    
+        // ✅ Bloquear campos se for gestor
+        lockDimensionWeightsForManager();
         // 7) Metas (se existirem)
         let goalsList = goals;
         if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
