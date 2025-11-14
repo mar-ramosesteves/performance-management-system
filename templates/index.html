@@ -729,6 +729,13 @@
         const resp = await fetch('/api/employees');
         const employees = await resp.json();
         currentEmployee = employees.find(emp => emp.id === employeeId);
+
+        // ✅ CORREÇÃO CRÍTICA: Limpar TODOS os IDs de avaliação ao iniciar nova avaliação
+        window.currentEvaluationId = null;
+        window.lastLoadedEvaluationId = null;
+        currentEvaluationId = null;
+        console.log('[startEvaluationForEmployee] IDs limpos. Novo funcionário ID:', currentEmployee.id);
+          
         if (!currentEmployee) return alert('Funcionário não encontrado');
 
         let lastFinalRating = null;
@@ -1130,6 +1137,14 @@
     
     async function submitEvaluation() {
       const emp = window.currentEmployee || currentEmployee;
+      // ✅ CORREÇÃO CRÍTICA: Validar que o employee_id está correto
+      if (!emp || !emp.id) {
+        alert('ERRO: Funcionário não identificado. Recarregue a página.');
+        return;
+      }
+      
+      console.log('[submitEvaluation] Funcionário atual:', emp.id, emp.nome);
+      
       if (!emp || !emp.id) { alert('Nenhum funcionário selecionado'); return; }
     
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
@@ -1202,29 +1217,37 @@
       };
     
       // ✅ NOVA ESTRATÉGIA: Sempre buscar avaliação existente por employee_id + round_code
+      // ✅ CORREÇÃO: Buscar avaliação existente APENAS para este funcionário + rodada
       let existingEvalId = null;
       
       try {
         const searchUrl = `/api/evaluations/latest?employee_id=${encodeURIComponent(emp.id)}&round_code=${encodeURIComponent(roundCode)}`;
-        console.log('[submitEvaluation] Buscando avaliação existente:', searchUrl);
+        console.log('[submitEvaluation] Buscando avaliação para funcionário:', emp.id, 'rodada:', roundCode);
         
         const searchResp = await fetch(searchUrl);
         if (searchResp.ok) {
           const searchData = await searchResp.json();
-          existingEvalId = searchData?.evaluation?.id || searchData?.evaluation?.evaluation_id || null;
-          console.log('[submitEvaluation] Avaliação existente encontrada. ID:', existingEvalId);
+          const foundEval = searchData?.evaluation;
+          
+          // ✅ VALIDAÇÃO CRÍTICA: Só usar se for do mesmo funcionário
+          if (foundEval && foundEval.employee_id === emp.id) {
+            existingEvalId = foundEval.id || foundEval.evaluation_id || null;
+            console.log('[submitEvaluation] ✅ Avaliação encontrada para este funcionário. ID:', existingEvalId);
+          } else {
+            console.log('[submitEvaluation] ⚠️ Avaliação encontrada mas não é deste funcionário. Ignorando.');
+            existingEvalId = null;
+          }
         } else {
           console.log('[submitEvaluation] Nenhuma avaliação existente encontrada. Criando nova.');
         }
       } catch (searchError) {
         console.warn('[submitEvaluation] Erro ao buscar avaliação existente:', searchError);
+        existingEvalId = null;
       }
-    
-      if (!existingEvalId) {
-        existingEvalId = window.currentEvaluationId || window.lastLoadedEvaluationId || currentEvaluationId || null;
-      }
-    
-      console.log('[submitEvaluation] ID da avaliação a usar:', existingEvalId || 'NOVA');
+
+      // ✅ NUNCA usar IDs salvos de outros funcionários
+      // Se não encontrou pelo employee_id + round_code, é nova avaliação
+      console.log('[submitEvaluation] ID da avaliação a usar:', existingEvalId || 'NOVA (criar nova)');
     
       let resp = null;
       let result = null;
