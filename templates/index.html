@@ -1117,10 +1117,8 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      // ✅ CORREÇÃO: Garantir que pegue as respostas de ambas as variáveis
       const responsesObj = { ...(window.evaluationData || {}), ...(evaluationData || {}) };
       console.log('[submitEvaluation] Respostas coletadas:', responsesObj);
-        
       const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
         criteria_id: Number(criteria_id), rating: Number(rating)
       }));
@@ -1164,20 +1162,38 @@
         final_rating: Number(finalRating)
       };
     
-      const existingEvalId =
-        window.currentEvaluationId ||
-        window.lastLoadedEvaluationId ||
-        currentEvaluationId ||
-        null;
+      // ✅ NOVA ESTRATÉGIA: Sempre buscar avaliação existente por employee_id + round_code
+      let existingEvalId = null;
+      
+      try {
+        const searchUrl = `/api/evaluations/latest?employee_id=${encodeURIComponent(emp.id)}&round_code=${encodeURIComponent(roundCode)}`;
+        console.log('[submitEvaluation] Buscando avaliação existente:', searchUrl);
+        
+        const searchResp = await fetch(searchUrl);
+        if (searchResp.ok) {
+          const searchData = await searchResp.json();
+          existingEvalId = searchData?.evaluation?.id || searchData?.evaluation?.evaluation_id || null;
+          console.log('[submitEvaluation] Avaliação existente encontrada. ID:', existingEvalId);
+        } else {
+          console.log('[submitEvaluation] Nenhuma avaliação existente encontrada. Criando nova.');
+        }
+      } catch (searchError) {
+        console.warn('[submitEvaluation] Erro ao buscar avaliação existente:', searchError);
+      }
     
-      console.log('[submitEvaluation] ID da avaliação existente:', existingEvalId);
+      if (!existingEvalId) {
+        existingEvalId = window.currentEvaluationId || window.lastLoadedEvaluationId || currentEvaluationId || null;
+      }
+    
+      console.log('[submitEvaluation] ID da avaliação a usar:', existingEvalId || 'NOVA');
     
       let resp = null;
       let result = null;
       
       try {
         if (existingEvalId) {
-          console.log('[submitEvaluation] Tentando ATUALIZAR via PUT. ID:', existingEvalId);
+          console.log('[submitEvaluation] ATUALIZANDO avaliação ID:', existingEvalId);
+          
           try {
             const putPayload = { ...basePayload, id: existingEvalId, evaluation_id: existingEvalId };
             resp = await fetch(`/api/evaluations/${encodeURIComponent(existingEvalId)}`, {
@@ -1193,7 +1209,7 @@
               throw new Error('PUT não disponível');
             }
           } catch (putError) {
-            console.log('[submitEvaluation] Tentando ATUALIZAR via POST...');
+            console.log('[submitEvaluation] PUT falhou, tentando POST com update...');
             const postPayload = {
               ...basePayload,
               id: existingEvalId,
@@ -1216,7 +1232,7 @@
             }
           }
         } else {
-          console.log('[submitEvaluation] Criando NOVA avaliação...');
+          console.log('[submitEvaluation] CRIANDO nova avaliação...');
           resp = await fetch('/api/evaluations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
