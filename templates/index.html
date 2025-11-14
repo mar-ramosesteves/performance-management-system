@@ -1033,10 +1033,24 @@
 
     /* -------- Ratings -------- */
     function setRating(criteriaId, rating) {
-      qsa(`[data-criteria="${criteriaId}"]`).forEach(btn => btn.classList.remove('selected'));
-      const sel = qs(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
+      // Remove seleção anterior
+      document.querySelectorAll(`[data-criteria="${criteriaId}"]`).forEach(btn => btn.classList.remove('selected'));
+      
+      // Marca o botão selecionado
+      const sel = document.querySelector(`[data-criteria="${criteriaId}"][data-rating="${rating}"]`);
       if (sel) sel.classList.add('selected');
-      evaluationData[criteriaId] = rating;
+      
+      // ✅ CORREÇÃO: Salvar em AMBAS as variáveis globais
+      const cid = String(criteriaId);
+      window.evaluationData = window.evaluationData || {};
+      evaluationData = evaluationData || {};
+      
+      window.evaluationData[cid] = Number(rating);
+      evaluationData[cid] = Number(rating);
+      
+      console.log('[setRating] Critério', cid, 'Rating', rating, 'Salvo em evaluationData');
+      console.log('[setRating] evaluationData atual:', window.evaluationData);
+      
       calculateFinalRating();
     }
 
@@ -1103,7 +1117,10 @@
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
     
-      const responsesObj = window.evaluationData || evaluationData || {};
+      // ✅ CORREÇÃO: Garantir que pegue as respostas de ambas as variáveis
+      const responsesObj = { ...(window.evaluationData || {}), ...(evaluationData || {}) };
+      console.log('[submitEvaluation] Respostas coletadas:', responsesObj);
+        
       const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
         criteria_id: Number(criteria_id), rating: Number(rating)
       }));
