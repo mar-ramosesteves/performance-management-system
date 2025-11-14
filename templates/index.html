@@ -1257,6 +1257,25 @@
 
       // ✅ NUNCA usar IDs salvos de outros funcionários
       // Se não encontrou pelo employee_id + round_code, é nova avaliação
+
+
+      // ✅ VALIDAÇÃO: Verificar se ID pertence ao funcionário correto
+      if (existingEvalId) {
+        try {
+          const checkResp = await fetch(`/api/evaluations/${existingEvalId}`);
+          if (checkResp.ok) {
+            const checkData = await checkResp.json();
+            if (checkData.employee_id !== emp.id) {
+              console.warn('[submitEvaluation] ⚠️ ID pertence a outro funcionário! Ignorando.');
+              existingEvalId = null;
+            }
+          }
+        } catch (_) {
+          existingEvalId = null;
+        }
+      }
+
+        
       console.log('[submitEvaluation] ID da avaliação a usar:', existingEvalId || 'NOVA (criar nova)');
     
       let resp = null;
