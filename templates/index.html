@@ -1486,49 +1486,67 @@
           await window.loadEvaluationCriteria();
         }
     
-            // 5) Marcar respostas critério a critério
-            window.evaluationData = {};
-            evaluationData = {};
+        // 5) Marcar respostas critério a critério
+        window.evaluationData = {};
+        evaluationData = {};
+        
+        console.log('[viewEmployeeEvaluation] Total de respostas recebidas:', responses?.length || 0);
+        
+        // ✅ CORREÇÃO: Filtrar apenas as respostas mais recentes de cada critério
+        let latestResponses = {};
+        if (Array.isArray(responses) && responses.length > 0) {
+          // Agrupar por criteria_id e pegar a mais recente (maior created_at ou id)
+          responses.forEach(row => {
+            const cid = String(row.criteria_id || row.criteriaId || row.id);
+            const rating = Number(row.rating || row.value);
+            const createdAt = row.created_at || row.createdAt || '';
+            const rowId = Number(row.id || 0);
             
-            console.log('[viewEmployeeEvaluation] Carregando respostas:', responses);
+            if (!cid || !rating) return;
             
-            // Aguardar um pouco para garantir que os botões de rating já foram criados
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            if (Array.isArray(responses) && responses.length > 0) {
-              responses.forEach(row => {
-                const cid = String(row.criteria_id || row.criteriaId || row.id);
-                const r = Number(row.rating || row.value);
-                
-                if (!cid || !r) {
-                  console.warn('[viewEmployeeEvaluation] Resposta inválida:', row);
-                  return;
-                }
-                
-                // Remove seleção anterior de TODOS os botões desse critério
-                document.querySelectorAll(`[data-criteria="${cid}"]`).forEach(b => {
-                  b.classList.remove('selected');
-                });
-                
-                // Marca o botão correto
-                const btn = document.querySelector(`[data-criteria="${cid}"][data-rating="${r}"]`);
-                if (btn) {
-                  btn.classList.add('selected');
-                  window.evaluationData[cid] = r;
-                  evaluationData[cid] = r;
-                  console.log('[viewEmployeeEvaluation] ✅ Critério', cid, 'Rating', r, 'marcado');
-                } else {
-                  console.warn('[viewEmployeeEvaluation] ⚠️ Botão não encontrado para critério', cid, 'rating', r);
-                  // Tenta encontrar o critério de outra forma
-                  const allBtns = document.querySelectorAll(`[data-criteria="${cid}"]`);
-                  console.log('[viewEmployeeEvaluation] Botões encontrados para critério', cid, ':', allBtns.length);
-                }
-              });
-            } else {
-              console.warn('[viewEmployeeEvaluation] Nenhuma resposta encontrada ou formato inválido');
+            // Se não tem essa resposta ainda, ou se esta é mais recente
+            if (!latestResponses[cid] || 
+                rowId > (latestResponses[cid].id || 0) ||
+                (createdAt && latestResponses[cid].created_at && createdAt > latestResponses[cid].created_at)) {
+              latestResponses[cid] = {
+                criteria_id: cid,
+                rating: rating,
+                id: rowId,
+                created_at: createdAt
+              };
             }
-            
-            console.log('[viewEmployeeEvaluation] evaluationData após carregar:', window.evaluationData);
+          });
+          
+          console.log('[viewEmployeeEvaluation] Respostas filtradas (últimas por critério):', Object.keys(latestResponses).length);
+          console.log('[viewEmployeeEvaluation] Últimas respostas:', latestResponses);
+        }
+        
+        // Aguardar um pouco para garantir que os botões de rating já foram criados
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Agora marcar apenas as respostas mais recentes
+        Object.values(latestResponses).forEach(row => {
+          const cid = String(row.criteria_id);
+          const r = Number(row.rating);
+          
+          // Remove seleção anterior de TODOS os botões desse critério
+          document.querySelectorAll(`[data-criteria="${cid}"]`).forEach(b => {
+            b.classList.remove('selected');
+          });
+          
+          // Marca o botão correto
+          const btn = document.querySelector(`[data-criteria="${cid}"][data-rating="${r}"]`);
+          if (btn) {
+            btn.classList.add('selected');
+            window.evaluationData[cid] = r;
+            evaluationData[cid] = r;
+            console.log('[viewEmployeeEvaluation] ✅ Critério', cid, 'Rating', r, 'marcado (última resposta)');
+          } else {
+            console.warn('[viewEmployeeEvaluation] ⚠️ Botão não encontrado para critério', cid, 'rating', r);
+          }
+        });
+        
+        console.log('[viewEmployeeEvaluation] evaluationData após carregar:', window.evaluationData);
     
         // 6) Pesos por dimensão (usa o que veio salvo)
         const norm = (typeof window.normalizeDimensionWeights === 'function')
