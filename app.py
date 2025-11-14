@@ -565,55 +565,80 @@ def get_evaluations():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+
 @app.route('/api/evaluations', methods=['POST'])
 def create_evaluation():
     try:
         data = request.get_json()
 
         # --- BLOQUEIO POR JANELA (usa helper is_window_open) ---
-        # Se a janela NÃO estiver aberta, só permite salvar se vier o código do RH no body
-        # ex.: { ..., "code": "SEU_ADMIN_WINDOW_CODE" }
         open_now, _, _, _ = is_window_open()
         override_code = (data.get('code') or '').strip()
         if not open_now:
             if not ADMIN_WINDOW_CODE or override_code != ADMIN_WINDOW_CODE:
                 return jsonify({'error': 'Janela de avaliação fechada'}), 403
-        # --- fim do bloqueio ---
 
         if not data.get('employee_id') or not data.get('responses'):
             return jsonify({'error': 'Dados obrigatórios não fornecidos'}), 400
 
-
-        # DEBUG: verificar se round_code está chegando
         print(f"DEBUG: round_code recebido: {data.get('round_code')}")
         print(f"DEBUG: dados completos: {data}")
+
         evaluation_data = {
            'employee_id': data['employee_id'],
            'evaluator_id': data.get('evaluator_id', 1),
            'evaluation_year': data.get('evaluation_year', 2025),
-           'round_code': data.get('round_code'),  # NOVO: código da rodada
+           'round_code': data.get('round_code'),
            'dimension_weights': data.get('dimension_weights', {}),
            'dimension_averages': data.get('dimension_averages', {}),
            'final_rating': data.get('final_rating'),
            'goals_average': data.get('goals_average')
        }
         
-        # Verificar se já existe avaliação para este funcionário no ano
-        existing_eval = supabase.table('evaluations').select('id').eq('employee_id', data['employee_id']).eq('evaluation_year', data.get('evaluation_year', 2025)).execute()
+        # ✅ CORREÇÃO: Verificar se já existe avaliação para este funcionário + rodada
+        round_code = data.get('round_code', '').strip()
+        is_update = data.get('update', False) or data.get('action') == 'update'
+        existing_eval_id = data.get('id') or data.get('evaluation_id')
         
-        if existing_eval.data:
-            # Atualizar avaliação existente
-            evaluation_id = existing_eval.data[0]['id']
+        # Se veio com ID explícito (update), usar esse ID
+        if existing_eval_id and is_update:
+            evaluation_id = int(existing_eval_id)
+            print(f"DEBUG: Atualizando avaliação existente ID: {evaluation_id}")
             supabase.table('evaluations').update(evaluation_data).eq('id', evaluation_id).execute()
-            print(f"DEBUG: Avaliação {evaluation_id} atualizada")
         else:
-            # Criar nova avaliação
-            evaluation_response = supabase.table('evaluations').insert(evaluation_data).execute()
-            if not evaluation_response.data:
-                return jsonify({'error': 'Erro ao criar avaliação'}), 500
-            evaluation_id = evaluation_response.data[0]['id']
-            print(f"DEBUG: Nova avaliação {evaluation_id} criada")
+            # Buscar avaliação existente por employee_id + round_code
+            query = supabase.table('evaluations').select('id').eq('employee_id', data['employee_id'])
+            
+            if round_code:
+                query = query.eq('round_code', round_code)
+            else:
+                # Se não tem round_code, busca pelo ano (compatibilidade)
+                query = query.eq('evaluation_year', data.get('evaluation_year', 2025))
+            
+            existing_eval = query.execute()
+            
+            if existing_eval.data:
+                # Atualizar avaliação existente
+                evaluation_id = existing_eval.data[0]['id']
+                print(f"DEBUG: Avaliação {evaluation_id} encontrada e atualizada (employee_id={data['employee_id']}, round_code={round_code})")
+                supabase.table('evaluations').update(evaluation_data).eq('id', evaluation_id).execute()
+            else:
+                # Criar nova avaliação
+                evaluation_response = supabase.table('evaluations').insert(evaluation_data).execute()
+                if not evaluation_response.data:
+                    return jsonify({'error': 'Erro ao criar avaliação'}), 500
+                evaluation_id = evaluation_response.data[0]['id']
+                print(f"DEBUG: Nova avaliação {evaluation_id} criada (employee_id={data['employee_id']}, round_code={round_code})")
 
+        # ✅ CORREÇÃO: Deletar respostas antigas antes de inserir novas (para não acumular)
+        try:
+            supabase.table('evaluation_responses').delete().eq('evaluation_id', evaluation_id).execute()
+            print(f"DEBUG: Respostas antigas deletadas para avaliação {evaluation_id}")
+        except Exception as e:
+            print(f"DEBUG: Erro ao deletar respostas antigas: {e}")
+        
+        # Inserir novas respostas
         responses = []
         for criteria_id, rating in data['responses'].items():
             responses.append({
@@ -623,6 +648,7 @@ def create_evaluation():
             })
         if responses:
             supabase.table('evaluation_responses').insert(responses).execute()
+            print(f"DEBUG: {len(responses)} respostas inseridas para avaliação {evaluation_id}")
             
         # Limpar metas antigas do funcionário
         try:
@@ -650,7 +676,6 @@ def create_evaluation():
             if goals_to_save:
                 supabase.table('individual_goals').insert(goals_to_save).execute()    
                         
-       
         try:
             scores = calculate_evaluation_scores(
                 evaluation_id,
@@ -663,10 +688,10 @@ def create_evaluation():
         except Exception as calc_error:
             print(f"Erro ao calcular scores: {calc_error}")
 
-        return jsonify({'evaluation_id': evaluation_id, 'message': 'Avaliação salva com sucesso!'})
+        return jsonify({'id': evaluation_id, 'evaluation_id': evaluation_id, 'message': 'Avaliação salva com sucesso!'})
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/evaluations/<int:evaluation_id>', methods=['GET'])
 def get_evaluation(evaluation_id):
