@@ -1118,7 +1118,6 @@
         evaluation_date: new Date().toISOString(),
         evaluator_id: 1,
     
-        // respostas em todos os formatos (compat)
         responses: responsesObj,
         evaluation_responses: responsesArray,
         responses_array: responsesArray,
@@ -1126,12 +1125,10 @@
         answers_array: responsesArray,
         responses_json: JSON.stringify(responsesObj),
     
-        // metas
         goals,
         goals_average: metasAvg || 0,
         goals_json: JSON.stringify(goals),
     
-        // pesos e médias
         dimension_weights: {
           INSTITUCIONAL: Number(w.INSTITUCIONAL)||0,
           FUNCIONAL:     Number(w.FUNCIONAL)||0,
@@ -1150,7 +1147,6 @@
         final_rating: Number(finalRating)
       };
     
-      // ✅ CORREÇÃO: Buscar o ID da avaliação de múltiplas fontes
       const existingEvalId =
         window.currentEvaluationId ||
         window.lastLoadedEvaluationId ||
@@ -1158,126 +1154,100 @@
         null;
     
       console.log('[submitEvaluation] ID da avaliação existente:', existingEvalId);
-      console.log('[submitEvaluation] Payload:', basePayload);
     
-      // === Tenta PUT primeiro; se 405/404, cai para POST "update-like" ===
-        // === Estratégia de salvamento: tenta PUT, depois POST com flag de update ===
       let resp = null;
       let result = null;
-  
-      if (existingEvalId) {
-        // TENTATIVA 1: PUT direto
-        console.log('[submitEvaluation] Tentando ATUALIZAR via PUT. ID:', existingEvalId);
-        try {
-          const putPayload = { ...basePayload, id: existingEvalId, evaluation_id: existingEvalId };
-          resp = await fetch(`/api/evaluations/${encodeURIComponent(existingEvalId)}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(putPayload)
-          });
-          
-          if (resp.ok) {
-            result = await resp.json();
-            console.log('[submitEvaluation] ✅ Atualizado via PUT com sucesso!', result);
-          } else {
-            console.warn('[submitEvaluation] PUT falhou (status:', resp.status, '). Tentando POST...');
-            throw new Error('PUT não disponível');
+      
+      try {
+        if (existingEvalId) {
+          console.log('[submitEvaluation] Tentando ATUALIZAR via PUT. ID:', existingEvalId);
+          try {
+            const putPayload = { ...basePayload, id: existingEvalId, evaluation_id: existingEvalId };
+            resp = await fetch(`/api/evaluations/${encodeURIComponent(existingEvalId)}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(putPayload)
+            });
+            
+            if (resp.ok) {
+              result = await resp.json();
+              console.log('[submitEvaluation] ✅ Atualizado via PUT!', result);
+            } else {
+              throw new Error('PUT não disponível');
+            }
+          } catch (putError) {
+            console.log('[submitEvaluation] Tentando ATUALIZAR via POST...');
+            const postPayload = {
+              ...basePayload,
+              id: existingEvalId,
+              evaluation_id: existingEvalId,
+              update: true,
+              action: 'update'
+            };
+            
+            resp = await fetch('/api/evaluations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(postPayload)
+            });
+            
+            if (resp.ok) {
+              result = await resp.json();
+              console.log('[submitEvaluation] ✅ Atualizado via POST!', result);
+            } else {
+              throw new Error('Falha ao atualizar');
+            }
           }
-        } catch (putError) {
-          // TENTATIVA 2: POST com flag de update explícita
-          console.log('[submitEvaluation] Tentando ATUALIZAR via POST com flag update...');
-          const postPayload = {
-            ...basePayload,
-            id: existingEvalId,
-            evaluation_id: existingEvalId,
-            update: true,  // flag explícita
-            action: 'update',
-            _method: 'PUT'  // alguns frameworks usam isso
-          };
-          
+        } else {
+          console.log('[submitEvaluation] Criando NOVA avaliação...');
           resp = await fetch('/api/evaluations', {
             method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'X-HTTP-Method-Override': 'PUT'  // header alternativo
-            },
-            body: JSON.stringify(postPayload)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(basePayload)
           });
           
           if (!resp.ok) {
-            // TENTATIVA 3: POST direto no endpoint de update (se existir)
-            console.log('[submitEvaluation] Tentando endpoint específico de update...');
-            resp = await fetch(`/api/evaluations/${encodeURIComponent(existingEvalId)}/update`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(basePayload)
-            });
+            let backendMsg = '';
+            try { 
+              const json = await resp.json();
+              backendMsg = json?.error || json?.detail || json?.message || '';
+            } catch(_){}
+            alert('Erro ao salvar: ' + (backendMsg || `Status ${resp.status}`));
+            return;
           }
           
-          if (resp.ok) {
-            result = await resp.json();
-            console.log('[submitEvaluation] ✅ Atualizado via POST com sucesso!', result);
-          } else {
-            throw new Error('Falha ao atualizar');
-          }
+          result = await resp.json();
+          console.log('[submitEvaluation] ✅ Nova avaliação criada!', result);
         }
-      } else {
-        // Criar nova avaliação
-        console.log('[submitEvaluation] Criando NOVA avaliação...');
-        resp = await fetch('/api/evaluations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(basePayload)
-        });
-        
-        if (!resp.ok) {
+    
+        if (!resp || !resp.ok) {
           let backendMsg = '';
           try { 
             const json = await resp.json();
             backendMsg = json?.error || json?.detail || json?.message || '';
           } catch(_){}
-          if (!backendMsg) { 
-            try { backendMsg = await resp.text(); } catch(_){ backendMsg = ''; } 
-          }
-          console.error('[submitEvaluation] erro ao criar:', backendMsg, 'Status:', resp.status);
-          alert('Erro ao salvar: ' + (backendMsg || `Status ${resp.status} - veja o console`));
+          alert('Erro ao salvar: ' + (backendMsg || `Status ${resp?.status}`));
           return;
         }
-        
-        result = await resp.json();
-        console.log('[submitEvaluation] ✅ Nova avaliação criada!', result);
-      }
     
-      // Verificar se realmente salvou
-      if (!resp || !resp.ok) {
-        let backendMsg = '';
-        try { 
-          const json = await resp.json();
-          backendMsg = json?.error || json?.detail || json?.message || '';
-        } catch(_){}
-        if (!backendMsg) { 
-          try { backendMsg = await resp.text(); } catch(_){ backendMsg = ''; } 
+        if (result?.id || result?.evaluation_id) {
+          const newId = result.id || result.evaluation_id;
+          window.currentEvaluationId = newId;
+          window.lastLoadedEvaluationId = newId;
+          currentEvaluationId = newId;
+          console.log('[submitEvaluation] ID atualizado para:', newId);
         }
-        console.error('[submitEvaluation] erro backend:', backendMsg, 'Status:', resp?.status);
-        alert('Erro ao salvar: ' + (backendMsg || `Status ${resp?.status} - veja o console`));
-        return;
-      }
     
-      // Atualizar IDs após salvar
-      if (result?.id || result?.evaluation_id) {
-        const newId = result.id || result.evaluation_id;
-        window.currentEvaluationId = newId;
-        window.lastLoadedEvaluationId = newId;
-        currentEvaluationId = newId;
-        console.log('[submitEvaluation] ID atualizado para:', newId);
+        alert('Avaliação salva com sucesso!');
+        window.evaluationData = {};
+        evaluationData = {};
+        const sec = document.querySelector('#evaluation-section');
+        if (sec) sec.style.display = 'none';
+      } catch (e) {
+        console.error('[submitEvaluation] Erro:', e);
+        alert('Erro ao salvar avaliação: ' + e.message);
       }
-    
-      alert('Avaliação salva com sucesso!');
-      window.evaluationData = {};
-      evaluationData = {};
-      const sec = document.querySelector('#evaluation-section');
-      if (sec) sec.style.display = 'none';
-
+    }
         
     // ===== Sistema de Rodadas Dinâmico =====
     function generateRoundCode(type, year) { return `${type}${year.toString()}`; }
