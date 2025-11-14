@@ -471,13 +471,20 @@ def api_evaluations_latest():
             return jsonify({'error': 'employee_id obrigatório'}), 400
 
         # Buscar avaliação
-        r_ev = (supabase.table('evaluations')
-                .select('*')
-                .eq('employee_id', employee_id)
-                .order('evaluation_date', desc=True)
-                .order('created_at', desc=True)
-                .limit(1)
-                .execute())
+
+        
+        # ✅ CORREÇÃO: Buscar avaliação por employee_id + round_code (se fornecido)
+        round_code = request.args.get('round_code', '').strip()
+        
+        query = supabase.table('evaluations').select('*').eq('employee_id', employee_id)
+        
+        # Se round_code foi fornecido, filtrar por ele
+        if round_code:
+            query = query.eq('round_code', round_code)
+        
+        r_ev = query.order('evaluation_date', desc=True).order('created_at', desc=True).limit(1).execute()
+
+        
         data = r_ev.data or []
         if not data:
             return jsonify({'error': 'nenhuma_avaliacao'}), 404
