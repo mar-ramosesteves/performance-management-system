@@ -462,7 +462,7 @@
 
                     <!-- Submit Button -->
                     <div class="text-center mt-4">
-                        <button class="btn btn-success btn-lg" onclick="submitEvaluation()">
+                        <button id="btnSalvarAvaliacao" class="btn btn-success btn-lg" onclick="submitEvaluation()">
                             <i class="fas fa-save me-2"></i>Salvar Avaliação
                         </button>
                     </div>
@@ -1146,24 +1146,73 @@
 
     
     async function submitEvaluation() {
+      // ============================================
+      // CÓDIGO PARA DESABILITAR BOTÃO E MOSTRAR "SALVANDO..."
+      // ============================================
+      const btnSalvar = document.getElementById('btnSalvarAvaliacao');
+      const textoOriginal = btnSalvar ? btnSalvar.innerHTML : '';
+      if (btnSalvar) {
+        btnSalvar.disabled = true;
+        btnSalvar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Salvando avaliação...';
+      }
+      // ============================================
+    
       const emp = window.currentEmployee || currentEmployee;
+    
       // ✅ CORREÇÃO CRÍTICA: Validar que o employee_id está correto
       if (!emp || !emp.id) {
+        // Reabilitar botão antes de sair
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
         alert('ERRO: Funcionário não identificado. Recarregue a página.');
         return;
       }
-      
+    
       console.log('[submitEvaluation] Funcionário atual:', emp.id, emp.nome);
-      
-      if (!emp || !emp.id) { alert('Nenhum funcionário selecionado'); return; }
+    
+      if (!emp || !emp.id) { 
+        // Reabilitar botão antes de sair
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        alert('Nenhum funcionário selecionado'); 
+        return; 
+      }
     
       const { goals, avgRating: metasAvg, sumWeights, missingCriteria } = readGoalsFromDOM();
-      if (missingCriteria) { alert('Preencha os critérios (Rating 1 a 5) de todas as metas.'); return; }
-      if (Math.abs(sumWeights - 100) > 0.01) { alert('Os pesos das metas devem totalizar 100%.'); return; }
+      if (missingCriteria) { 
+        // Reabilitar botão antes de sair
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        alert('Preencha os critérios (Rating 1 a 5) de todas as metas.'); 
+        return; 
+      }
+      if (Math.abs(sumWeights - 100) > 0.01) { 
+        // Reabilitar botão antes de sair
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        alert('Os pesos das metas devem totalizar 100%.'); 
+        return; 
+      }
     
       const w = dimensionWeights || { INSTITUCIONAL:0, FUNCIONAL:0, INDIVIDUAL:0, METAS:0 };
       const dimensionTotal = (Number(w.INSTITUCIONAL)||0)+(Number(w.FUNCIONAL)||0)+(Number(w.INDIVIDUAL)||0)+(Number(w.METAS)||0);
-      if (Math.abs(dimensionTotal - 100) > 0.01) { alert('Os pesos das DIMENSÕES devem totalizar 100%.'); return; }
+      if (Math.abs(dimensionTotal - 100) > 0.01) { 
+        // Reabilitar botão antes de sair
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        alert('Os pesos das DIMENSÕES devem totalizar 100%.'); 
+        return; 
+      }
     
       const dimAvgs = {
         INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
@@ -1176,7 +1225,15 @@
     
       const roundCodeEl = document.getElementById('round-code');
       const roundCode = roundCodeEl ? (roundCodeEl.value || '').trim() : '';
-      if (!roundCode) { alert('ERRO: Código da rodada não definido. Contate o RH.'); return; }
+      if (!roundCode) { 
+        // Reabilitar botão antes de sair
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        alert('ERRO: Código da rodada não definido. Contate o RH.'); 
+        return; 
+      }
     
       const params = new URLSearchParams(location.search);
       const managerFromUrl = params.get('manager_name') || params.get('manager') || '';
@@ -1229,16 +1286,16 @@
       // ✅ NOVA ESTRATÉGIA: Sempre buscar avaliação existente por employee_id + round_code
       // ✅ CORREÇÃO: Buscar avaliação existente APENAS para este funcionário + rodada
       let existingEvalId = null;
-      
+    
       try {
         const searchUrl = `/api/evaluations/latest?employee_id=${encodeURIComponent(emp.id)}&round_code=${encodeURIComponent(roundCode)}`;
         console.log('[submitEvaluation] Buscando avaliação para funcionário:', emp.id, 'rodada:', roundCode);
-        
+    
         const searchResp = await fetch(searchUrl);
         if (searchResp.ok) {
           const searchData = await searchResp.json();
           const foundEval = searchData?.evaluation;
-          
+    
           // ✅ VALIDAÇÃO CRÍTICA: Só usar se for do mesmo funcionário
           if (foundEval && foundEval.employee_id === emp.id) {
             existingEvalId = foundEval.id || foundEval.evaluation_id || null;
@@ -1254,11 +1311,10 @@
         console.warn('[submitEvaluation] Erro ao buscar avaliação existente:', searchError);
         existingEvalId = null;
       }
-
+    
       // ✅ NUNCA usar IDs salvos de outros funcionários
       // Se não encontrou pelo employee_id + round_code, é nova avaliação
-
-
+    
       // ✅ VALIDAÇÃO: Verificar se ID pertence ao funcionário correto
       if (existingEvalId) {
         try {
@@ -1274,17 +1330,16 @@
           existingEvalId = null;
         }
       }
-
-        
+    
       console.log('[submitEvaluation] ID da avaliação a usar:', existingEvalId || 'NOVA (criar nova)');
     
       let resp = null;
       let result = null;
-      
+    
       try {
         if (existingEvalId) {
           console.log('[submitEvaluation] ATUALIZANDO avaliação ID:', existingEvalId);
-          
+    
           try {
             const putPayload = { ...basePayload, id: existingEvalId, evaluation_id: existingEvalId };
             resp = await fetch(`/api/evaluations/${encodeURIComponent(existingEvalId)}`, {
@@ -1292,50 +1347,47 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(putPayload)
             });
-            
+    
             if (resp.ok) {
               result = await resp.json();
               console.log('[submitEvaluation] ✅ Atualizado via PUT!', result);
             } else {
               throw new Error('PUT não disponível');
             }
-          
-          
-              } catch (putError) {
-                console.log('[submitEvaluation] PUT falhou, tentando POST com update...');
-                
-                const postPayload = {
-                  ...basePayload,
-                  id: existingEvalId,
-                  evaluation_id: existingEvalId,
-                  update: true,
-                  action: 'update',
-                  replace_responses: true
-                };
-                
-                resp = await fetch('/api/evaluations', {
-                  method: 'POST',
-                  headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Update-Evaluation': 'true'
-                  },
-                  body: JSON.stringify(postPayload)
-                });
-                
-                if (resp.ok) {
-                  result = await resp.json();
-                  console.log('[submitEvaluation] ✅ Atualizado via POST!', result);
-                  
-                  if (result.id && result.id !== existingEvalId) {
-                    console.warn('[submitEvaluation] ⚠️ Backend criou NOVA avaliação ao invés de atualizar! Nova ID:', result.id);
-                  }
-                } else {
-                  throw new Error('Falha ao atualizar');
-                }
+    
+          } catch (putError) {
+            console.log('[submitEvaluation] PUT falhou, tentando POST com update...');
+    
+            const postPayload = {
+              ...basePayload,
+              id: existingEvalId,
+              evaluation_id: existingEvalId,
+              update: true,
+              action: 'update',
+              replace_responses: true
+            };
+    
+            resp = await fetch('/api/evaluations', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'X-Update-Evaluation': 'true'
+              },
+              body: JSON.stringify(postPayload)
+            });
+    
+            if (resp.ok) {
+              result = await resp.json();
+              console.log('[submitEvaluation] ✅ Atualizado via POST!', result);
+    
+              if (result.id && result.id !== existingEvalId) {
+                console.warn('[submitEvaluation] ⚠️ Backend criou NOVA avaliação ao invés de atualizar! Nova ID:', result.id);
               }
-
-
-            
+            } else {
+              throw new Error('Falha ao atualizar');
+            }
+          }
+    
         } else {
           console.log('[submitEvaluation] CRIANDO nova avaliação...');
           resp = await fetch('/api/evaluations', {
@@ -1343,17 +1395,22 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(basePayload)
           });
-          
+    
           if (!resp.ok) {
             let backendMsg = '';
             try { 
               const json = await resp.json();
               backendMsg = json?.error || json?.detail || json?.message || '';
             } catch(_){}
+            // Reabilitar botão antes de sair
+            if (btnSalvar) {
+              btnSalvar.disabled = false;
+              btnSalvar.innerHTML = textoOriginal;
+            }
             alert('Erro ao salvar: ' + (backendMsg || `Status ${resp.status}`));
             return;
           }
-          
+    
           result = await resp.json();
           console.log('[submitEvaluation] ✅ Nova avaliação criada!', result);
         }
@@ -1364,7 +1421,16 @@
             const json = await resp.json();
             backendMsg = json?.error || json?.detail || json?.message || '';
           } catch(_){}
-          alert('Erro ao salvar: ' + (backendMsg || `Status ${resp?.status}`));
+          if (!backendMsg) { 
+            try { backendMsg = await resp.text(); } catch(_){ backendMsg = ''; } 
+          }
+          console.error('[submitEvaluation] erro backend:', backendMsg, 'Status:', resp?.status);
+          // Reabilitar botão antes de sair
+          if (btnSalvar) {
+            btnSalvar.disabled = false;
+            btnSalvar.innerHTML = textoOriginal;
+          }
+          alert('Erro ao salvar: ' + (backendMsg || `Status ${resp?.status} - veja o console`));
           return;
         }
     
@@ -1381,9 +1447,28 @@
         evaluationData = {};
         const sec = document.querySelector('#evaluation-section');
         if (sec) sec.style.display = 'none';
+    
+        // ============================================
+        // REABILITAR BOTÃO APÓS SUCESSO
+        // ============================================
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        // ============================================
+    
       } catch (e) {
         console.error('[submitEvaluation] Erro:', e);
         alert('Erro ao salvar avaliação: ' + e.message);
+    
+        // ============================================
+        // REABILITAR BOTÃO APÓS ERRO
+        // ============================================
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.innerHTML = textoOriginal;
+        }
+        // ============================================
       }
     }
         
