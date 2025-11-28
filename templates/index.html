@@ -1191,7 +1191,7 @@
 
       const finalRounded = round(final || 0);
 
-      // 🔍 DEBUG: mostra tudo no console
+      // 🔍 DEBUG: só para conferirmos uma vez
       console.log('[calculateFinalRating]', {
         institucionalAvg,
         funcionalAvg,
@@ -1202,12 +1202,24 @@
         finalRounded,
       });
 
+      // Atualiza as médias das dimensões (labels azuis)
       qs('#avg-institucional').textContent = `Média: ${round(institucionalAvg) || '-'}`;
       qs('#avg-funcional').textContent     = `Média: ${round(funcionalAvg) || '-'}`;
       qs('#avg-individual').textContent    = `Média: ${round(individualAvg) || '-'}`;
       qs('#avg-metas').textContent         = `Média: ${round(metasAvg) || '-'}`;
 
-      qs('#final-rating').textContent = finalRounded ? finalRounded : '-';
+      // ✅ Atualiza o número grande "Rating Final"
+      const finalEl = qs('#final-rating');
+      if (finalEl) {
+        finalEl.textContent = finalRounded ? finalRounded : '-';
+      }
+
+      // ✅ E também o campo do cabeçalho "Rating 2025"
+      const headerRatingEl = document.getElementById('employee-rating');
+      if (headerRatingEl) {
+        headerRatingEl.textContent = finalRounded ? finalRounded : '-';
+      }
+
       return finalRounded;
     }
 
