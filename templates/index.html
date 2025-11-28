@@ -1168,22 +1168,45 @@
       const { avgRating } = readGoalsFromDOM();
       return avgRating || 0;
     }
+
+        
     function calculateFinalRating() {
       const institucionalAvg = calculateDimensionAverage('INSTITUCIONAL');
       const funcionalAvg     = calculateDimensionAverage('FUNCIONAL');
       const individualAvg    = calculateDimensionAverage('INDIVIDUAL');
       const metasAvg         = calculateGoalsAverage();
+
+      const w = dimensionWeights || {
+        INSTITUCIONAL: 0,
+        FUNCIONAL: 0,
+        INDIVIDUAL: 0,
+        METAS: 0,
+      };
+
+      const final =
+        (institucionalAvg * (w.INSTITUCIONAL / 100)) +
+        (funcionalAvg     * (w.FUNCIONAL     / 100)) +
+        (individualAvg    * (w.INDIVIDUAL    / 100)) +
+        (metasAvg         * (w.METAS         / 100));
+
+      const finalRounded = round(final || 0);
+
+      // 🔍 DEBUG: mostra tudo no console
+      console.log('[calculateFinalRating]', {
+        institucionalAvg,
+        funcionalAvg,
+        individualAvg,
+        metasAvg,
+        weights: w,
+        finalRaw: final,
+        finalRounded,
+      });
+
       qs('#avg-institucional').textContent = `Média: ${round(institucionalAvg) || '-'}`;
       qs('#avg-funcional').textContent     = `Média: ${round(funcionalAvg) || '-'}`;
       qs('#avg-individual').textContent    = `Média: ${round(individualAvg) || '-'}`;
       qs('#avg-metas').textContent         = `Média: ${round(metasAvg) || '-'}`;
-      const w = dimensionWeights;
-      const final =
-        (institucionalAvg * (w.INSTITUCIONAL/100)) +
-        (funcionalAvg     * (w.FUNCIONAL/100)) +
-        (individualAvg    * (w.INDIVIDUAL/100)) +
-        (metasAvg         * (w.METAS/100));
-      const finalRounded = round(final || 0);
+
       qs('#final-rating').textContent = finalRounded ? finalRounded : '-';
       return finalRounded;
     }
