@@ -366,8 +366,43 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
         funcional_avg     = sum(dimension_ratings['FUNCIONAL'])     / len(dimension_ratings['FUNCIONAL'])     if dimension_ratings['FUNCIONAL']     else 0
         individual_avg    = sum(dimension_ratings['INDIVIDUAL'])    / len(dimension_ratings['INDIVIDUAL'])    if dimension_ratings['INDIVIDUAL']    else 0
 
-        goal_ratings = [float(g['rating']) for g in (goals_data or []) if g.get('rating') is not None]
-        metas_avg = sum(goal_ratings) / len(goal_ratings) if goal_ratings else 0
+        # ===================== MÉDIA DE METAS (AGORA PONDERADA PELO PESO) =====================
+        # Se as metas tiverem "weight", usamos média ponderada.
+        # Se não tiver peso válido, caímos para a média simples (comportamento antigo).
+        goal_ratings = []
+        total_weight = 0.0
+        weighted_sum = 0.0
+
+        for g in (goals_data or []):
+            rating_raw = g.get('rating')
+            if rating_raw is None:
+                continue
+
+            try:
+                rating = float(rating_raw)
+            except (TypeError, ValueError):
+                continue
+
+            goal_ratings.append(rating)
+
+            # peso da meta (pode estar em % ou só como número relativo)
+            try:
+                w_goal = float(g.get('weight') or 0)
+            except (TypeError, ValueError):
+                w_goal = 0.0
+
+            if w_goal > 0:
+                total_weight += w_goal
+                weighted_sum += rating * w_goal
+
+        if total_weight > 0:
+            metas_avg = weighted_sum / total_weight
+        elif goal_ratings:
+            # fallback: se não tiver peso, usa média simples como antes
+            metas_avg = sum(goal_ratings) / len(goal_ratings)
+        else:
+            metas_avg = 0.0
+
 
         w = {
             'INSTITUCIONAL': float(dimension_weights.get('INSTITUCIONAL', 25)),
