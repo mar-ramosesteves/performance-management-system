@@ -984,27 +984,71 @@
       const items = qsa('.goal-item');
       const goals = [];
       let missingCriteria = false;
+    
+      let totalWeight = 0;        // soma dos pesos digitados (para validar 100%)
+      let totalWeightRated = 0;   // soma dos pesos das metas que têm nota
+      let weightedSum = 0;        // soma (nota * peso)
+      const ratingsSimple = [];   // para fallback, se não tiver peso válido
+    
       items.forEach((item, idx) => {
         if (!item.parentNode) return;
+    
+        const weightVal = toNumber(qs(`#goal-weight-${idx}`)?.value, 0);
+        const ratingVal = toNumber(qs(`#goal-rating-${idx}`)?.value, null);
+    
         const goal = {
           index: idx + 1,
           name: qs(`#goal-name-${idx}`)?.value || '',
           description: qs(`#goal-description-${idx}`)?.value || '',
-          weight: toNumber(qs(`#goal-weight-${idx}`)?.value, 0),
-          rating: toNumber(qs(`#goal-rating-${idx}`)?.value, null),
+          weight: weightVal,
+          rating: ratingVal,
         };
-        for (let n=1;n<=5;n++){
+    
+        // soma total dos pesos (para checagem 100%)
+        totalWeight += weightVal;
+    
+        // só entra no cálculo da média se tiver nota
+        if (ratingVal != null && ratingVal > 0) {
+          ratingsSimple.push(ratingVal);
+    
+          if (weightVal > 0) {
+            weightedSum += ratingVal * weightVal;
+            totalWeightRated += weightVal;
+          }
+        }
+    
+        // critérios de rating 1 a 5
+        for (let n = 1; n <= 5; n++) {
           const t = qs(`#goal-rating${n}-${idx}`);
           const key = `rating_${n}_criteria`;
           goal[key] = t ? t.value : '';
           if (!goal[key]) missingCriteria = true;
         }
+    
         goals.push(goal);
       });
-      const sumWeights = goals.reduce((s,g)=>s+toNumber(g.weight,0),0);
-      const ratings = goals.map(g=>g.rating).filter(v=>!!v);
-      const avgRating = ratings.length ? ratings.reduce((s,v)=>s+v,0)/ratings.length : 0;
-      return { goals, sumWeights, avgRating, missingCriteria };
+    
+      // média simples (fallback)
+      const avgRatingSimple = ratingsSimple.length
+        ? ratingsSimple.reduce((s, v) => s + v, 0) / ratingsSimple.length
+        : 0;
+    
+      // média ponderada pelas metas que têm nota
+      let avgRatingWeighted = 0;
+      if (totalWeightRated > 0) {
+        avgRatingWeighted = weightedSum / totalWeightRated;
+      } else {
+        // se não tiver peso válido, usa média simples para não quebrar nada
+        avgRatingWeighted = avgRatingSimple;
+      }
+    
+      return {
+        goals,
+        sumWeights: totalWeight,
+        avgRating: avgRatingWeighted,   // ← é essa que o restante do sistema usa
+        avgRatingSimple,                // (extra, se quiser no futuro)
+        missingCriteria,
+      };
     }
 
     function saveGoals() {
