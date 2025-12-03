@@ -1108,6 +1108,229 @@ def add_salary_movement(employee_id):
         return jsonify({'error': str(e)}), 500
 
 
+# ===================== Relatório de PDI & Reconhecimento por Dimensões =====================
+
+def classificar_colaborador(ratings: dict, final_rating: float,
+                            pdi_threshold: float = 3.0,
+                            reconhecimento_threshold: float = 4.5) -> str:
+    """
+    Classifica o colaborador em:
+      - 'RECONHECIMENTO'    -> destaque positivo
+      - 'PDI_OBRIGATORIO'   -> precisa de PDI
+      - 'NEUTRO'            -> meio do caminho
+
+    Critério simples (pode ser ajustado depois):
+      - final_rating >= reconhecimento_threshold  -> RECONHECIMENTO
+      - final_rating <= pdi_threshold             -> PDI_OBRIGATORIO
+      - caso contrário                            -> NEUTRO
+    """
+    try:
+        fr = float(final_rating or 0)
+    except Exception:
+        fr = 0.0
+
+    if fr >= reconhecimento_threshold:
+        return 'RECONHECIMENTO'
+    if fr <= pdi_threshold:
+        return 'PDI_OBRIGATORIO'
+    return 'NEUTRO'
+
+
+def buscar_avaliacoes_brutas(round_code: str | None = None,
+                             empresa: str | None = None) -> list[dict]:
+    """
+    Lê do Supabase:
+      - evaluations  (médias por dimensão e rating final)
+      - employees    (dados do colaborador + gestor)
+
+    Retorna uma lista de dicts já no formato que a tela de
+    'Mapas de Reconhecimento e PDI' vai consumir.
+    """
+    # 1) Buscar avaliações
+    try:
+        query = (
+            supabase
+            .table('evaluations')
+            .select(
+                'id,employee_id,round_code,'
+                'institucional_avg,funcional_avg,individual_avg,metas_avg,'
+                'final_rating'
+            )
+        )
+
+        if round_code:
+            query = query.eq('round_code', round_code)
+
+        r_eval = query.execute()
+        eval_rows = r_eval.data or []
+    except Exception as e:
+        print('[buscar_avaliacoes_brutas] erro ao buscar evaluations:', e)
+        return []
+
+    if not eval_rows:
+        return []
+
+    # 2) Extrair lista de IDs de colaboradores
+    employee_ids = sorted({
+        row.get('employee_id')
+        for row in eval_rows
+        if row.get('employee_id') is not None
+    })
+
+    if not employee_ids:
+        return []
+
+    # 3) Buscar dados dos colaboradores
+    try:
+        emp_query = (
+            supabase
+            .table('employees')
+            .select(
+                'id,'
+                'nome,cargo,empresa,'
+                'company_name,branch_name,department_name,'
+                'manager_name,manager_code'
+            )
+            .in_('id', employee_ids)
+        )
+
+        # Filtro opcional por empresa
+        if empresa:
+            emp_query = emp_query.eq('empresa', empresa)
+
+        r_emp = emp_query.execute()
+        emp_rows = r_emp.data or []
+    except Exception as e:
+        print('[buscar_avaliacoes_brutas] erro ao buscar employees:', e)
+        return []
+
+    if not emp_rows:
+        return []
+
+    emp_by_id = {row['id']: row for row in emp_rows if row.get('id') is not None}
+
+    # 4) Montar lista final
+    resultado = []
+    for ev in eval_rows:
+        emp_id = ev.get('employee_id')
+        emp = emp_by_id.get(emp_id)
+        if not emp:
+            # Se aplicou filtro de empresa, alguns evaluations podem ficar sem employee
+            continue
+
+        # Garantir floats
+        def _f(v):
+            try:
+                return round(float(v or 0), 2)
+            except Exception:
+                return 0.0
+
+        ratings = {
+            'INSTITUCIONAL': _f(ev.get('institucional_avg')),
+            'FUNCIONAL':     _f(ev.get('funcional_avg')),
+            'INDIVIDUAL':    _f(ev.get('individual_avg')),
+            'METAS':         _f(ev.get('metas_avg')),
+        }
+        final_rating = _f(ev.get('final_rating'))
+
+        classificacao = classificar_colaborador(ratings, final_rating)
+
+        resultado.append({
+            'employee_id': emp_id,
+            'employee_name': emp.get('nome'),
+            'cargo': emp.get('cargo'),
+            'empresa': emp.get('empresa'),
+            'company_name': emp.get('company_name'),
+            'branch_name': emp.get('branch_name'),
+            'department_name': emp.get('department_name'),
+            'manager_name': emp.get('manager_name'),
+            'manager_code': emp.get('manager_code'),
+            'ratings': ratings,
+            'final_rating': final_rating,
+            'classificacao': classificacao,
+            'pdi_flag': (classificacao == 'PDI_OBRIGATORIO'),
+            'reconhecimento_flag': (classificacao == 'RECONHECIMENTO'),
+            'round_code': ev.get('round_code'),
+            'evaluation_id': ev.get('id'),
+        })
+
+    # Ordenar para ficar bonitinho: por gestor, depois por nome
+    resultado.sort(
+        key=lambda x: (
+            (x.get('manager_name') or '').strip().upper(),
+            (x.get('employee_name') or '').strip().upper()
+        )
+    )
+    return resultado
+
+
+@app.route('/api/relatorio-pdi-dimensoes', methods=['GET'])
+def api_relatorio_pdi_dimensoes():
+    """
+    Endpoint consumido pela tela 'Mapa de Reconhecimento e PDI'.
+
+    GET /api/relatorio-pdi-dimensoes?round_code=102025&empresa=MINHAEMPRESA
+
+    Resposta:
+    {
+      "source": "supabase",
+      "round_code": "102025",
+      "generated_at": "2025-12-03T12:34:56Z",
+      "criteria": {...},
+      "avaliacoes": [ ... lista de colaboradores ... ]
+    }
+    """
+    try:
+        # Parâmetros opcionais
+        round_code = (request.args.get('round_code') or '').strip()
+        empresa = (request.args.get('empresa') or '').strip() or None
+
+        # Se não vier round_code, tenta pegar da system_config.active_round_code
+        if not round_code:
+            try:
+                r_cfg = (
+                    supabase
+                    .table('system_config')
+                    .select('config_value')
+                    .eq('config_key', 'active_round_code')
+                    .single()
+                    .execute()
+                )
+                round_code = (r_cfg.data or {}).get('config_value')
+            except Exception as e:
+                print('[api_relatorio_pdi_dimensoes] erro ao ler active_round_code:', e)
+                # se não achar, fica None mesmo -> busca todas as avaliações
+
+        avaliacoes = buscar_avaliacoes_brutas(round_code=round_code, empresa=empresa)
+
+        # Pequeno resumo de critérios (só informativo para o front)
+        criteria = {
+            'pdi_threshold': 3.0,
+            'reconhecimento_threshold': 4.5,
+            'descricao': (
+                'final_rating <= 3.0 => PDI_OBRIGATORIO; '
+                'final_rating >= 4.5 => RECONHECIMENTO; '
+                'demais => NEUTRO'
+            )
+        }
+
+        from datetime import datetime, timezone as _tz  # uso local para evitar conflito
+
+        return jsonify({
+            'source': 'supabase',
+            'round_code': round_code,
+            'empresa': empresa,
+            'generated_at': datetime.now(_tz.utc).isoformat(),
+            'criteria': criteria,
+            'total_avaliacoes': len(avaliacoes),
+            'avaliacoes': avaliacoes
+        }), 200
+    except Exception as e:
+        print('[api_relatorio_pdi_dimensoes] erro interno:', e)
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
+
+
 # ===================== Sistema de Rodadas =====================
 @app.route('/api/system-config', methods=['GET'])
 def get_system_config():
