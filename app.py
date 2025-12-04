@@ -1364,11 +1364,11 @@ def update_system_config():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route("/api/merit-simulation", methods=["GET"])
-def api_merit_simulation():
+# ========= Mérito: carga única (SQL) =========
+def load_merit_rows():
     """
-    Retorna, para cada colaborador, a posição salarial em relação à mediana
-    e o percentual de mérito sugerido pela matriz, já com impacto mensal/anual.
+    Executa o mesmo SQL de simulação de mérito e devolve uma lista de dicts (um por colaborador).
+    Essa função é reaproveitada pelo /api/merit-simulation e pelo /api/relatorio-merito.
     """
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -1502,11 +1502,96 @@ def api_merit_simulation():
     rows = cur.fetchall()
     cur.close()
     conn.close()
+    return rows
 
+
+@app.route("/api/merit-simulation", methods=["GET"])
+def api_merit_simulation():
+    """
+    Continua igual: retorna a lista plana (um registro por colaborador),
+    com impactos e percentuais de mérito.
+    """
+    rows = load_merit_rows()
     return jsonify({
         "count": len(rows),
         "items": rows
     })
+
+
+@app.route("/api/relatorio-merito", methods=["GET"])
+def api_relatorio_merito():
+    """
+    Novo endpoint para o painel de Mérito:
+    - Agrupa por gestor (manager_name)
+    - Dentro de cada gestor, lista os funcionários com salário, mediana, rating etc.
+
+    Formato de resposta:
+    [
+      {
+        "gestor": "Nome do Gestor",
+        "funcionarios": [
+          {
+            "employeeId": ...,
+            "nome": "...",
+            "cargo": "...",
+            "company": "...",
+            "department": "...",
+            "currentSalary": ...,
+            "medianSalary": ...,
+            "pctOfMedian": ...,
+            "finalRating": ...,
+            "meritPercent": ...,
+            "newSalary": ...,
+            "monthlyImpact": ...,
+            "annualImpact": ...
+          },
+          ...
+        ]
+      },
+      ...
+    ]
+    """
+    rows = load_merit_rows()
+
+    grupos = {}  # chave = nome do gestor
+
+    for r in rows:
+        gestor = (r.get("manager_name") or "Gestor sem nome").strip() or "Gestor sem nome"
+
+        if gestor not in grupos:
+            grupos[gestor] = {
+                "gestor": gestor,
+                "funcionarios": []
+            }
+
+        grupos[gestor]["funcionarios"].append({
+            "employeeId":        r.get("employee_id"),
+            "nome":              r.get("employee_name"),
+            "cargo":             r.get("cargo"),
+            "company":           r.get("company_name"),
+            "department":        r.get("department_name"),
+            "branch":            r.get("branch_name"),
+            "currentSalary":     r.get("current_salary"),
+            "medianSalary":      r.get("median_100"),
+            "median80":          r.get("median_80"),
+            "median120":         r.get("median_120"),
+            "pctOfMedian":       r.get("pct_of_median"),
+            "finalRating":       r.get("final_rating"),
+            "finalRatingRound":  r.get("final_rating_round"),
+            "meritPercent":      r.get("merit_percent"),
+            "newSalary":         r.get("new_salary"),
+            "monthlyImpact":     r.get("monthly_impact"),
+            "annualImpact":      r.get("annual_impact"),
+            "gradeGroup":        r.get("grade_group"),
+            "gradeLevel":        r.get("grade_level"),
+            "salaryRegion":      r.get("salary_region"),
+            "salaryYear":        r.get("salary_grade_year"),
+        })
+
+    # converte dict -> lista
+    resultado = list(grupos.values())
+    return jsonify(resultado), 200
+
 
 
 if __name__ == '__main__':
