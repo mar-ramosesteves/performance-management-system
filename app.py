@@ -12,6 +12,8 @@ import base64, hmac, hashlib, time
 from urllib.parse import urlencode
 from flask import make_response
 
+import psycopg2.extras
+
 
 # ===== Helpers de acesso do Gestor =====
 def current_manager_code():
@@ -1361,6 +1363,151 @@ def update_system_config():
         return jsonify({'message': 'Configuração atualizada com sucesso'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route("/api/merit-simulation", methods=["GET"])
+def api_merit_simulation():
+    """
+    Retorna, para cada colaborador, a posição salarial em relação à mediana
+    e o percentual de mérito sugerido pela matriz, já com impacto mensal/anual.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    sql = """
+    WITH latest_eval AS (
+      SELECT ev.*
+      FROM evaluations ev
+      JOIN (
+        SELECT employee_id, MAX(evaluation_date) AS max_date
+        FROM evaluations
+        GROUP BY employee_id
+      ) ult
+        ON ult.employee_id = ev.employee_id
+       AND ult.max_date = ev.evaluation_date
+    ),
+    emp_base AS (
+      SELECT
+        e.id,
+        e.nome,
+        e.cargo,
+        e.empresa,
+        e.company_name,
+        e.branch_name,
+        e.department_name,
+        e.manager_name,
+        e.salario,
+        e.grade_group,
+        e.grade_level,
+        COALESCE(e.salary_region, 'R1') AS salary_region,
+        COALESCE(e.salary_grade_year, 2025) AS salary_grade_year
+      FROM employees e
+    )
+    SELECT
+      emp.id AS employee_id,
+      emp.nome AS employee_name,
+      emp.cargo,
+      COALESCE(emp.company_name, emp.empresa) AS company_name,
+      emp.branch_name,
+      emp.department_name,
+      emp.manager_name,
+      emp.salario AS current_salary,
+      emp.grade_group,
+      emp.grade_level,
+      emp.salary_region,
+      emp.salary_grade_year,
+      sg.median_80,
+      sg.median_100,
+      sg.median_120,
+      CASE
+        WHEN sg.median_100 IS NULL OR sg.median_100 <= 0 THEN NULL
+        ELSE ROUND((emp.salario / sg.median_100) * 100, 1)
+      END AS pct_of_median,
+      le.final_rating,
+      ROUND(le.final_rating) AS final_rating_round,
+      mm.band_order,
+      CASE ROUND(le.final_rating)
+        WHEN 1 THEN mm.inc_rating1
+        WHEN 2 THEN mm.inc_rating2
+        WHEN 3 THEN mm.inc_rating3
+        WHEN 4 THEN mm.inc_rating4
+        WHEN 5 THEN mm.inc_rating5
+        ELSE 0
+      END AS merit_percent,
+      CASE
+        WHEN mm.id IS NULL THEN NULL
+        ELSE ROUND(
+          emp.salario * (
+            1 + (CASE ROUND(le.final_rating)
+              WHEN 1 THEN mm.inc_rating1
+              WHEN 2 THEN mm.inc_rating2
+              WHEN 3 THEN mm.inc_rating3
+              WHEN 4 THEN mm.inc_rating4
+              WHEN 5 THEN mm.inc_rating5
+              ELSE 0
+            END) / 100.0
+          ),
+          2
+        )
+      END AS new_salary,
+      CASE
+        WHEN mm.id IS NULL THEN NULL
+        ELSE ROUND(
+          emp.salario * (
+            (CASE ROUND(le.final_rating)
+              WHEN 1 THEN mm.inc_rating1
+              WHEN 2 THEN mm.inc_rating2
+              WHEN 3 THEN mm.inc_rating3
+              WHEN 4 THEN mm.inc_rating4
+              WHEN 5 THEN mm.inc_rating5
+              ELSE 0
+            END) / 100.0
+          ),
+          2
+        )
+      END AS monthly_impact,
+      CASE
+        WHEN mm.id IS NULL THEN NULL
+        ELSE ROUND(
+          12 * emp.salario * (
+            (CASE ROUND(le.final_rating)
+              WHEN 1 THEN mm.inc_rating1
+              WHEN 2 THEN mm.inc_rating2
+              WHEN 3 THEN mm.inc_rating3
+              WHEN 4 THEN mm.inc_rating4
+              WHEN 5 THEN mm.inc_rating5
+              ELSE 0
+            END) / 100.0
+          ),
+          2
+        )
+      END AS annual_impact
+    FROM emp_base emp
+    LEFT JOIN salary_grades sg
+      ON sg.year   = emp.salary_grade_year
+     AND sg.region = emp.salary_region
+     AND sg.group_no = emp.grade_group
+    LEFT JOIN latest_eval le
+      ON le.employee_id = emp.id
+    LEFT JOIN merit_matrix mm
+      ON mm.year   = emp.salary_grade_year
+     AND mm.region = emp.salary_region
+     AND CASE
+           WHEN sg.median_100 IS NULL OR sg.median_100 <= 0 THEN NULL
+           ELSE (emp.salario / sg.median_100) * 100
+         END BETWEEN mm.pct_med_min AND mm.pct_med_max
+    ORDER BY emp.manager_name, emp.nome;
+    """
+
+    cur.execute(sql)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return jsonify({
+        "count": len(rows),
+        "items": rows
+    })
+
 
 if __name__ == '__main__':
     app.run(debug=True)
