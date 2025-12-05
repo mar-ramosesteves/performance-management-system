@@ -12,7 +12,7 @@ import base64, hmac, hashlib, time
 from urllib.parse import urlencode
 from flask import make_response
 
-import psycopg2.extras
+import psycopg2
 
 
 # ===== Helpers de acesso do Gestor =====
@@ -1363,6 +1363,22 @@ def update_system_config():
         return jsonify({'message': 'Configuração atualizada com sucesso'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# ===================== Conexão Postgres direta (para simulação de mérito) =====================
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+def get_db_connection():
+    """
+    Usa DATABASE_URL (recomendado no Render).
+    Exige que a env DATABASE_URL esteja configurada.
+    """
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL não configurada no servidor")
+
+    # Em ambientes como Supabase/Render, normalmente precisa de SSL
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
+
+
 
 # ========= Mérito: carga única (SQL) =========
 def load_merit_rows():
