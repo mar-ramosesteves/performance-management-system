@@ -1364,6 +1364,129 @@ def update_system_config():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+def _require_rh_code(payload: dict):
+    """
+    Valida o código RH (ADMIN_WINDOW_CODE).
+    Retorna (ok:bool, resp_json, http_status)
+    """
+    if not ADMIN_WINDOW_CODE:
+        return (False, {'error': 'ADMIN_WINDOW_CODE não configurado no servidor'}, 500)
+
+    code = (payload.get('code') or '').strip()
+    if code != ADMIN_WINDOW_CODE:
+        return (False, {'error': 'Código RH incorreto'}, 403)
+
+    return (True, None, None)
+
+
+def _get_active_round_code():
+    r = (supabase.table('system_config')
+         .select('config_value')
+         .eq('config_key', 'active_round_code')
+         .single()
+         .execute())
+    return (r.data or {}).get('config_value')
+
+
+@app.route('/api/rounds/active', methods=['GET'])
+def api_rounds_active():
+    try:
+        active = (_get_active_round_code() or '').strip() or None
+
+        status = None
+        if active:
+            rr = (supabase.table('evaluation_rounds')
+                  .select('code,status,opened_at,closed_at')
+                  .eq('code', active)
+                  .single()
+                  .execute())
+            if rr.data:
+                status = rr.data
+
+        return jsonify({
+            'active_round_code': active,
+            'active_round': status  # pode vir null se não existir na evaluation_rounds
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/rounds', methods=['GET'])
+def api_rounds_list():
+    try:
+        rr = (supabase.table('evaluation_rounds')
+              .select('code,status,opened_at,closed_at')
+              .order('opened_at', desc=True)
+              .execute())
+        return jsonify(rr.data or []), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/rounds/close-active', methods=['POST'])
+def api_rounds_close_active():
+    try:
+        payload = request.get_json(force=True) or {}
+        ok, err, status = _require_rh_code(payload)
+        if not ok:
+            return jsonify(err), status
+
+        active = (_get_active_round_code() or '').strip()
+        if not active:
+            return jsonify({'error': 'Nenhuma rodada ativa configurada'}, 400
+
+), 400
+
+        # fecha no controle de rodadas
+        supabase.table('evaluation_rounds').upsert({
+            'code': active,
+            'status': 'CLOSED',
+            'closed_at': datetime.now(timezone.utc).isoformat()
+        }, on_conflict='code').execute()
+
+        return jsonify({'message': f'Rodada {active} fechada (somente leitura).'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/rounds/open', methods=['POST'])
+def api_rounds_open():
+    try:
+        payload = request.get_json(force=True) or {}
+        ok, err, status = _require_rh_code(payload)
+        if not ok:
+            return jsonify(err), status
+
+        new_code = (payload.get('round_code') or '').strip()
+        if not new_code:
+            return jsonify({'error': 'round_code é obrigatório'}, 400)
+
+        # 1) garante que a rodada exista como OPEN
+        supabase.table('evaluation_rounds').upsert({
+            'code': new_code,
+            'status': 'OPEN',
+            'opened_at': datetime.now(timezone.utc).isoformat(),
+            'closed_at': None
+        }, on_conflict='code').execute()
+
+        # 2) seta como rodada ativa do sistema
+        supabase.table('system_config').upsert({
+            'config_key': 'active_round_code',
+            'config_value': new_code,
+            'description': f'Código da rodada ativa: {new_code}'
+        }, on_conflict='config_key').execute()
+
+        return jsonify({'message': f'Rodada ativa atualizada para {new_code}'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
+
+
 # ===================== Conexão Postgres direta (para simulação de mérito) =====================
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
