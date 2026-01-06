@@ -1332,6 +1332,85 @@ def api_relatorio_pdi_dimensoes():
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
 
+@app.route('/api/ninebox', methods=['GET'])
+def api_ninebox():
+    """
+    GET /api/ninebox?round_code=YE2025&manager_name=FULANO
+    - round_code opcional: se não vier, usa system_config.active_round_code
+    - manager_name opcional: filtra o 9box por gestor (nome)
+    """
+    try:
+        round_code = (request.args.get('round_code') or '').strip()
+        manager_name = (request.args.get('manager_name') or '').strip()
+
+        # se não vier round_code, pega a rodada ativa
+        if not round_code:
+            try:
+                r_cfg = (
+                    supabase
+                    .table('system_config')
+                    .select('config_value')
+                    .eq('config_key', 'active_round_code')
+                    .single()
+                    .execute()
+                )
+                round_code = ((r_cfg.data or {}).get('config_value') or '').strip()
+            except Exception as e:
+                print('[api_ninebox] erro ao ler active_round_code:', e)
+
+        # consulta a VIEW v_ninebox_items
+        q = (
+            supabase
+            .table('v_ninebox_items')
+            .select(
+                'employee_id,employee_name,cargo,empresa,department_name,'
+                'manager_name,manager_code,'
+                'final_rating,performance_rating,potential_rating,nine_box_position,'
+                'round_code,evaluation_year,evaluation_date,created_at'
+            )
+        )
+
+        if round_code:
+            q = q.eq('round_code', round_code)
+
+        # filtro por gestor via URL (compatível com o seu link atual ?manager_name=...)
+        if manager_name:
+            q = q.eq('manager_name', manager_name)
+
+        # (opcional) se estiver usando /team?t=TOKEN, isso reforça segurança por manager_code
+        referer = (request.headers.get('Referer') or '')
+        from_manager_panel = '/manager' in referer
+        mc = (request.cookies.get('manager_access') or '').strip()
+        if mc and not from_manager_panel:
+            q = q.eq('manager_code', mc)
+
+        r = q.execute()
+        items = r.data or []
+
+        # agregado por posição 1..9
+        counts = {str(i): 0 for i in range(1, 10)}
+        for it in items:
+            p = it.get('nine_box_position')
+            if p is None:
+                continue
+            ps = str(p)
+            if ps in counts:
+                counts[ps] += 1
+
+        return jsonify({
+            'round_code': round_code,
+            'manager_name': manager_name or None,
+            'total': len(items),
+            'counts': counts,
+            'items': items
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
+
+
+
 
 # ===================== Sistema de Rodadas =====================
 @app.route('/api/system-config', methods=['GET'])
