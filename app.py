@@ -1409,6 +1409,21 @@ def api_ninebox():
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
 
+@app.route('/api/rounds/list', methods=['GET'])
+def api_rounds_list():
+    """
+    Lista rodadas cadastradas em evaluation_rounds para o dropdown do 9box.
+    """
+    try:
+        r = (
+            supabase.table('evaluation_rounds')
+            .select('code,status,opened_at,closed_at')
+            .order('opened_at', desc=True)
+            .execute()
+        )
+        return jsonify({'items': r.data or []}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 
@@ -1809,6 +1824,280 @@ def api_relatorio_merito():
     # converte dict -> lista
     resultado = list(grupos.values())
     return jsonify(resultado), 200
+
+
+@app.route('/ninebox', methods=['GET'])
+def ninebox_page():
+    html = """
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>9Box — Histórico</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;background:#f7f7fb;color:#111}
+  .wrap{max-width:1100px;margin:0 auto;padding:22px}
+  h1{font-size:20px;margin:0 0 8px}
+  .muted{color:#6b7280;font-size:13px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-top:12px;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+  label{display:block;font-size:12px;color:#555;margin-bottom:6px}
+  select,input{font:inherit;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
+  button{font:inherit;padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:700;background:#2563eb;color:#fff}
+  button.secondary{background:#111827}
+  .grid{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:start}
+  .kpi{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:700}
+  .pill small{font-weight:600;color:#6b7280}
+  table{border-collapse:separate;border-spacing:8px;width:100%}
+  td,th{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:14px;text-align:center}
+  th{background:#fff}
+  .cell{cursor:pointer;transition:transform .06s ease}
+  .cell:hover{transform:translateY(-1px)}
+  .cell b{font-size:22px;display:block}
+  .legend{display:flex;gap:12px;flex-wrap:wrap}
+  .legend span{font-size:12px;color:#6b7280}
+  .list{margin-top:10px;overflow:auto}
+  .list table{border-spacing:0;border-collapse:collapse}
+  .list th,.list td{border-radius:0;border:1px solid #e5e7eb;background:#fff;padding:10px;text-align:left}
+  .list th{background:#f3f4f6}
+</style>
+</head><body>
+<div class="wrap">
+  <h1>9Box — Histórico e Rodada Atual</h1>
+  <div class="muted">Selecione a rodada (ex.: YE2025 / Start2026). Clique em um quadrante para listar as pessoas daquela célula.</div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Rodada</label>
+        <select id="roundSelect"></select>
+      </div>
+
+      <div style="min-width:320px">
+        <label>Filtrar por gestor (opcional)</label>
+        <input id="managerInput" type="text" placeholder="Ex.: GABRIEL VICTOR BONDAN"/>
+      </div>
+
+      <div>
+        <button onclick="loadNinebox()">Carregar 9Box</button>
+      </div>
+
+      <div>
+        <button class="secondary" onclick="clearFilter()">Limpar filtro</button>
+      </div>
+
+      <div class="muted" id="msg" style="padding-bottom:10px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="kpi">
+      <div class="pill"><small>Rodada:</small> <span id="kRound">-</span></div>
+      <div class="pill"><small>Gestor:</small> <span id="kManager">Todos</span></div>
+      <div class="pill"><small>Total:</small> <span id="kTotal">0</span></div>
+    </div>
+
+    <div class="legend" style="margin-top:10px">
+      <span><b>Linhas:</b> Potencial (Alto → Médio → Baixo)</span>
+      <span><b>Colunas:</b> Desempenho (Baixo → Médio → Alto)</span>
+    </div>
+
+    <div style="margin-top:12px">
+      <table>
+        <tr>
+          <th></th>
+          <th>Desempenho Baixo</th>
+          <th>Desempenho Médio</th>
+          <th>Desempenho Alto</th>
+        </tr>
+
+        <tr>
+          <th>Potencial Alto</th>
+          <td class="cell" onclick="showCell(1)"><b id="c1">0</b><div>Pos 1</div></td>
+          <td class="cell" onclick="showCell(2)"><b id="c2">0</b><div>Pos 2</div></td>
+          <td class="cell" onclick="showCell(3)"><b id="c3">0</b><div>Pos 3</div></td>
+        </tr>
+
+        <tr>
+          <th>Potencial Médio</th>
+          <td class="cell" onclick="showCell(4)"><b id="c4">0</b><div>Pos 4</div></td>
+          <td class="cell" onclick="showCell(5)"><b id="c5">0</b><div>Pos 5</div></td>
+          <td class="cell" onclick="showCell(6)"><b id="c6">0</b><div>Pos 6</div></td>
+        </tr>
+
+        <tr>
+          <th>Potencial Baixo</th>
+          <td class="cell" onclick="showCell(7)"><b id="c7">0</b><div>Pos 7</div></td>
+          <td class="cell" onclick="showCell(8)"><b id="c8">0</b><div>Pos 8</div></td>
+          <td class="cell" onclick="showCell(9)"><b id="c9">0</b><div>Pos 9</div></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card list">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><b>Lista do quadrante:</b> <span id="cellTitle" class="muted">Nenhum selecionado</span></div>
+    </div>
+    <div style="margin-top:10px;overflow:auto">
+      <table style="width:100%">
+        <thead>
+          <tr>
+            <th>Colaborador</th>
+            <th>Cargo</th>
+            <th>Empresa</th>
+            <th>Gestor</th>
+            <th>Final</th>
+            <th>Perf</th>
+            <th>Pot</th>
+            <th>Pos</th>
+            <th>Rodada</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="10" class="muted">Clique em um quadrante para listar.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let lastPayload = null;
+
+  function setMsg(t){ document.getElementById('msg').textContent = t || ''; }
+
+  async function loadRoundsDropdown() {
+    const sel = document.getElementById('roundSelect');
+    sel.innerHTML = '';
+    try {
+      const [rList, rActive] = await Promise.all([
+        fetch('/api/rounds/list').then(r=>r.json()),
+        fetch('/api/rounds/active').then(r=>r.json())
+      ]);
+
+      const items = (rList.items || []);
+      items.forEach(x=>{
+        const opt = document.createElement('option');
+        opt.value = x.code;
+        opt.textContent = `${x.code} (${x.status})`;
+        sel.appendChild(opt);
+      });
+
+      // se tiver ativa, seleciona ela
+      const active = (rActive.active_round_code || '').trim();
+      if (active) sel.value = active;
+    } catch(e) {
+      // fallback simples se o /api/rounds/list não existir
+      ['Start2026','YE2025'].forEach(code=>{
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = code;
+        sel.appendChild(opt);
+      });
+    }
+  }
+
+  function clearFilter(){
+    document.getElementById('managerInput').value = '';
+    loadNinebox();
+  }
+
+  async function loadNinebox() {
+    const round_code = (document.getElementById('roundSelect').value || '').trim();
+    const manager_name = (document.getElementById('managerInput').value || '').trim();
+
+    const qs = new URLSearchParams();
+    if (round_code) qs.set('round_code', round_code);
+    if (manager_name) qs.set('manager_name', manager_name);
+
+    setMsg('Carregando...');
+    try{
+      const r = await fetch('/api/ninebox?' + qs.toString());
+      const j = await r.json();
+      if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+
+      lastPayload = j;
+
+      document.getElementById('kRound').textContent = j.round_code || '-';
+      document.getElementById('kManager').textContent = j.manager_name || 'Todos';
+      document.getElementById('kTotal').textContent = String(j.total || 0);
+
+      const c = j.counts || {};
+      for(let i=1;i<=9;i++){
+        document.getElementById('c'+i).textContent = String(c[String(i)] || 0);
+      }
+
+      // limpa lista
+      document.getElementById('cellTitle').textContent = 'Nenhum selecionado';
+      document.getElementById('tbody').innerHTML = '<tr><td colspan="10" class="muted">Clique em um quadrante para listar.</td></tr>';
+
+      setMsg('OK');
+    }catch(e){
+      setMsg('Erro: ' + e.message);
+    }
+  }
+
+  function showCell(pos){
+    if(!lastPayload || !Array.isArray(lastPayload.items)) return;
+    const items = lastPayload.items.filter(x => Number(x.nine_box_position) === Number(pos));
+    document.getElementById('cellTitle').textContent = 'Posição ' + pos + ' — ' + items.length + ' pessoa(s)';
+
+    const tb = document.getElementById('tbody');
+    if(items.length === 0){
+      tb.innerHTML = '<tr><td colspan="10" class="muted">Sem pessoas nesse quadrante.</td></tr>';
+      return;
+    }
+
+    tb.innerHTML = items.map(x => `
+      <tr>
+        <td>${x.employee_name || '-'}</td>
+        <td>${x.cargo || '-'}</td>
+        <td>${x.empresa || '-'}</td>
+        <td>${x.manager_name || '-'}</td>
+        <td>${(x.final_rating ?? '-')}</td>
+        <td>${(x.performance_rating ?? '-')}</td>
+        <td>${(x.potential_rating ?? '-')}</td>
+        <td>${(x.nine_box_position ?? '-')}</td>
+        <td>${x.round_code || '-'}</td>
+        <td>${x.evaluation_date || '-'}</td>
+      </tr>
+    `).join('');
+  }
+
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    await loadRoundsDropdown();
+    await loadNinebox();
+  });
+</script>
+</body></html>
+    """
+    return html
+
+@app.route('/team-ninebox')
+def team_ninebox():
+    """
+    Gestor acessa por link com ?t=TOKEN.
+    Se o token for válido, gravamos cookie httpOnly 'manager_access' e abrimos a tela do 9box.
+    """
+    t = (request.args.get('t') or '').strip()
+    resp = make_response(ninebox_page())  # usa o mesmo HTML acima
+    if t:
+        info = verify_manager_token(t)
+        if info and info.get('mc'):
+            resp.set_cookie(
+                'manager_access',
+                info['mc'],
+                max_age=30*24*3600,
+                secure=True,
+                httponly=True,
+                samesite='Lax'
+            )
+        else:
+            resp.set_cookie('manager_access', '', expires=0)
+    return resp
 
 
 
