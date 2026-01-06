@@ -1409,8 +1409,8 @@ def api_ninebox():
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
 
-@app.route('/api/rounds/list', methods=['GET'])
-def api_rounds_list():
+@app.route('/api/rounds/list', methods=['GET'], endpoint='api_rounds_list_v2')
+def api_rounds_list_v2():
     """
     Lista rodadas cadastradas em evaluation_rounds para o dropdown do 9box.
     """
