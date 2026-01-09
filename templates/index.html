@@ -1741,7 +1741,9 @@
         const qs = new URLSearchParams();
         qs.set("employee_id", String(employeeId));
         
-        if (requestedRoundCode) qs.set("round_code", requestedRoundCode);
+        // requestedRoundCode é opcional (ex: "YE2025")
+        if (requestedRoundCode) qs.set("round_code", String(requestedRoundCode));
+
         
         const rEval = await fetch('/api/evaluations/latest?' + qs.toString());
         
