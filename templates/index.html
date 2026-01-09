@@ -1762,7 +1762,15 @@
         }
         
         const { evaluation: ev, responses, weights, goals } = await rEval.json();
-        
+        const evalId = ev?.id || ev?.evaluation_id || null;
+        window.lastLoadedEvaluationId = evalId;
+        window.currentEvaluationId = evalId;
+        try { currentEvaluationId = evalId; } catch (_) {}
+
+
+
+
+          
         // 2) Buscar dados do colaborador para o cabeçalho
         let employee = null;
         try {
@@ -2041,29 +2049,23 @@
     })();
 
   
-    /* Autoabrir “última avaliação” quando vier por URL:
-       ?employee_id=149&open=latest[&mode=edit]
-    */
-
+   /* Autoabrir avaliação quando vier por URL:
+   ?employee_id=149&open=latest
+   ?employee_id=149&open=cycle&round_code=YE2025
+*/
+    (function autoOpenEvaluationFromUrl(){
+      const params = new URLSearchParams(window.location.search);
     
-    
-      const employeeId = params.get("employee_id");
+      const employeeId = Number(params.get("employee_id") || 0);
       const open = (params.get("open") || "").toLowerCase();
-    
-      // ciclo escolhido (ex: YE2025, Start2026)
-      const roundCode = params.get("round_code");
+      const roundCode = (params.get("round_code") || "").trim();
     
       if (!employeeId) return;
-    
-      // aceita open=latest (já existia) e open=cycle (novo)
       if (open !== "latest" && open !== "cycle") return;
-    
-      const idNum = Number(employeeId);
-      if (!idNum) return;
     
       const tryOpen = () => {
         if (typeof window.viewEmployeeEvaluation === "function") {
-          window.viewEmployeeEvaluation(idNum, roundCode || undefined);
+          window.viewEmployeeEvaluation(employeeId, roundCode || undefined);
         } else {
           setTimeout(tryOpen, 200);
         }
@@ -2077,26 +2079,7 @@
 
 
         
-    (function autoOpenFromURL(){
-      try {
-        const u = new URL(location.href);
-        const open = (u.searchParams.get('open')||'').toLowerCase();
-        const empId = Number(u.searchParams.get('employee_id'));
-        if (open === 'latest' && empId) {
-          // executa depois que o DOM e scripts de critérios existirem
-          const tryOpen = () => {
-            if (typeof window.viewEmployeeEvaluation === 'function' &&
-                typeof window.loadEvaluationCriteria === 'function') {
-              window.viewEmployeeEvaluation(empId);
-            } else {
-              setTimeout(tryOpen, 120);
-            }
-          };
-          tryOpen();
-        }
-      } catch(_) {}
-    })();
-
+    
 
 
     /* ===== READONLY (histórico via iframe): esconder ações perigosas ===== */
