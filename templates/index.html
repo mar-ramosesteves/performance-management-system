@@ -1719,38 +1719,38 @@
        Mostra a seção de avaliação pronta para VER/EDITAR.
     */
     window.viewEmployeeEvaluation = async function(employeeId, roundCode){
-    // pega round_code da URL (do iframe) para abrir o ciclo selecionado
-    const params = new URLSearchParams(window.location.search);
-    const roundCode = (params.get("round_code") || "").trim();
-
-        
-
+      // pega round_code da URL (no iframe) e também aceita roundCode por parâmetro
+      const params = new URLSearchParams(window.location.search);
+      const roundCodeFromUrl = (params.get("round_code") || "").trim();
+    
+      const requestedRoundCode =
+        (roundCode != null && String(roundCode).trim())
+          ? String(roundCode).trim()
+          : roundCodeFromUrl;
+    
       try {
         employeeId = Number(employeeId);
-        console.log('[viewEmployeeEvaluation] employeeId=', employeeId, 'roundCode=', roundCode, 'search=', window.location.search);
-
+        console.log('[viewEmployeeEvaluation] employeeId=', employeeId, 'requestedRoundCode=', requestedRoundCode, 'search=', window.location.search);
+    
         if (!employeeId) { alert('ID de colaborador inválido.'); return; }
     
-        // 1) Buscar última avaliação
+        // 1) Buscar avaliação (se vier requestedRoundCode, tenta esse ciclo; senão, pega a última)
 
-          
-        // 1) Buscar avaliação (se vier roundCode, tenta esse ciclo; senão, pega a última)
+    
+        // 1) Buscar avaliação (se vier round_code, tenta esse ciclo; senão, pega a última)
         const qs = new URLSearchParams();
-        
-        // IMPORTANTE: não use encodeURIComponent aqui (URLSearchParams já cuida disso)
         qs.set("employee_id", String(employeeId));
         
-        // roundCode é opcional (ex: "YE2025")
-        if (roundCode) qs.set("round_code", String(roundCode));
+        if (requestedRoundCode) qs.set("round_code", requestedRoundCode);
         
         const rEval = await fetch('/api/evaluations/latest?' + qs.toString());
         
-        // ✅ SEM FALLBACK quando roundCode foi pedido:
-        // se não existir avaliação naquele ciclo, NÃO pode abrir a "última" (Start2026)
+        // ✅ SEM FALLBACK quando round_code foi pedido:
+        // se não existir avaliação naquele ciclo, NÃO pode abrir a "última"
         if (!rEval.ok) {
           if (rEval.status === 404) {
-            alert(roundCode
-              ? `Nenhuma avaliação encontrada para este colaborador no ciclo ${roundCode}.`
+            alert(requestedRoundCode
+              ? `Nenhuma avaliação encontrada para este colaborador no ciclo ${requestedRoundCode}.`
               : 'Nenhuma avaliação encontrada para este colaborador.'
             );
             return;
@@ -1758,24 +1758,8 @@
           alert('Erro ao carregar a avaliação.');
           return;
         }
-
-
-
-          
-        if (!rEval.ok) {
-          if (rEval.status === 404) { alert('Nenhuma avaliação encontrada para este colaborador.'); return; }
-          alert('Erro ao carregar a última avaliação.'); return;
-        }
         
         const { evaluation: ev, responses, weights, goals } = await rEval.json();
-    
-        // ✅ CORREÇÃO: Garantir que o ID da avaliação seja salvo em múltiplas variáveis
-        const evalId = ev?.id || ev?.evaluation_id || null;
-        window.lastLoadedEvaluationId = evalId;
-        window.currentEvaluationId = evalId;
-        currentEvaluationId = evalId;
-        
-        console.log('[viewEmployeeEvaluation] Avaliação encontrada. ID:', evalId);
         
         // 2) Buscar dados do colaborador para o cabeçalho
         let employee = null;
@@ -1932,7 +1916,7 @@
         // 8) Código da rodada — SEMPRE preencher no modo consulta/ciclo
         const roundCodeInput = document.getElementById('round-code');
         if (roundCodeInput) {
-          const rc = (ev?.round_code || roundCode || "").toString();
+          const rc = (ev?.round_code || requestedRoundCode || "").toString();
           roundCodeInput.value = rc;
         
           // se estiver em readonly, não tenta “rodada ativa”
@@ -2059,8 +2043,7 @@
        ?employee_id=149&open=latest[&mode=edit]
     */
 
-    (function autoOpenEvaluationFromUrl(){
-      const params = new URLSearchParams(window.location.search);
+    
     
       const employeeId = params.get("employee_id");
       const open = (params.get("open") || "").toLowerCase();
