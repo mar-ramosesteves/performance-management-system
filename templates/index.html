@@ -1734,17 +1734,27 @@
           
         // 1) Buscar avaliação (se vier roundCode, tenta esse ciclo; senão, pega a última)
         const qs = new URLSearchParams();
+        
+        // IMPORTANTE: não use encodeURIComponent aqui (URLSearchParams já cuida disso)
         qs.set("employee_id", String(employeeId));
-        if (roundCode) qs.set("round_code", roundCode);
         
+        // roundCode é opcional (ex: "YE2025")
+        if (roundCode) qs.set("round_code", String(roundCode));
         
-        let rEval = await fetch('/api/evaluations/latest?' + qs.toString());
+        const rEval = await fetch('/api/evaluations/latest?' + qs.toString());
         
-        // fallback: se não achou o ciclo, cai para “última”
-        if (!rEval.ok && roundCode) {
-          const qs2 = new URLSearchParams();
-          qs2.set("employee_id", encodeURIComponent(employeeId));
-          rEval = await fetch('/api/evaluations/latest?' + qs2.toString());
+        // ✅ SEM FALLBACK quando roundCode foi pedido:
+        // se não existir avaliação naquele ciclo, NÃO pode abrir a "última" (Start2026)
+        if (!rEval.ok) {
+          if (rEval.status === 404) {
+            alert(roundCode
+              ? `Nenhuma avaliação encontrada para este colaborador no ciclo ${roundCode}.`
+              : 'Nenhuma avaliação encontrada para este colaborador.'
+            );
+            return;
+          }
+          alert('Erro ao carregar a avaliação.');
+          return;
         }
 
 
