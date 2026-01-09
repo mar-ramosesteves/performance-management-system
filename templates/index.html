@@ -1709,13 +1709,34 @@
        - Código da rodada
        Mostra a seção de avaliação pronta para VER/EDITAR.
     */
-    window.viewEmployeeEvaluation = async function(employeeId){
+    window.viewEmployeeEvaluation = async function(employeeId, roundCode){
+
       try {
         employeeId = Number(employeeId);
         if (!employeeId) { alert('ID de colaborador inválido.'); return; }
     
         // 1) Buscar última avaliação
-        const rEval = await fetch('/api/evaluations/latest?employee_id=' + encodeURIComponent(employeeId));
+
+          
+        // 1) Buscar avaliação (se vier roundCode, tenta esse ciclo; senão, pega a última)
+        const qs = new URLSearchParams();
+        qs.set("employee_id", encodeURIComponent(employeeId));
+        
+        // roundCode é opcional (ex: "YE2025")
+        if (roundCode) qs.set("round_code", String(roundCode));
+        
+        let rEval = await fetch('/api/evaluations/latest?' + qs.toString());
+        
+        // fallback: se não achou o ciclo, cai para “última”
+        if (!rEval.ok && roundCode) {
+          const qs2 = new URLSearchParams();
+          qs2.set("employee_id", encodeURIComponent(employeeId));
+          rEval = await fetch('/api/evaluations/latest?' + qs2.toString());
+        }
+
+
+
+          
         if (!rEval.ok) {
           if (rEval.status === 404) { alert('Nenhuma avaliação encontrada para este colaborador.'); return; }
           alert('Erro ao carregar a última avaliação.'); return;
