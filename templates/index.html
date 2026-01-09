@@ -1933,7 +1933,105 @@
         alert('Falha ao abrir a avaliação: ' + e.message);
       }
     };
+
+    // =======================
+    // MODO SOMENTE LEITURA (consulta) — trava UI quando ?mode=readonly
+    // =======================
+    (function () {
+      function isReadonlyMode() {
+        const qs = new URLSearchParams(window.location.search || "");
+        return (qs.get("mode") || "").toLowerCase() === "readonly";
+      }
     
+      function lockReadonlyUIOnce() {
+        if (!isReadonlyMode()) return;
+    
+        const sec = document.getElementById("evaluation-section") || document.body;
+    
+        // Banner discreto
+        if (!document.getElementById("readonly-banner")) {
+          const b = document.createElement("div");
+          b.id = "readonly-banner";
+          b.textContent = "Modo consulta (somente leitura)";
+          b.style.padding = "10px 12px";
+          b.style.margin = "10px 0";
+          b.style.border = "1px solid #e5e7eb";
+          b.style.borderRadius = "12px";
+          b.style.background = "#fafafa";
+          b.style.fontWeight = "800";
+          sec.prepend(b);
+        }
+    
+        // 1) Desabilita campos (continua dando para rolar a tela normalmente)
+        sec.querySelectorAll("input, select, textarea").forEach(el => {
+          try {
+            el.readOnly = true;
+            el.disabled = true;
+          } catch (_) {}
+        });
+    
+        // 2) Desabilita botões de rating (data-criteria / data-rating)
+        sec.querySelectorAll("[data-criteria][data-rating]").forEach(el => {
+          el.style.pointerEvents = "none";
+        });
+    
+        // 3) Esconde botões perigosos (Salvar / Nova avaliação / Adicionar meta etc.)
+        const killWords = [
+          "salvar",
+          "salvar avaliação",
+          "nova avaliação",
+          "criar avaliação",
+          "adicionar meta",
+          "adicionar",
+          "excluir",
+          "remover",
+          "concluir",
+          "enviar"
+        ];
+    
+        sec.querySelectorAll("button, a").forEach(el => {
+          const txt = (el.textContent || "").trim().toLowerCase();
+          if (killWords.some(w => txt.includes(w))) {
+            el.style.display = "none";
+          } else {
+            // mesmo os que não escondemos, não podem clicar
+            el.style.pointerEvents = "none";
+          }
+        });
+      }
+    
+      // Como a tela monta aos poucos, aplicamos algumas vezes e paramos
+      function lockReadonlyUIWithRetries() {
+        if (!isReadonlyMode()) return;
+    
+        let tries = 0;
+        const maxTries = 25; // ~12s
+        const t = setInterval(() => {
+          tries++;
+          lockReadonlyUIOnce();
+          if (tries >= maxTries) clearInterval(t);
+        }, 500);
+      }
+    
+      // roda ao carregar
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", lockReadonlyUIWithRetries);
+      } else {
+        lockReadonlyUIWithRetries();
+      }
+    
+      // Também roda depois que “viewEmployeeEvaluation” carregar algo (se existir)
+      const _old = window.viewEmployeeEvaluation;
+      if (typeof _old === "function") {
+        window.viewEmployeeEvaluation = async function (...args) {
+          const ret = await _old.apply(this, args);
+          lockReadonlyUIWithRetries();
+          return ret;
+        };
+      }
+    })();
+
+  
     /* Autoabrir “última avaliação” quando vier por URL:
        ?employee_id=149&open=latest[&mode=edit]
     */
