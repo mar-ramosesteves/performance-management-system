@@ -2088,6 +2088,63 @@
         }
       } catch(_) {}
     })();
+
+
+
+    /* ===== READONLY (histórico via iframe): esconder ações perigosas ===== */
+    (function applyReadonlyUI(){
+      try {
+        const qs = new URLSearchParams(window.location.search);
+        const mode = (qs.get("mode") || "").toLowerCase();
+        if (mode !== "readonly") return; // <- NÃO afeta as outras páginas normais
+    
+        const hide = (el) => {
+          if (!el) return;
+          el.style.display = "none";
+          el.setAttribute("aria-hidden", "true");
+        };
+    
+        // 1) Esconde por texto (funciona mesmo se não tiver id)
+        const killWords = [
+          "nova avaliação",
+          "nova avaliacao",
+          "9 box",
+          "9box",
+          "nine box",
+          "ninebox"
+        ];
+    
+        document.querySelectorAll("button,a").forEach((el) => {
+          const t = (el.textContent || "").trim().toLowerCase();
+          if (!t) return;
+          if (killWords.some((w) => t.includes(w))) hide(el);
+        });
+    
+        // 2) Esconde por onclick (caso exista)
+        document.querySelectorAll("[onclick]").forEach((el) => {
+          const oc = (el.getAttribute("onclick") || "").toLowerCase();
+          if (oc.includes("ninebox") || oc.includes("9box") || oc.includes("new") || oc.includes("nova")) {
+            // só remove se for claramente ação de navegação/criação
+            // (se quiser, eu deixo mais “cirúrgico” depois)
+            hide(el);
+          }
+        });
+    
+        // 3) (Opcional) trava também botões de salvar dentro do readonly
+        document.querySelectorAll("button").forEach((el) => {
+          const t = (el.textContent || "").trim().toLowerCase();
+          if (t.includes("salvar") || t.includes("save")) hide(el);
+        });
+    
+        console.log("[readonly] UI actions hidden");
+      } catch (e) {
+        console.warn("[readonly] applyReadonlyUI error", e);
+      }
+    })();
+
+
+
+        
     </script>
 
     
