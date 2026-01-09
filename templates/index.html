@@ -144,7 +144,16 @@
   // Fallback: carrega a ÚLTIMA avaliação direto do backend e preenche a tela
   async function fallbackLoadLatest(id) {
     try {
-      const r = await fetch(`/api/evaluations/latest?employee_id=${encodeURIComponent(id)}`);
+      const qs = new URLSearchParams();
+    
+      qs.set("employee_id", String(id));
+    
+      // se a URL tiver ?round_code=YE2025, a gente manda junto
+      const rc = new URLSearchParams(window.location.search).get("round_code");
+      if (rc) qs.set("round_code", rc);
+    
+      const r = await fetch(`/api/evaluations/latest?${qs.toString()}`);
+        
       if (!r.ok) throw new Error('latest not found');
       const payload = await r.json();
       const { evaluation: ev } = payload;
