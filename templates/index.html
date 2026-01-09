@@ -1727,6 +1727,8 @@
 
       try {
         employeeId = Number(employeeId);
+        console.log('[viewEmployeeEvaluation] employeeId=', employeeId, 'roundCode=', roundCode, 'search=', window.location.search);
+
         if (!employeeId) { alert('ID de colaborador inválido.'); return; }
     
         // 1) Buscar última avaliação
