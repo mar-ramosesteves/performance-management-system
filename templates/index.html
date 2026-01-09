@@ -1927,12 +1927,19 @@
           }
         }
     
-        // 8) Código da rodada
+        // 8) Código da rodada — SEMPRE preencher no modo consulta/ciclo
         const roundCodeInput = document.getElementById('round-code');
         if (roundCodeInput) {
-          if (ev?.round_code) roundCodeInput.value = ev.round_code;
-          else if (typeof window.loadActiveRoundCode === 'function') await window.loadActiveRoundCode();
+          const rc = (ev?.round_code || roundCode || "").toString();
+          roundCodeInput.value = rc;
+        
+          // se estiver em readonly, não tenta “rodada ativa”
+          const urlMode = (new URLSearchParams(window.location.search).get("mode") || "").toLowerCase();
+          if (!rc && urlMode !== "readonly" && typeof window.loadActiveRoundCode === "function") {
+            await window.loadActiveRoundCode();
+          }
         }
+
     
         // 9) Recalcular/mostrar rating final
         if (typeof window.calculateFinalRating === 'function') window.calculateFinalRating();
