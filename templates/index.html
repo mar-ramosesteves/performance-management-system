@@ -1719,6 +1719,11 @@
        Mostra a seção de avaliação pronta para VER/EDITAR.
     */
     window.viewEmployeeEvaluation = async function(employeeId, roundCode){
+    // pega round_code da URL (do iframe) para abrir o ciclo selecionado
+    const params = new URLSearchParams(window.location.search);
+    const roundCode = (params.get("round_code") || "").trim();
+
+        
 
       try {
         employeeId = Number(employeeId);
@@ -1729,10 +1734,9 @@
           
         // 1) Buscar avaliação (se vier roundCode, tenta esse ciclo; senão, pega a última)
         const qs = new URLSearchParams();
-        qs.set("employee_id", encodeURIComponent(employeeId));
+        qs.set("employee_id", String(employeeId));
+        if (roundCode) qs.set("round_code", roundCode);
         
-        // roundCode é opcional (ex: "YE2025")
-        if (roundCode) qs.set("round_code", String(roundCode));
         
         let rEval = await fetch('/api/evaluations/latest?' + qs.toString());
         
