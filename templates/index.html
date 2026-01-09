@@ -1928,6 +1928,40 @@
     /* Autoabrir “última avaliação” quando vier por URL:
        ?employee_id=149&open=latest[&mode=edit]
     */
+
+    (function autoOpenEvaluationFromUrl(){
+      const params = new URLSearchParams(window.location.search);
+    
+      const employeeId = params.get("employee_id");
+      const open = (params.get("open") || "").toLowerCase();
+    
+      // ciclo escolhido (ex: YE2025, Start2026)
+      const roundCode = params.get("round_code");
+    
+      if (!employeeId) return;
+    
+      // aceita open=latest (já existia) e open=cycle (novo)
+      if (open !== "latest" && open !== "cycle") return;
+    
+      const idNum = Number(employeeId);
+      if (!idNum) return;
+    
+      const tryOpen = () => {
+        if (typeof window.viewEmployeeEvaluation === "function") {
+          window.viewEmployeeEvaluation(idNum, roundCode || undefined);
+        } else {
+          setTimeout(tryOpen, 200);
+        }
+      };
+    
+      tryOpen();
+    })();
+    
+
+
+
+
+        
     (function autoOpenFromURL(){
       try {
         const u = new URL(location.href);
