@@ -1908,6 +1908,9 @@
         
         // 7) Metas (se existirem) — SEMPRE filtrar pelo ciclo pedido
         let goalsList = goals;
+        console.log('[goals][RAW] goals=', goals);
+        console.log('[goals][RAW] sample=', Array.isArray(goals) ? goals[0] : goals, 'keys=', (Array.isArray(goals) && goals[0]) ? Object.keys(goals[0]) : []);
+
         
         // tenta completar goalsList a partir das outras fontes (igual você já fazia)
         if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
