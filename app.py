@@ -545,33 +545,34 @@ def api_evaluations_latest():
         goals = []
         try:
             goals_round = (round_code or ev.get('round_code') or '').strip()
-        
-            # Primeiro tenta buscar metas com evaluation_id (metas novas)
+            
+            # ✅ CORREÇÃO: Primeiro tenta buscar metas com evaluation_id (se existir)
             q_with_eval = (supabase.table('individual_goals')
                            .select('*')
                            .eq('employee_id', employee_id)
                            .eq('evaluation_id', ev['id']))
+            
+            if goals_round:
+                q_with_eval = q_with_eval.eq('round_code', goals_round)
+            
             r_goals_with_eval = q_with_eval.order('id', desc=False).execute()
             goals_with_eval = r_goals_with_eval.data or []
             
-            # Se não encontrou metas com evaluation_id, busca todas do funcionário+rodada (fallback para metas antigas)
-            if not goals_with_eval:
+            # ✅ Se não encontrou metas com evaluation_id, busca todas do funcionário+rodada (fallback para metas antigas)
+            if goals_with_eval:
+                goals_data = goals_with_eval
+            else:
+                # Fallback: busca metas antigas (que não têm evaluation_id)
                 q = (supabase.table('individual_goals')
                      .select('*')
                      .eq('employee_id', employee_id))
+                
                 if goals_round:
                     q = q.eq('round_code', goals_round)
+                
                 r_goals = q.order('id', desc=False).execute()
                 goals_data = r_goals.data or []
-            else:
-                goals_data = goals_with_eval
             
-            if goals_round:
-                q = q.eq('round_code', goals_round)
-        
-            r_goals = q.order('id', desc=False).execute()
-            goals_data = r_goals.data or []
-        
             for goal in goals_data:
                 goals.append({
                     'round_code': goal.get('round_code'),  # << MUITO IMPORTANTE
@@ -589,8 +590,7 @@ def api_evaluations_latest():
         
         except Exception as e:
             print(f"Erro ao buscar metas: {e}")
-            goals = []
-              
+            goals = []              
         
         # Pesos das dimensões - usar valores salvos ou padrão
         weights = {}
