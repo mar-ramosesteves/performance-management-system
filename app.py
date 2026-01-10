@@ -542,38 +542,38 @@ def api_evaluations_latest():
         } for x in rows]
 
         # Buscar metas da tabela individual_goals (FILTRANDO por employee_id + round_code)
-    goals = []
-    try:
-        goals_round = (round_code or ev.get('round_code') or '').strip()
-    
-        q = (supabase.table('individual_goals')
-             .select('*')
-             .eq('employee_id', employee_id))
-    
-        if goals_round:
-            q = q.eq('round_code', goals_round)
-    
-        r_goals = q.order('id', desc=False).execute()
-        goals_data = r_goals.data or []
-    
-        for goal in goals_data:
-            goals.append({
-                'round_code': goal.get('round_code'),  # << MUITO IMPORTANTE
-                'index': goal.get('goal_index', 1),
-                'name': goal.get('goal_name', ''),
-                'description': goal.get('goal_description', ''),
-                'weight': float(goal.get('weight', 0) or 0),
-                'rating_1_criteria': goal.get('rating_1_criteria', ''),
-                'rating_2_criteria': goal.get('rating_2_criteria', ''),
-                'rating_3_criteria': goal.get('rating_3_criteria', ''),
-                'rating_4_criteria': goal.get('rating_4_criteria', ''),
-                'rating_5_criteria': goal.get('rating_5_criteria', ''),
-                'rating': int(goal.get('rating', 0)) if goal.get('rating') is not None else None
-            })
-    
-    except Exception as e:
-        print(f"Erro ao buscar metas: {e}")
         goals = []
+        try:
+            goals_round = (round_code or ev.get('round_code') or '').strip()
+        
+            q = (supabase.table('individual_goals')
+                 .select('*')
+                 .eq('employee_id', employee_id))
+        
+            if goals_round:
+                q = q.eq('round_code', goals_round)
+        
+            r_goals = q.order('id', desc=False).execute()
+            goals_data = r_goals.data or []
+        
+            for goal in goals_data:
+                goals.append({
+                    'round_code': goal.get('round_code'),  # << MUITO IMPORTANTE
+                    'index': goal.get('goal_index', 1),
+                    'name': goal.get('goal_name', ''),
+                    'description': goal.get('goal_description', ''),
+                    'weight': float(goal.get('weight', 0) or 0),
+                    'rating_1_criteria': goal.get('rating_1_criteria', ''),
+                    'rating_2_criteria': goal.get('rating_2_criteria', ''),
+                    'rating_3_criteria': goal.get('rating_3_criteria', ''),
+                    'rating_4_criteria': goal.get('rating_4_criteria', ''),
+                    'rating_5_criteria': goal.get('rating_5_criteria', ''),
+                    'rating': int(goal.get('rating', 0)) if goal.get('rating') is not None else None
+                })
+        
+        except Exception as e:
+            print(f"Erro ao buscar metas: {e}")
+            goals = []
               
         
         # Pesos das dimensões - usar valores salvos ou padrão
