@@ -1905,14 +1905,36 @@
         if (typeof window.updateDimensionWeights === 'function') window.updateDimensionWeights();
         // ✅ Bloquear campos se for gestor
         lockDimensionWeightsForManager();
-        // 7) Metas (se existirem)
+        // 7) Metas (se existirem) — mostrar SOMENTE do ciclo pedido
         let goalsList = goals;
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
-          try { goalsList = JSON.parse(ev.goals_json); } catch {}
+        
+        // garante array
+        if (!Array.isArray(goalsList)) goalsList = [];
+        
+        // ✅ FILTRO POR ROUND_CODE (quando veio pela URL / parâmetro)
+        if (requestedRoundCode) {
+          const want = String(requestedRoundCode).trim();
+        
+          goalsList = goalsList.filter(g => {
+            const rc =
+              (g?.round_code ?? g?.roundCode ?? g?.round ?? "")
+                .toString()
+                .trim();
+            return rc === want;
+          });
         }
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
-          goalsList = ev.goals;
+        
+        // (fallbacks só se NÃO tiver round_code pedido)
+        // porque senão pode “puxar” metas do outro ciclo
+        if (!requestedRoundCode) {
+          if ((!goalsList.length) && ev?.goals_json) {
+            try { goalsList = JSON.parse(ev.goals_json); } catch {}
+          }
+          if ((!goalsList.length) && ev?.goals) {
+            goalsList = ev.goals;
+          }
         }
+        
         const goalsBox = document.querySelector('#goals-container');
         if (goalsBox) {
           if (Array.isArray(goalsList) && goalsList.length && typeof window.renderGoalsFrom === 'function') {
@@ -1922,6 +1944,7 @@
             if (typeof window.updateGoalsWeight === 'function') window.updateGoalsWeight();
           }
         }
+
     
         // 8) Código da rodada — SEMPRE preencher no modo consulta/ciclo
         const roundCodeInput = document.getElementById('round-code');
