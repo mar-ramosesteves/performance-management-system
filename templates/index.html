@@ -1906,21 +1906,8 @@
         // ✅ Bloquear campos se for gestor
         lockDimensionWeightsForManager();
         
-        // 7) Metas (SEMPRE do banco por employee_id + round_code)
-        let goalsList = [];
-        try {
-          const rc = (requestedRoundCode || ev?.round_code || "").toString().trim();
-          if (rc) {
-            const rGoals = await fetch(`/api/individual-goals?employee_id=${encodeURIComponent(employeeId)}&round_code=${encodeURIComponent(rc)}`);
-            if (rGoals.ok) {
-              goalsList = await rGoals.json();
-            } else {
-              console.warn('[goals] /api/individual-goals falhou', rGoals.status);
-            }
-          }
-        } catch (e) {
-          console.warn('[goals] erro ao buscar metas por ciclo', e);
-        }
+        // 7) Metas — USA as metas que já vieram do /api/evaluations/latest (já filtradas)
+        let goalsList = goals || []; // ✅ CORREÇÃO: Usa as metas que já vieram filtradas
         
         console.log('[goals] ciclo=', (requestedRoundCode||ev?.round_code), 'qtd=', Array.isArray(goalsList)?goalsList.length:0, goalsList);
         
