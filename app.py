@@ -541,32 +541,49 @@ def api_evaluations_latest():
             'rating': x.get('rating')
         } for x in rows]
 
-        # Buscar metas da tabela individual_goals (sem evaluation_id)
-        goals = []
-        try:
-            r_goals = (supabase.table('individual_goals')
-                       .select('*')
-                       .eq('employee_id', employee_id)
-                       .execute())
-            goals_data = r_goals.data or []
-            
-            # Converter para formato esperado pelo frontend
-            for goal in goals_data:
-                goals.append({
-                    'index': goal.get('goal_index', 1),
-                    'name': goal.get('goal_name', ''),
-                    'description': goal.get('goal_description', ''),
-                    'weight': float(goal.get('weight', 0)),
-                    'rating_1_criteria': goal.get('rating_1_criteria', ''),
-                    'rating_2_criteria': goal.get('rating_2_criteria', ''),
-                    'rating_3_criteria': goal.get('rating_3_criteria', ''),
-                    'rating_4_criteria': goal.get('rating_4_criteria', ''),
-                    'rating_5_criteria': goal.get('rating_5_criteria', ''),
-                    'rating': int(goal.get('rating', 0)) if goal.get('rating') else None
-                })
-        except Exception as e:
-            print(f"Erro ao buscar metas: {e}")
-            goals = []        
+                # Buscar metas da tabela individual_goals (filtrando pelo ciclo da avaliação)
+                goals = []
+                try:
+                    # ciclo efetivo: se veio na URL usa ele, senão usa o round_code da avaliação encontrada
+                    effective_round_code = (round_code or ev.get('round_code') or '').strip()
+        
+                    qg = (supabase.table('individual_goals')
+                          .select('*')
+                          .eq('employee_id', employee_id))
+        
+                    # se temos ciclo, filtra por ele
+                    if effective_round_code:
+                        qg = qg.eq('round_code', effective_round_code)
+        
+                    # (opcional) ordenar para ficar consistente
+                    r_goals = qg.order('id', desc=False).execute()
+        
+                    goals_data = r_goals.data or []
+        
+                    # Converter para formato esperado pelo frontend
+                    for goal in goals_data:
+                        goals.append({
+                            'index': goal.get('goal_index', 1),
+                            'name': goal.get('goal_name', ''),
+                            'description': goal.get('goal_description', ''),
+                            'weight': float(goal.get('weight', 0) or 0),
+                            'rating_1_criteria': goal.get('rating_1_criteria', ''),
+                            'rating_2_criteria': goal.get('rating_2_criteria', ''),
+                            'rating_3_criteria': goal.get('rating_3_criteria', ''),
+                            'rating_4_criteria': goal.get('rating_4_criteria', ''),
+                            'rating_5_criteria': goal.get('rating_5_criteria', ''),
+                            'rating': int(goal.get('rating', 0)) if goal.get('rating') is not None else None,
+        
+                            # importante: mandar round_code junto (ajuda debug e evita confusão no futuro)
+                            'round_code': goal.get('round_code')
+                        })
+        
+                    print(f"[api_evaluations_latest][goals] employee_id={employee_id} round={effective_round_code} qtd={len(goals)}")
+        
+                except Exception as e:
+                    print(f"Erro ao buscar metas: {e}")
+                    goals = []
+        
         
         # Pesos das dimensões - usar valores salvos ou padrão
         weights = {}
