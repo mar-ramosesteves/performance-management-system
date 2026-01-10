@@ -1906,41 +1906,30 @@
         // ✅ Bloquear campos se for gestor
         lockDimensionWeightsForManager();
         
-        // 7) Metas (se existirem) — SEMPRE filtrar pelo ciclo pedido
-        let goalsList = goals;
-        console.log('[goals][RAW] goals=', goals);
-        console.log('[goals][RAW] sample=', Array.isArray(goals) ? goals[0] : goals, 'keys=', (Array.isArray(goals) && goals[0]) ? Object.keys(goals[0]) : []);
-
-        
-        // tenta completar goalsList a partir das outras fontes (igual você já fazia)
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
-          try { goalsList = JSON.parse(ev.goals_json); } catch {}
-        }
-        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
-          goalsList = ev.goals;
-        }
-        
-        // --- FILTRO ROBUSTO POR ROUND_CODE (YE2025 / Start2026) ---
-        const normRC = (v) => String(v ?? '').trim().toLowerCase();
-        const wantedRC = normRC(requestedRoundCode || ev?.round_code);
-        
-        if (Array.isArray(goalsList) && wantedRC) {
-          // pega round_code de qualquer formato que possa vir do backend
-          goalsList = goalsList.filter(g => {
-            const rc = normRC(g?.round_code ?? g?.roundCode ?? g?.cycle ?? g?.round);
-            return rc === wantedRC;
-          });
+        // 7) Metas (SEMPRE do banco por employee_id + round_code)
+        let goalsList = [];
+        try {
+          const rc = (requestedRoundCode || ev?.round_code || "").toString().trim();
+          if (rc) {
+            const rGoals = await fetch(`/api/individual-goals?employee_id=${encodeURIComponent(employeeId)}&round_code=${encodeURIComponent(rc)}`);
+            if (rGoals.ok) {
+              goalsList = await rGoals.json();
+            } else {
+              console.warn('[goals] /api/individual-goals falhou', rGoals.status);
+            }
+          }
+        } catch (e) {
+          console.warn('[goals] erro ao buscar metas por ciclo', e);
         }
         
-        console.log('[goals] requestedRoundCode=', requestedRoundCode, 'wantedRC=', wantedRC, 'qtd=', Array.isArray(goalsList) ? goalsList.length : 0, goalsList);
+        console.log('[goals] ciclo=', (requestedRoundCode||ev?.round_code), 'qtd=', Array.isArray(goalsList)?goalsList.length:0, goalsList);
         
-        // render
         const goalsBox = document.querySelector('#goals-container');
         if (goalsBox) {
           if (Array.isArray(goalsList) && goalsList.length && typeof window.renderGoalsFrom === 'function') {
             window.renderGoalsFrom(goalsList);
           } else {
-            goalsBox.innerHTML = ''; // sem metas para este ciclo
+            goalsBox.innerHTML = '';
             if (typeof window.updateGoalsWeight === 'function') window.updateGoalsWeight();
           }
         }
