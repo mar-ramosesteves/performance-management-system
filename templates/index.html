@@ -1943,13 +1943,29 @@
         
         const goalsBox = document.querySelector('#goals-container');
         if (goalsBox) {
+          // ✅ SEMPRE limpa antes (evita "acumular" metas na tela)
+          goalsBox.innerHTML = '';
+        
+          // ✅ SE pediu um ciclo, mostra SOMENTE as metas daquele ciclo
+          if (requestedRoundCode && Array.isArray(goalsList)) {
+            const want = String(requestedRoundCode).trim().toLowerCase();
+        
+            goalsList = goalsList.filter(g => {
+              const rc = (g?.round_code ?? g?.roundCode ?? g?.round ?? "").toString().trim().toLowerCase();
+              return rc === want;
+            });
+          }
+        
+          console.log("[goals] ciclo=", requestedRoundCode, "qtd=", Array.isArray(goalsList) ? goalsList.length : 0, goalsList);
+        
           if (Array.isArray(goalsList) && goalsList.length && typeof window.renderGoalsFrom === 'function') {
             window.renderGoalsFrom(goalsList);
           } else {
-            goalsBox.innerHTML = ''; // sem metas
+            // sem metas nesse ciclo
             if (typeof window.updateGoalsWeight === 'function') window.updateGoalsWeight();
           }
         }
+
 
     
         // 8) Código da rodada — SEMPRE preencher no modo consulta/ciclo
