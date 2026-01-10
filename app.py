@@ -546,10 +546,25 @@ def api_evaluations_latest():
         try:
             goals_round = (round_code or ev.get('round_code') or '').strip()
         
-            q = (supabase.table('individual_goals')
-                 .select('*')
-                 .eq('employee_id', employee_id)
-                 .eq('evaluation_id', ev['id']))  # ← ADICIONE ESTA LINHA AQUI
+            # Primeiro tenta buscar metas com evaluation_id (metas novas)
+            q_with_eval = (supabase.table('individual_goals')
+                           .select('*')
+                           .eq('employee_id', employee_id)
+                           .eq('evaluation_id', ev['id']))
+            r_goals_with_eval = q_with_eval.order('id', desc=False).execute()
+            goals_with_eval = r_goals_with_eval.data or []
+            
+            # Se não encontrou metas com evaluation_id, busca todas do funcionário+rodada (fallback para metas antigas)
+            if not goals_with_eval:
+                q = (supabase.table('individual_goals')
+                     .select('*')
+                     .eq('employee_id', employee_id))
+                if goals_round:
+                    q = q.eq('round_code', goals_round)
+                r_goals = q.order('id', desc=False).execute()
+                goals_data = r_goals.data or []
+            else:
+                goals_data = goals_with_eval
             
             if goals_round:
                 q = q.eq('round_code', goals_round)
