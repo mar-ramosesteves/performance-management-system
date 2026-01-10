@@ -1906,72 +1906,38 @@
         // ✅ Bloquear campos se for gestor
         lockDimensionWeightsForManager();
         
-        // 7) Metas (se existirem) — ciclo correto
+        // 7) Metas (se existirem) — SEMPRE filtrar pelo ciclo pedido
         let goalsList = goals;
-        console.log('[goals][debug] sample=', goalsList?.[0]);
-        console.log('[goals][debug] keys=', goalsList?.[0] ? Object.keys(goalsList[0]) : []);
-        console.log('[goals][debug] round fields=', goalsList?.map(g => ({
-          round_code: g?.round_code,
-          roundCode: g?.roundCode
-        })));
-
-
-
-          
         
-        // 1) garante array
-        if (!Array.isArray(goalsList)) goalsList = [];
-        
-        // 2) Se a API não mandou goals, tenta pegar da própria avaliação (ev)
-        //    ✅ Isso é seguro porque ev já é do ciclo pedido (YE2025 ou Start2026)
-        if (!goalsList.length) {
-          if (ev?.goals_json) {
-            try { goalsList = JSON.parse(ev.goals_json); } catch { goalsList = []; }
-          } else if (Array.isArray(ev?.goals)) {
-            goalsList = ev.goals;
-          }
+        // tenta completar goalsList a partir das outras fontes (igual você já fazia)
+        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals_json) {
+          try { goalsList = JSON.parse(ev.goals_json); } catch {}
+        }
+        if ((!Array.isArray(goalsList) || !goalsList.length) && ev?.goals) {
+          goalsList = ev.goals;
         }
         
-        // 3) Filtra por round_code SOMENTE se existir round_code nos itens
-        if (requestedRoundCode && Array.isArray(goalsList) && goalsList.length) {
-          const want = String(requestedRoundCode).trim();
+        // --- FILTRO ROBUSTO POR ROUND_CODE (YE2025 / Start2026) ---
+        const normRC = (v) => String(v ?? '').trim().toLowerCase();
+        const wantedRC = normRC(requestedRoundCode || ev?.round_code);
         
-          const hasRoundInItems = goalsList.some(g =>
-            (g?.round_code ?? g?.roundCode ?? g?.round ?? "")?.toString().trim()
-          );
-        
-          if (hasRoundInItems) {
-            goalsList = goalsList.filter(g => {
-              const rc = (g?.round_code ?? g?.roundCode ?? g?.round ?? "").toString().trim();
-              return rc === want;
-            });
-          }
+        if (Array.isArray(goalsList) && wantedRC) {
+          // pega round_code de qualquer formato que possa vir do backend
+          goalsList = goalsList.filter(g => {
+            const rc = normRC(g?.round_code ?? g?.roundCode ?? g?.cycle ?? g?.round);
+            return rc === wantedRC;
+          });
         }
         
-        // (debug rápido pra você ver no console se veio certo)
-        console.log("[goals] requestedRoundCode=", requestedRoundCode, "goalsList=", goalsList);
+        console.log('[goals] requestedRoundCode=', requestedRoundCode, 'wantedRC=', wantedRC, 'qtd=', Array.isArray(goalsList) ? goalsList.length : 0, goalsList);
         
+        // render
         const goalsBox = document.querySelector('#goals-container');
         if (goalsBox) {
-          // ✅ SEMPRE limpa antes (evita "acumular" metas na tela)
-          goalsBox.innerHTML = '';
-        
-          // ✅ SE pediu um ciclo, mostra SOMENTE as metas daquele ciclo
-          if (requestedRoundCode && Array.isArray(goalsList)) {
-            const want = String(requestedRoundCode).trim().toLowerCase();
-        
-            goalsList = goalsList.filter(g => {
-              const rc = (g?.round_code ?? g?.roundCode ?? g?.round ?? "").toString().trim().toLowerCase();
-              return rc === want;
-            });
-          }
-        
-          console.log("[goals] ciclo=", requestedRoundCode, "qtd=", Array.isArray(goalsList) ? goalsList.length : 0, goalsList);
-        
           if (Array.isArray(goalsList) && goalsList.length && typeof window.renderGoalsFrom === 'function') {
             window.renderGoalsFrom(goalsList);
           } else {
-            // sem metas nesse ciclo
+            goalsBox.innerHTML = ''; // sem metas para este ciclo
             if (typeof window.updateGoalsWeight === 'function') window.updateGoalsWeight();
           }
         }
