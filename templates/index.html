@@ -1910,6 +1910,11 @@
         let goalsList = goals;
         console.log('[goals][debug] sample=', goalsList?.[0]);
         console.log('[goals][debug] keys=', goalsList?.[0] ? Object.keys(goalsList[0]) : []);
+        console.log('[goals][debug] round fields=', goalsList?.map(g => ({
+          round_code: g?.round_code,
+          roundCode: g?.roundCode
+        })));
+
 
 
           
