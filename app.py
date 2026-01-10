@@ -591,6 +591,9 @@ def api_evaluations_latest():
             }
 
         return jsonify({
+            'build_id': 'GOALS_FIX_001',
+            'debug_rc': round_code,
+            'debug_emp': employee_id,
             'evaluation': ev,
             'responses': responses,
             'weights': weights,
