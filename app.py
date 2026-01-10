@@ -548,8 +548,9 @@ def api_evaluations_latest():
         
             q = (supabase.table('individual_goals')
                  .select('*')
-                 .eq('employee_id', employee_id))
-        
+                 .eq('employee_id', employee_id)
+                 .eq('evaluation_id', ev['id']))  # ← ADICIONE ESTA LINHA AQUI
+            
             if goals_round:
                 q = q.eq('round_code', goals_round)
         
