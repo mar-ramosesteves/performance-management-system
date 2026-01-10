@@ -1908,6 +1908,11 @@
         
         // 7) Metas (se existirem) — ciclo correto
         let goalsList = goals;
+        console.log('[goals][debug] sample=', goalsList?.[0]);
+        console.log('[goals][debug] keys=', goalsList?.[0] ? Object.keys(goalsList[0]) : []);
+
+
+          
         
         // 1) garante array
         if (!Array.isArray(goalsList)) goalsList = [];
