@@ -719,6 +719,8 @@ def create_evaluation():
             for goal in data['goals']:
                 goals_to_save.append({
                     'employee_id': data['employee_id'],
+                    'evaluation_id': evaluation_id,  # ← ADICIONE ESTA LINHA
+                    'round_code': round_code or data.get('round_code', ''),  # ← E ESTA LINHA
                     'goal_name': goal.get('name', ''),
                     'goal_description': goal.get('description', ''),
                     'weight': float(goal.get('weight', 0)),
