@@ -1905,35 +1905,41 @@
         if (typeof window.updateDimensionWeights === 'function') window.updateDimensionWeights();
         // ✅ Bloquear campos se for gestor
         lockDimensionWeightsForManager();
-        // 7) Metas (se existirem) — mostrar SOMENTE do ciclo pedido
+        
+        // 7) Metas (se existirem) — ciclo correto
         let goalsList = goals;
         
-        // garante array
+        // 1) garante array
         if (!Array.isArray(goalsList)) goalsList = [];
         
-        // ✅ FILTRO POR ROUND_CODE (quando veio pela URL / parâmetro)
-        if (requestedRoundCode) {
-          const want = String(requestedRoundCode).trim();
-        
-          goalsList = goalsList.filter(g => {
-            const rc =
-              (g?.round_code ?? g?.roundCode ?? g?.round ?? "")
-                .toString()
-                .trim();
-            return rc === want;
-          });
-        }
-        
-        // (fallbacks só se NÃO tiver round_code pedido)
-        // porque senão pode “puxar” metas do outro ciclo
-        if (!requestedRoundCode) {
-          if ((!goalsList.length) && ev?.goals_json) {
-            try { goalsList = JSON.parse(ev.goals_json); } catch {}
-          }
-          if ((!goalsList.length) && ev?.goals) {
+        // 2) Se a API não mandou goals, tenta pegar da própria avaliação (ev)
+        //    ✅ Isso é seguro porque ev já é do ciclo pedido (YE2025 ou Start2026)
+        if (!goalsList.length) {
+          if (ev?.goals_json) {
+            try { goalsList = JSON.parse(ev.goals_json); } catch { goalsList = []; }
+          } else if (Array.isArray(ev?.goals)) {
             goalsList = ev.goals;
           }
         }
+        
+        // 3) Filtra por round_code SOMENTE se existir round_code nos itens
+        if (requestedRoundCode && Array.isArray(goalsList) && goalsList.length) {
+          const want = String(requestedRoundCode).trim();
+        
+          const hasRoundInItems = goalsList.some(g =>
+            (g?.round_code ?? g?.roundCode ?? g?.round ?? "")?.toString().trim()
+          );
+        
+          if (hasRoundInItems) {
+            goalsList = goalsList.filter(g => {
+              const rc = (g?.round_code ?? g?.roundCode ?? g?.round ?? "").toString().trim();
+              return rc === want;
+            });
+          }
+        }
+        
+        // (debug rápido pra você ver no console se veio certo)
+        console.log("[goals] requestedRoundCode=", requestedRoundCode, "goalsList=", goalsList);
         
         const goalsBox = document.querySelector('#goals-container');
         if (goalsBox) {
