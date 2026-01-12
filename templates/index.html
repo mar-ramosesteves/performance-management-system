@@ -1733,11 +1733,31 @@
         console.log('[viewEmployeeEvaluation] employeeId=', employeeId, 'requestedRoundCode=', requestedRoundCode, 'search=', window.location.search);
     
         if (!employeeId) { alert('ID de colaborador inválido.'); return; }
-    
-        // 1) Buscar avaliação (se vier requestedRoundCode, tenta esse ciclo; senão, pega a última)
 
+        // ✅ MOSTRAR OVERLAY DE CARREGAMENTO (bloqueia cliques)
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'loading-overlay-eval';
+        loadingOverlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 99999;
+          color: white;
+          font-size: 24px;
+          font-weight: bold;
+        `;
+        loadingOverlay.innerHTML = '<div style="text-align:center;"><div style="margin-bottom:20px;">⏳</div><div>Carregando avaliação...</div></div>';
+        document.body.appendChild(loadingOverlay);
+        
+        // 1) Buscar avaliação (se vier requestedRoundCode, tenta esse ciclo; senão, pega a última)
     
-        // 1) Buscar avaliação (se vier round_code, tenta esse ciclo; senão, pega a última)
+        
         const qs = new URLSearchParams();
         qs.set("employee_id", String(employeeId));
         
@@ -1951,16 +1971,17 @@
         }
 
         console.log('[viewEmployeeEvaluation] Avaliação carregada com sucesso. ID:', evalId);
-
-
-
-
-
-          
-      } catch(e) {
-        console.error('[viewEmployeeEvaluation] Erro:', e);
-        alert('Falha ao abrir a avaliação: ' + e.message);
-      }
+        } catch(e) {
+          console.error('[viewEmployeeEvaluation] Erro:', e);
+          alert('Falha ao abrir a avaliação: ' + e.message);
+        } finally {
+          // ✅ REMOVER OVERLAY DE CARREGAMENTO (sempre, mesmo se der erro)
+          const overlay = document.getElementById('loading-overlay-eval');
+          if (overlay) {
+            overlay.remove();
+          }
+        }
+        
     };
 
     // =======================
