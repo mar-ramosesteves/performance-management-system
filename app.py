@@ -546,39 +546,20 @@ def api_evaluations_latest():
         try:
             goals_round = (round_code or ev.get('round_code') or '').strip()
             
-            print(f"[DEBUG METAS] employee_id={employee_id}, round_code={goals_round}, evaluation_id={ev['id']}")
+            print(f"[DEBUG METAS] employee_id={employee_id}, round_code={goals_round}")
             
-            # ✅ CORREÇÃO: Primeiro tenta buscar metas com evaluation_id (se existir)
-            q_with_eval = (supabase.table('individual_goals')
-                           .select('*')
-                           .eq('employee_id', employee_id)
-                           .eq('evaluation_id', ev['id']))
+            # ✅ CORREÇÃO: Como a tabela NÃO TEM coluna evaluation_id, busca apenas por employee_id + round_code
+            q = (supabase.table('individual_goals')
+                 .select('*')
+                 .eq('employee_id', employee_id))
             
             if goals_round:
-                q_with_eval = q_with_eval.eq('round_code', goals_round)
+                q = q.eq('round_code', goals_round)
             
-            r_goals_with_eval = q_with_eval.order('id', desc=False).execute()
-            goals_with_eval = r_goals_with_eval.data or []
+            r_goals = q.order('id', desc=False).execute()
+            goals_data = r_goals.data or []
             
-            print(f"[DEBUG METAS] Metas com evaluation_id encontradas: {len(goals_with_eval)}")
-            
-            # ✅ Se não encontrou metas com evaluation_id, busca todas do funcionário+rodada (fallback para metas antigas)
-            if goals_with_eval:
-                goals_data = goals_with_eval
-                print(f"[DEBUG METAS] Usando metas com evaluation_id")
-            else:
-                # Fallback: busca metas antigas (que não têm evaluation_id)
-                print(f"[DEBUG METAS] Fazendo fallback: buscando sem evaluation_id")
-                q = (supabase.table('individual_goals')
-                     .select('*')
-                     .eq('employee_id', employee_id))
-                
-                if goals_round:
-                    q = q.eq('round_code', goals_round)
-                
-                r_goals = q.order('id', desc=False).execute()
-                goals_data = r_goals.data or []
-                print(f"[DEBUG METAS] Metas encontradas no fallback: {len(goals_data)}")
+            print(f"[DEBUG METAS] Metas encontradas: {len(goals_data)}")
             
             for goal in goals_data:
                 goals.append({
