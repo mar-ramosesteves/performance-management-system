@@ -714,21 +714,24 @@ def create_evaluation():
             supabase.table('evaluation_responses').insert(responses).execute()
             print(f"DEBUG: {len(responses)} respostas inseridas para avaliação {evaluation_id}")
             
-        # Limpar metas antigas do funcionário
+        # ✅ CORREÇÃO: Deletar apenas as metas desta avaliação específica (não todas do funcionário)
         try:
-            supabase.table('individual_goals').delete().eq('employee_id', data['employee_id']).execute()
-            print(f"Metas antigas deletadas para funcionário {data['employee_id']}")
+            delete_query = supabase.table('individual_goals').delete().eq('evaluation_id', evaluation_id)
+            if round_code:
+                delete_query = delete_query.eq('round_code', round_code)
+            delete_query.execute()
+            print(f"DEBUG: Metas antigas deletadas para avaliação {evaluation_id} (employee_id={data['employee_id']}, round_code={round_code})")
         except Exception as e:
-            print(f"Erro ao deletar metas antigas: {e}")
-
+            print(f"DEBUG: Erro ao deletar metas antigas: {e}")
+        
         # Salvar metas na tabela individual_goals
         if data.get('goals'):
             goals_to_save = []
             for goal in data['goals']:
                 goals_to_save.append({
                     'employee_id': data['employee_id'],
-                    'evaluation_id': evaluation_id,  # ← ADICIONE ESTA LINHA
-                    'round_code': round_code or data.get('round_code', ''),  # ← E ESTA LINHA
+                    'evaluation_id': evaluation_id,
+                    'round_code': round_code or data.get('round_code', ''),
                     'goal_name': goal.get('name', ''),
                     'goal_description': goal.get('description', ''),
                     'weight': float(goal.get('weight', 0)),
@@ -740,7 +743,8 @@ def create_evaluation():
                     'rating': int(goal.get('rating', 0)) if goal.get('rating') else None
                 })
             if goals_to_save:
-                supabase.table('individual_goals').insert(goals_to_save).execute()    
+                supabase.table('individual_goals').insert(goals_to_save).execute()
+                print(f"DEBUG: {len(goals_to_save)} metas inseridas para avaliação {evaluation_id}")    
                         
         try:
             scores = calculate_evaluation_scores(
