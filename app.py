@@ -541,17 +541,18 @@ def api_evaluations_latest():
             'rating': x.get('rating')
         } for x in rows]
 
-        # Buscar metas da tabela individual_goals (FILTRANDO por employee_id + round_code)
+        # Buscar metas da tabela individual_goals (FILTRANDO por employee_id + round_code + evaluation_id)
         goals = []
         try:
             goals_round = (round_code or ev.get('round_code') or '').strip()
             
-            print(f"[DEBUG METAS] employee_id={employee_id}, round_code={goals_round}")
+            print(f"[DEBUG METAS] employee_id={employee_id}, round_code={goals_round}, evaluation_id={ev['id']}")
             
-            # ✅ CORREÇÃO: Como a tabela NÃO TEM coluna evaluation_id, busca apenas por employee_id + round_code
+            # ✅ CORREÇÃO: Agora que a coluna evaluation_id existe, filtra por ela também
             q = (supabase.table('individual_goals')
                  .select('*')
-                 .eq('employee_id', employee_id))
+                 .eq('employee_id', employee_id)
+                 .eq('evaluation_id', ev['id']))  # ← ADICIONE ESTA LINHA
             
             if goals_round:
                 q = q.eq('round_code', goals_round)
