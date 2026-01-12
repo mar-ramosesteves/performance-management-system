@@ -546,6 +546,8 @@ def api_evaluations_latest():
         try:
             goals_round = (round_code or ev.get('round_code') or '').strip()
             
+            print(f"[DEBUG METAS] employee_id={employee_id}, round_code={goals_round}, evaluation_id={ev['id']}")
+            
             # ✅ CORREÇÃO: Primeiro tenta buscar metas com evaluation_id (se existir)
             q_with_eval = (supabase.table('individual_goals')
                            .select('*')
@@ -558,11 +560,15 @@ def api_evaluations_latest():
             r_goals_with_eval = q_with_eval.order('id', desc=False).execute()
             goals_with_eval = r_goals_with_eval.data or []
             
+            print(f"[DEBUG METAS] Metas com evaluation_id encontradas: {len(goals_with_eval)}")
+            
             # ✅ Se não encontrou metas com evaluation_id, busca todas do funcionário+rodada (fallback para metas antigas)
             if goals_with_eval:
                 goals_data = goals_with_eval
+                print(f"[DEBUG METAS] Usando metas com evaluation_id")
             else:
                 # Fallback: busca metas antigas (que não têm evaluation_id)
+                print(f"[DEBUG METAS] Fazendo fallback: buscando sem evaluation_id")
                 q = (supabase.table('individual_goals')
                      .select('*')
                      .eq('employee_id', employee_id))
@@ -572,10 +578,11 @@ def api_evaluations_latest():
                 
                 r_goals = q.order('id', desc=False).execute()
                 goals_data = r_goals.data or []
+                print(f"[DEBUG METAS] Metas encontradas no fallback: {len(goals_data)}")
             
             for goal in goals_data:
                 goals.append({
-                    'round_code': goal.get('round_code'),  # << MUITO IMPORTANTE
+                    'round_code': goal.get('round_code'),
                     'index': goal.get('goal_index', 1),
                     'name': goal.get('goal_name', ''),
                     'description': goal.get('goal_description', ''),
@@ -587,9 +594,13 @@ def api_evaluations_latest():
                     'rating_5_criteria': goal.get('rating_5_criteria', ''),
                     'rating': int(goal.get('rating', 0)) if goal.get('rating') is not None else None
                 })
+            
+            print(f"[DEBUG METAS] Total de metas processadas: {len(goals)}")
         
         except Exception as e:
             print(f"Erro ao buscar metas: {e}")
+            import traceback
+            traceback.print_exc()
             goals = []              
         
         # Pesos das dimensões - usar valores salvos ou padrão
