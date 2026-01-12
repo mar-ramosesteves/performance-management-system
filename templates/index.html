@@ -1944,7 +1944,19 @@
         const sec = document.getElementById('evaluation-section');
         if (sec) { sec.style.display = 'block'; sec.scrollIntoView({behavior:'smooth'}); }
         
+        // 11) ✅ OCULTAR botão "Ver Funcionários" quando a avaliação estiver aberta
+        const verFuncionariosBtn = document.querySelector('button[onclick="loadEmployees()"]');
+        if (verFuncionariosBtn) {
+          verFuncionariosBtn.style.display = 'none';
+        }
+
         console.log('[viewEmployeeEvaluation] Avaliação carregada com sucesso. ID:', evalId);
+
+
+
+
+
+          
       } catch(e) {
         console.error('[viewEmployeeEvaluation] Erro:', e);
         alert('Falha ao abrir a avaliação: ' + e.message);
