@@ -1361,6 +1361,32 @@ def api_relatorio_pdi_dimensoes():
                         encontrado = cnt.most_common(1)[0][0]
                 except Exception as e:
                     print('[api_relatorio_pdi_dimensoes] erro ao buscar round_code por evaluation_year:', e)
+
+            # ✅ Se pediu um year e não existe round_code para esse ano, NÃO usar active_round_code
+            if year and not encontrado:
+                round_code = None
+                avaliacoes = []
+                criteria = {
+                    'pdi_threshold': 3.0,
+                    'reconhecimento_threshold': 4.5,
+                    'descricao': (
+                        'final_rating <= 3.0 => PDI_OBRIGATORIO; '
+                        'final_rating >= 4.5 => RECONHECIMENTO; '
+                        'demais => NEUTRO'
+                    )
+                }
+                from datetime import datetime, timezone as _tz
+                return jsonify({
+                    'source': 'supabase',
+                    'round_code': None,
+                    'empresa': empresa,
+                    'generated_at': datetime.now(_tz.utc).isoformat(),
+                    'criteria': criteria,
+                    'total_avaliacoes': 0,
+                    'avaliacoes': [],
+                    'message': f'Nenhum dado encontrado para o ano {year}'
+                }), 200
+
         
             if encontrado:
                 round_code = encontrado
