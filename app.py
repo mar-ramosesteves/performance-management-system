@@ -1313,6 +1313,59 @@ def api_relatorio_pdi_dimensoes():
         round_code = (request.args.get('round_code') or '').strip()
         empresa = (request.args.get('empresa') or '').strip() or None
 
+        # ✅ Suporte a ?year=2025 (prioridade sobre active_round_code)
+        year_param = (request.args.get('year') or '').strip()
+        year = None
+        try:
+            if year_param:
+                year = int(year_param)
+        except Exception:
+            year = None
+        
+        # Se vier year e NÃO vier round_code, tenta mapear para um round_code existente
+        if (not round_code) and year:
+            # tenta formatos comuns primeiro
+            candidatos = [f'YE{year}', f'Start{year}']
+            encontrado = None
+        
+            for cod in candidatos:
+                try:
+                    r_test = (
+                        supabase
+                        .table('evaluations')
+                        .select('id')
+                        .eq('round_code', cod)
+                        .limit(1)
+                        .execute()
+                    )
+                    if r_test.data:
+                        encontrado = cod
+                        break
+                except Exception as e:
+                    print('[api_relatorio_pdi_dimensoes] erro ao testar round_code', cod, e)
+        
+            # fallback: pegar o round_code mais frequente daquele evaluation_year
+            if not encontrado:
+                try:
+                    r_all = (
+                        supabase
+                        .table('evaluations')
+                        .select('round_code')
+                        .eq('evaluation_year', year)
+                        .execute()
+                    )
+                    rows = r_all.data or []
+                    from collections import Counter
+                    cnt = Counter([r.get('round_code') for r in rows if r.get('round_code')])
+                    if cnt:
+                        encontrado = cnt.most_common(1)[0][0]
+                except Exception as e:
+                    print('[api_relatorio_pdi_dimensoes] erro ao buscar round_code por evaluation_year:', e)
+        
+            if encontrado:
+                round_code = encontrado
+
+
         # Se não vier round_code, tenta pegar da system_config.active_round_code
         if not round_code:
             try:
