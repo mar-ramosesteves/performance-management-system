@@ -852,7 +852,9 @@ def api_competence_status():
         r = (
             supabase
             .table("competence_locks")
-            .select("competence,status,locked_at,locked_by,reason")
+            .select("competence,status,closed_at,locked_by,reason")
+
+            
             .eq("competence", comp.isoformat())
             .limit(1)
             .execute()
@@ -867,13 +869,15 @@ def api_competence_status():
             }), 200
         
         row = rows[0]
+        
         return jsonify({
             "competence": row.get("competence"),
             "status": row.get("status") or "OPEN",
             "exists": True,
-            "locked_at": row.get("locked_at"),
+            "closed_at": row.get("closed_at"),
             "locked_by": row.get("locked_by"),
             "reason": row.get("reason"),
+
 
 
 
