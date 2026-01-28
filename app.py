@@ -103,6 +103,69 @@ ADMIN_WINDOW_CODE = os.getenv('ADMIN_WINDOW_CODE', '').strip()  # usado em PUTs 
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+from datetime import datetime, timezone, date
+
+def _competence_from_request():
+    """
+    Competência mensal: sempre salva como 1º dia do mês.
+    Prioridade:
+      1) request.json['competence'] (formato YYYY-MM ou YYYY-MM-DD)
+      2) mês atual (UTC)
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+    except Exception:
+        payload = {}
+
+    comp = (payload.get("competence") or "").strip()
+    if comp:
+        try:
+            if len(comp) == 7:  # YYYY-MM
+                y, m = comp.split("-")
+                return date(int(y), int(m), 1)
+            if len(comp) >= 10:  # YYYY-MM-DD
+                y, m, _d = comp[:10].split("-")
+                return date(int(y), int(m), 1)
+        except Exception:
+            pass
+
+    now = datetime.now(timezone.utc)
+    return date(now.year, now.month, 1)
+
+
+def _get_actor():
+    """
+    Quem alterou.
+    Se você já tiver login/autenticação, aqui é onde a gente pega o usuário.
+    Por enquanto, usa um header (X-User) ou 'admin'.
+    """
+    try:
+        actor = (request.headers.get("X-User") or "").strip()
+        return actor if actor else "admin"
+    except Exception:
+        return "admin"
+
+
+def _save_employee_history(employee_id: int, data_snapshot: dict, action: str, round_code: str | None = None):
+    """
+    Grava um snapshot no employee_history.
+    """
+    payload = {
+        "employee_id": employee_id,
+        "competence": _competence_from_request().isoformat(),
+        "round_code": round_code,
+        "action": action,
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "changed_by": _get_actor(),
+        "data": data_snapshot
+    }
+    supabase.table("employee_history").insert(payload).execute()
+
+
+
+
+
 MANAGER_LINK_SECRET = os.getenv('MANAGER_LINK_SECRET', '').encode('utf-8')
 def _b64u(x: bytes) -> str:
     return base64.urlsafe_b64encode(x).decode('ascii').rstrip('=')
@@ -303,11 +366,31 @@ def get_employees_by_manager():
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
+
+        # 1) cria o employee
         r = supabase.table('employees').insert(data).execute()
-        return jsonify(r.data)
+        created = (r.data or [])
+        if not created:
+            return jsonify({'error': 'Falha ao criar employee (sem retorno do Supabase)'}), 500
+
+        employee_id = created[0].get('id')
+        if not employee_id:
+            return jsonify({'error': 'Falha ao criar employee (id não retornou)'}), 500
+
+        # 2) salva histórico (snapshot completo do registro criado)
+        _save_employee_history(
+            employee_id=employee_id,
+            data_snapshot=created[0],
+            action="CREATE",
+            round_code=(data.get("round_code") or None)
+        )
+
+        return jsonify(created), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 # ===================== Salary Grades =====================
 @app.route('/api/salary-grades', methods=['GET'])
