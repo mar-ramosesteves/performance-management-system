@@ -880,19 +880,9 @@ def api_competence_status():
             "reopen_reason": row.get("reopen_reason"),
         }), 200
 
-
-
-
-
             
-            "competence": comp.isoformat(),
-            "status": row.get("status"),
-            "closed_at": row.get("closed_at"),
-            "closed_by": row.get("closed_by"),
-            "reopened_at": row.get("reopened_at"),
-            "reopened_by": row.get("reopened_by"),
-            "notes": row.get("notes"),
-        }), 200
+            
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
