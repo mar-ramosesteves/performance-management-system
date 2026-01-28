@@ -852,7 +852,7 @@ def api_competence_status():
         r = (
             supabase
             .table("competence_locks")
-            .select("competence,status,closed_at,locked_by,reason")
+            .select("competence,status,closed_at,closed_by,reason")
 
             
             .eq("competence", comp.isoformat())
@@ -875,7 +875,9 @@ def api_competence_status():
             "status": row.get("status") or "OPEN",
             "exists": True,
             "closed_at": row.get("closed_at"),
-            "locked_by": row.get("locked_by"),
+            
+            "closed_by": row.get("closed_by"),
+            
             "reason": row.get("reason"),
 
 
