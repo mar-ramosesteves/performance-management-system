@@ -850,35 +850,35 @@ def api_competence_status():
 
         
         r = (
-            supabase
-            .table("competence_locks")
-            .select("competence,status,closed_at,closed_by,reason")
-
-            
+            supabase.table("competence_locks")
+            .select("competence,status,closed_at,closed_by,closed_reason,reopened_at,reopened_by,reopen_reason")
             .eq("competence", comp.isoformat())
-            .limit(1)
             .execute()
         )
         
         rows = r.data or []
-        if not rows:
+        row = rows[0] if rows else None
+        
+        if not row:
             return jsonify({
                 "competence": comp.isoformat(),
-                "status": "OPEN",
-                "exists": False
+                "status": "OPEN"
             }), 200
-        
-        row = rows[0]
         
         return jsonify({
             "competence": row.get("competence"),
             "status": row.get("status") or "OPEN",
             "exists": True,
-            "closed_at": row.get("closed_at"),
-            
-            "closed_by": row.get("closed_by"),
-            
-            "reason": row.get("reason"),
+        
+            # Mantém nomes "locked_*" na resposta, mas lê das colunas "closed_*"
+            "locked_at": row.get("closed_at"),
+            "locked_by": row.get("closed_by"),
+            "reason": row.get("closed_reason"),
+        
+            "reopened_at": row.get("reopened_at"),
+            "reopened_by": row.get("reopened_by"),
+            "reopen_reason": row.get("reopen_reason"),
+        }), 200
 
 
 
