@@ -624,10 +624,26 @@ def api_evaluation_responses():
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
     try:
-        r = supabase.table('evaluations').select('*').execute()
-        return jsonify(r.data)
+        # ✅ aceita ?year=2025
+        year_param = (request.args.get('year') or '').strip()
+        year = None
+        try:
+            if year_param:
+                year = int(year_param)
+        except Exception:
+            year = None
+
+        query = supabase.table('evaluations').select('*')
+
+        # se vier year, filtra por evaluation_year
+        if year:
+            query = query.eq('evaluation_year', year)
+
+        r = query.execute()
+        return jsonify(r.data or [])
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 
 
