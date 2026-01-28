@@ -430,7 +430,31 @@ def get_employees_by_manager():
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
+
+        # ✅ employees NÃO tem coluna "competence"
+        # Se vier no body por engano, removemos para não quebrar o insert
+        data.pop("competence", None)
+
+        # ✅ competência vem da URL (?competence=YYYY-MM-01) via helper já existente
+        comp = _competence_from_request()
+
+        # ✅ BLOQUEIO: se competência estiver CLOSED, impedir cadastro
+        lock = (
+            supabase.table("competence_locks")
+            .select("status")
+            .eq("competence", comp.isoformat())
+            .maybe_single()
+            .execute()
+        ).data
+
+        if lock and str(lock.get("status") or "").upper() == "CLOSED":
+            return jsonify({
+                "error": "COMPETENCE_CLOSED",
+                "message": f"Competência {comp.isoformat()} está FECHADA. Cadastro bloqueado.",
+                "competence": comp.isoformat(),
+                "status": "CLOSED"
+            }), 423
 
         # 1) cria o employee
         r = supabase.table('employees').insert(data).execute()
@@ -444,13 +468,13 @@ def create_employee():
 
         # 2) salva histórico (snapshot completo do registro criado)
         _save_employee_history(
-            employee_id=employee_id,
+            employee_id=int(employee_id),
             data_snapshot=created[0],
             action="CREATE",
             round_code=(data.get("round_code") or None)
         )
 
-        return jsonify(created), 200
+        return jsonify(created), 201
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
