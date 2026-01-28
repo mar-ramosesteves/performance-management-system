@@ -432,6 +432,10 @@ def create_employee():
     try:
         data = request.get_json(silent=True) or {}
 
+        comp = _competence_from_request()
+        _assert_competence_open_or_admin(comp)
+
+
         # ✅ employees NÃO tem coluna "competence"
         # Se vier no body por engano, removemos para não quebrar o insert
         data.pop("competence", None)
@@ -1492,6 +1496,10 @@ def get_employee(employee_id):
 def update_employee(employee_id: int):
     try:
         data = request.get_json(silent=True) or {}
+
+        comp = _competence_from_request()
+        _assert_competence_open_or_admin(comp)
+
 
         # ✅ employees NÃO tem coluna "competence"
         data.pop("competence", None)
