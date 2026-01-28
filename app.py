@@ -847,21 +847,38 @@ def api_competence_status():
         else:
             comp = _month_start(_competence_from_request())
 
+
+        
         r = (
-            supabase.table("competence_locks")
-            .select("*")
+            supabase
+            .table("competence_locks")
+            .select("competence,status,locked_at,locked_by,reason")
             .eq("competence", comp.isoformat())
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        row = r.data
-        if not row:
+        
+        rows = r.data or []
+        if not rows:
             return jsonify({
                 "competence": comp.isoformat(),
-                "status": "OPEN"
+                "status": "OPEN",
+                "exists": False
             }), 200
-
+        
+        row = rows[0]
         return jsonify({
+            "competence": row.get("competence"),
+            "status": row.get("status") or "OPEN",
+            "exists": True,
+            "locked_at": row.get("locked_at"),
+            "locked_by": row.get("locked_by"),
+            "reason": row.get("reason"),
+
+
+
+
+            
             "competence": comp.isoformat(),
             "status": row.get("status"),
             "closed_at": row.get("closed_at"),
@@ -1185,7 +1202,8 @@ def get_current_period():
         r = (supabase.table('evaluation_current_period')
              .select('period')
              .eq('id', 1)
-             .single()
+             .maybe_single()
+
              .execute())
         data = r.data or {}
         p = (data.get('period') or '').strip()
@@ -1426,7 +1444,8 @@ def get_employee(employee_id):
             supabase.table('employees')
             .select('*')
             .eq('id', employee_id)
-            .single()
+            .maybe_single()
+
             .execute()
         )
         if not r.data:
@@ -1760,7 +1779,8 @@ def api_relatorio_pdi_dimensoes():
                     .table('system_config')
                     .select('config_value')
                     .eq('config_key', 'active_round_code')
-                    .single()
+                    .maybe_single()
+                    
                     .execute()
                 )
                 round_code = (r_cfg.data or {}).get('config_value')
@@ -1816,7 +1836,9 @@ def api_ninebox():
                     .table('system_config')
                     .select('config_value')
                     .eq('config_key', 'active_round_code')
-                    .single()
+                    .maybe_single()
+
+                    
                     .execute()
                 )
                 round_code = ((r_cfg.data or {}).get('config_value') or '').strip()
@@ -1943,7 +1965,8 @@ def _get_active_round_code():
     r = (supabase.table('system_config')
          .select('config_value')
          .eq('config_key', 'active_round_code')
-         .single()
+         .maybe_single()
+
          .execute())
     return (r.data or {}).get('config_value')
 
@@ -1958,7 +1981,8 @@ def api_rounds_active():
             rr = (supabase.table('evaluation_rounds')
                   .select('code,status,opened_at,closed_at')
                   .eq('code', active)
-                  .single()
+                  .maybe_single()
+
                   .execute())
             if rr.data:
                 status = rr.data
