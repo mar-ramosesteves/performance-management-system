@@ -621,10 +621,12 @@ def api_evaluation_responses():
     return jsonify(_get_responses_rows(evaluation_id))
 
 
-# ✅ Nova rota para o dashboard: lista responses por ANO (compatível com /api/evaluation_responses)
+# ✅ Rota para o dashboard: lista responses por round_code (e opcionalmente por year)
 @app.route('/api/evaluation_responses', methods=['GET'])
-def api_evaluation_responses_by_year():
+def api_evaluation_responses_dashboard():
     try:
+        round_code = (request.args.get('round_code') or '').strip() or None
+
         year_param = (request.args.get('year') or '').strip()
         year = None
         try:
@@ -633,23 +635,39 @@ def api_evaluation_responses_by_year():
         except Exception:
             year = None
 
-        # Se não vier year, por segurança devolve vazio (para não puxar tudo)
-        if not year:
+        # Segurança: se não vier NADA, devolve vazio (evita puxar tudo)
+        if not round_code and not year:
             return jsonify([]), 200
 
-        # 1) Buscar IDs das avaliações daquele ano
-        r_eval = (
-            supabase
-            .table('evaluations')
-            .select('id')
-            .eq('evaluation_year', year)
-            .execute()
-        )
+        # 1) Buscar IDs das avaliações filtrando pelo round_code (prioridade) e/ou year
+        eval_query = supabase.table('evaluations').select('id')
+
+        if round_code:
+            eval_query = eval_query.eq('round_code', round_code)
+
+        if year:
+            eval_query = eval_query.eq('evaluation_year', year)
+
+        r_eval = eval_query.execute()
         eval_rows = r_eval.data or []
         eval_ids = [row.get('id') for row in eval_rows if row.get('id') is not None]
 
         if not eval_ids:
             return jsonify([]), 200
+
+        # 2) Buscar responses dessas avaliações
+        r_resp = (
+            supabase
+            .table('evaluation_responses')
+            .select('*')
+            .in_('evaluation_id', eval_ids)
+            .execute()
+        )
+
+        return jsonify(r_resp.data or []), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
         # 2) Buscar responses dessas avaliações
         # Ajuste o nome da tabela aqui SE a sua tabela tiver outro nome.
