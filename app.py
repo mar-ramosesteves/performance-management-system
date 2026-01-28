@@ -209,6 +209,70 @@ def verify_manager_token(token: str):
 
 
 
+# ===================== Competência (travamento) =====================
+from datetime import date as _date
+
+def _month_start(d: _date) -> _date:
+    """Normaliza para o 1º dia do mês."""
+    return _date(d.year, d.month, 1)
+
+def _is_competence_closed(comp: _date) -> bool:
+    """Retorna True se a competência estiver CLOSED."""
+    comp = _month_start(comp)
+    try:
+        r = (
+            supabase.table("competence_locks")
+            .select("status")
+            .eq("competence", comp.isoformat())
+            .maybe_single()
+            .execute()
+        )
+        row = r.data
+        return bool(row and (row.get("status") == "CLOSED"))
+    except Exception:
+        # se der erro de consulta, por segurança NÃO bloqueia aqui
+        # (vamos enxergar no log e corrigir depois)
+        return False
+
+def _assert_competence_open_or_admin(comp: _date):
+    """
+    Bloqueia se competência estiver fechada.
+    Exceção: se veio um admin_code válido no request (header ou query/body).
+    """
+    comp = _month_start(comp)
+
+    # 1) Se não estiver fechada, ok
+    if not _is_competence_closed(comp):
+        return
+
+    # 2) Se estiver fechada, só libera com admin_code
+    admin_code = ""
+    try:
+        admin_code = (request.headers.get("X-Admin-Code") or "").strip()
+    except Exception:
+        pass
+
+    if not admin_code:
+        # tenta querystring
+        try:
+            admin_code = (request.args.get("admin_code") or "").strip()
+        except Exception:
+            pass
+
+    if not admin_code:
+        # tenta body json
+        try:
+            body = request.get_json(silent=True) or {}
+            admin_code = str(body.get("admin_code") or "").strip()
+        except Exception:
+            pass
+
+    if not ADMIN_WINDOW_CODE:
+        # se você não configurou ADMIN_WINDOW_CODE no Render, não tem como autorizar
+        raise PermissionError("Competência fechada e ADMIN_WINDOW_CODE não configurado no servidor.")
+
+    if admin_code != ADMIN_WINDOW_CODE:
+        raise PermissionError(f"Competência {comp.isoformat()} está FECHADA. Informe admin_code válido para alterar.")
 
 
 
@@ -767,6 +831,135 @@ def api_evaluation_responses_dashboard():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ===================== Competência: Fechar / Reabrir =====================
+@app.route("/api/competence/status", methods=["GET"])
+def api_competence_status():
+    """
+    GET /api/competence/status?competence=YYYY-MM-01
+    Se não enviar competence, usa a competência do request (_competence_from_request()).
+    """
+    try:
+        comp_str = (request.args.get("competence") or "").strip()
+        if comp_str:
+            comp = _month_start(datetime.fromisoformat(comp_str).date())
+        else:
+            comp = _month_start(_competence_from_request())
+
+        r = (
+            supabase.table("competence_locks")
+            .select("*")
+            .eq("competence", comp.isoformat())
+            .maybe_single()
+            .execute()
+        )
+        row = r.data
+        if not row:
+            return jsonify({
+                "competence": comp.isoformat(),
+                "status": "OPEN"
+            }), 200
+
+        return jsonify({
+            "competence": comp.isoformat(),
+            "status": row.get("status"),
+            "closed_at": row.get("closed_at"),
+            "closed_by": row.get("closed_by"),
+            "reopened_at": row.get("reopened_at"),
+            "reopened_by": row.get("reopened_by"),
+            "notes": row.get("notes"),
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/competence/close", methods=["POST"])
+def api_competence_close():
+    """
+    POST /api/competence/close
+    Body:
+      { "competence": "YYYY-MM-01", "admin_code": "...", "notes": "..." }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        admin_code = str(body.get("admin_code") or "").strip()
+        if not ADMIN_WINDOW_CODE:
+            return jsonify({"error": "ADMIN_WINDOW_CODE não configurado no servidor."}), 500
+        if admin_code != ADMIN_WINDOW_CODE:
+            return jsonify({"error": "admin_code inválido."}), 403
+
+        comp_str = str(body.get("competence") or "").strip()
+        if not comp_str:
+            return jsonify({"error": "competence obrigatória no formato YYYY-MM-01"}), 400
+
+        comp = _month_start(datetime.fromisoformat(comp_str).date())
+        notes = str(body.get("notes") or "").strip() or None
+
+        # upsert (insere ou atualiza)
+        payload = {
+            "competence": comp.isoformat(),
+            "status": "CLOSED",
+            "closed_at": datetime.now(timezone.utc).isoformat(),
+            "closed_by": _get_actor(),
+            "notes": notes,
+            "reopened_at": None,
+            "reopened_by": None,
+        }
+
+        supabase.table("competence_locks").upsert(payload).execute()
+
+        return jsonify({
+            "message": "Competência fechada com sucesso.",
+            "competence": comp.isoformat(),
+            "status": "CLOSED"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/competence/reopen", methods=["POST"])
+def api_competence_reopen():
+    """
+    POST /api/competence/reopen
+    Body:
+      { "competence": "YYYY-MM-01", "admin_code": "...", "notes": "..." }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        admin_code = str(body.get("admin_code") or "").strip()
+        if not ADMIN_WINDOW_CODE:
+            return jsonify({"error": "ADMIN_WINDOW_CODE não configurado no servidor."}), 500
+        if admin_code != ADMIN_WINDOW_CODE:
+            return jsonify({"error": "admin_code inválido."}), 403
+
+        comp_str = str(body.get("competence") or "").strip()
+        if not comp_str:
+            return jsonify({"error": "competence obrigatória no formato YYYY-MM-01"}), 400
+
+        comp = _month_start(datetime.fromisoformat(comp_str).date())
+        notes = str(body.get("notes") or "").strip() or None
+
+        payload = {
+            "competence": comp.isoformat(),
+            "status": "OPEN",
+            "reopened_at": datetime.now(timezone.utc).isoformat(),
+            "reopened_by": _get_actor(),
+            "notes": notes,
+        }
+
+        supabase.table("competence_locks").upsert(payload).execute()
+
+        return jsonify({
+            "message": "Competência reaberta com sucesso.",
+            "competence": comp.isoformat(),
+            "status": "OPEN"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 
