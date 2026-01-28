@@ -620,6 +620,56 @@ def api_evaluation_responses():
         return jsonify({'error': 'evaluation_id obrigatório'}), 400
     return jsonify(_get_responses_rows(evaluation_id))
 
+
+# ✅ Nova rota para o dashboard: lista responses por ANO (compatível com /api/evaluation_responses)
+@app.route('/api/evaluation_responses', methods=['GET'])
+def api_evaluation_responses_by_year():
+    try:
+        year_param = (request.args.get('year') or '').strip()
+        year = None
+        try:
+            if year_param:
+                year = int(year_param)
+        except Exception:
+            year = None
+
+        # Se não vier year, por segurança devolve vazio (para não puxar tudo)
+        if not year:
+            return jsonify([]), 200
+
+        # 1) Buscar IDs das avaliações daquele ano
+        r_eval = (
+            supabase
+            .table('evaluations')
+            .select('id')
+            .eq('evaluation_year', year)
+            .execute()
+        )
+        eval_rows = r_eval.data or []
+        eval_ids = [row.get('id') for row in eval_rows if row.get('id') is not None]
+
+        if not eval_ids:
+            return jsonify([]), 200
+
+        # 2) Buscar responses dessas avaliações
+        # Ajuste o nome da tabela aqui SE a sua tabela tiver outro nome.
+        # Pelo seu código (_get_responses_rows), o mais comum é "evaluation_responses".
+        r_resp = (
+            supabase
+            .table('evaluation_responses')
+            .select('*')
+            .in_('evaluation_id', eval_ids)
+            .execute()
+        )
+
+        return jsonify(r_resp.data or []), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
 # ===================== Evaluations CRUD =====================
 @app.route('/api/evaluations', methods=['GET'])
 def get_evaluations():
