@@ -970,6 +970,7 @@ def api_competence_reopen():
     """
     try:
         body = request.get_json(silent=True) or {}
+
         admin_code = str(body.get("admin_code") or "").strip()
         if not ADMIN_WINDOW_CODE:
             return jsonify({"error": "ADMIN_WINDOW_CODE não configurado no servidor."}), 500
@@ -983,12 +984,19 @@ def api_competence_reopen():
         comp = _month_start(datetime.fromisoformat(comp_str).date())
         notes = str(body.get("notes") or "").strip() or None
 
+        # ✅ colunas reais da tabela competence_locks
         payload = {
             "competence": comp.isoformat(),
             "status": "OPEN",
+
             "reopened_at": datetime.now(timezone.utc).isoformat(),
             "reopened_by": _get_actor(),
-            "notes": notes,
+            "reopen_reason": notes,
+
+            # opcional: “zera” fechamento anterior ao reabrir
+            "closed_at": None,
+            "closed_by": None,
+            "closed_reason": None,
         }
 
         supabase.table("competence_locks").upsert(payload).execute()
