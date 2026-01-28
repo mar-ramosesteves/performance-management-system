@@ -1481,26 +1481,86 @@ def get_employee(employee_id):
 
 
 @app.route('/api/employees/<int:employee_id>', methods=['PUT'])
-def update_employee(employee_id):
+def update_employee(employee_id: int):
     try:
-        payload = request.get_json(force=True) or {}
+        data = request.get_json(silent=True) or {}
 
-        # Campos que permitimos atualizar
-        allowed = {
-            'nome','cargo','empresa','salario',              # já existentes
-            'manager_name','admission_date','birth_date',    # novos
-            'company_name','branch_name','department_name',
-            'employment_status','leave_reason'
-        }
-        data = {k: v for k, v in payload.items() if k in allowed}
+        # ✅ employees NÃO tem coluna "competence"
+        data.pop("competence", None)
 
-        if not data:
-            return jsonify({'error': 'Nenhum campo válido informado'}), 400
+        # ✅ competência vem da URL (?competence=YYYY-MM-01) via helper já existente
+        comp = _competence_from_request()
 
-        supabase.table('employees').update(data).eq('id', employee_id).execute()
-        return jsonify({'updated': True, 'employee_id': employee_id}), 200
+        # ✅ exceção: permitir alteração mesmo fechado SE enviar admin_code válido
+        admin_code = str(data.get("admin_code") or "").strip()
+        if "admin_code" in data:
+            data.pop("admin_code", None)  # nunca enviar admin_code pro Supabase
+
+        lock = (
+            supabase.table("competence_locks")
+            .select("status")
+            .eq("competence", comp.isoformat())
+            .maybe_single()
+            .execute()
+        ).data
+
+        if lock and str(lock.get("status") or "").upper() == "CLOSED":
+            if not ADMIN_WINDOW_CODE or admin_code != ADMIN_WINDOW_CODE:
+                return jsonify({
+                    "error": "COMPETENCE_CLOSED",
+                    "message": f"Competência {comp.isoformat()} está FECHADA. Alteração bloqueada.",
+                    "competence": comp.isoformat(),
+                    "status": "CLOSED"
+                }), 423
+
+        # 1) pega o registro atual (para garantir que existe)
+        current = (
+            supabase.table("employees")
+            .select("*")
+            .eq("id", employee_id)
+            .maybe_single()
+            .execute()
+        ).data
+
+        if not current:
+            return jsonify({"error": "NOT_FOUND", "message": "Funcionário não encontrado."}), 404
+
+        # 2) atualiza employee
+        r = (
+            supabase.table("employees")
+            .update(data)
+            .eq("id", employee_id)
+            .execute()
+        )
+
+        updated_list = r.data or []
+        if not updated_list:
+            # fallback: buscar novamente
+            updated = (
+                supabase.table("employees")
+                .select("*")
+                .eq("id", employee_id)
+                .maybe_single()
+                .execute()
+            ).data
+        else:
+            updated = updated_list[0]
+
+        if not updated:
+            return jsonify({"error": "UPDATE_FAILED", "message": "Falha ao atualizar funcionário."}), 500
+
+        # 3) salva histórico (snapshot do estado atualizado)
+        _save_employee_history(
+            employee_id=int(employee_id),
+            data_snapshot=updated,
+            action="UPDATE",
+            round_code=(updated.get("round_code") or None)
+        )
+
+        return jsonify(updated), 200
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # ========= Movimentações salariais (histórico) =========
