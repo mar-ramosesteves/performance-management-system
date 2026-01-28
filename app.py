@@ -851,7 +851,9 @@ def api_competence_status():
         
         r = (
             supabase.table("competence_locks")
+            
             .select("competence,status,closed_at,closed_by,closed_reason,reopened_at,reopened_by,reopen_reason")
+            
             .eq("competence", comp.isoformat())
             .execute()
         )
@@ -910,15 +912,18 @@ def api_competence_close():
         notes = str(body.get("notes") or "").strip() or None
 
         # upsert (insere ou atualiza)
+        
         payload = {
             "competence": comp.isoformat(),
             "status": "CLOSED",
             "closed_at": datetime.now(timezone.utc).isoformat(),
             "closed_by": _get_actor(),
-            "notes": notes,
+            "closed_reason": notes,   # <— era "notes"
             "reopened_at": None,
             "reopened_by": None,
+            "reopen_reason": None     # <— zera também o motivo de reabertura
         }
+
 
         supabase.table("competence_locks").upsert(payload).execute()
 
