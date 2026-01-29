@@ -106,32 +106,55 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 from datetime import datetime, timezone, date
 
-def _competence_from_request():
-    """
-    Competência mensal: sempre salva como 1º dia do mês.
-    Prioridade:
-      1) request.json['competence'] (formato YYYY-MM ou YYYY-MM-DD)
-      2) mês atual (UTC)
-    """
-    try:
-        payload = request.get_json(silent=True) or {}
-    except Exception:
-        payload = {}
 
-    comp = (payload.get("competence") or "").strip()
-    if comp:
+
+def _competence_from_request() -> _date:
+    """
+    Lê competência do request e normaliza para YYYY-MM-01 (1º dia do mês).
+    Prioridade:
+      1) Querystring: ?competence=YYYY-MM-01  ou  ?competence=YYYY-MM
+      2) Header: X-Competence
+      3) JSON body: {"competence": "..."}
+      4) Fallback: mês atual
+    """
+    comp_str = ""
+
+    # 1) querystring
+    try:
+        comp_str = (request.args.get("competence") or "").strip()
+    except Exception:
+        comp_str = ""
+
+    # 2) header
+    if not comp_str:
         try:
-            if len(comp) == 7:  # YYYY-MM
-                y, m = comp.split("-")
-                return date(int(y), int(m), 1)
-            if len(comp) >= 10:  # YYYY-MM-DD
-                y, m, _d = comp[:10].split("-")
-                return date(int(y), int(m), 1)
+            comp_str = (request.headers.get("X-Competence") or "").strip()
+        except Exception:
+            comp_str = ""
+
+    # 3) body json
+    if not comp_str:
+        try:
+            body = request.get_json(silent=True) or {}
+            comp_str = str(body.get("competence") or "").strip()
+        except Exception:
+            comp_str = ""
+
+    # aceita YYYY-MM e transforma em YYYY-MM-01
+    if comp_str and len(comp_str) == 7 and comp_str[4] == "-":
+        comp_str = comp_str + "-01"
+
+    # tenta parse ISO
+    if comp_str:
+        try:
+            d = _date.fromisoformat(comp_str)  # espera YYYY-MM-DD
+            return _month_start(d)
         except Exception:
             pass
 
-    now = datetime.now(timezone.utc)
-    return date(now.year, now.month, 1)
+    # 4) fallback: mês atual
+    today = datetime.now(timezone.utc).date()
+    return _month_start(today)
 
 
 def _get_actor():
