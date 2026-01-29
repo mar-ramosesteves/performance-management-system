@@ -430,22 +430,25 @@ def get_employees_by_manager():
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
 
-        # ✅ pega competência da URL (?competence=YYYY-MM-01) ou usa mês atual
+        # ✅ Competência vem da URL (?competence=YYYY-MM-01) ou fallback do helper
         comp = _competence_from_request()
 
-        # ✅ bloqueia se competência estiver fechada (a menos que tenha admin_code válido)
-        _assert_competence_open_or_admin(comp)
+        # ✅ Bloqueia cadastro se competência estiver FECHADA (a não ser admin_code válido)
+        try:
+            _assert_competence_open_or_admin(comp)
+        except PermissionError as e:
+            return jsonify({
+                "error": "COMPETENCE_CLOSED",
+                "message": f"Competência {comp.isoformat()} está FECHADA. Cadastro bloqueado.",
+                "competence": comp.isoformat(),
+                "status": "CLOSED"
+            }), 423
 
-        # ✅ MUITO IMPORTANTE: não deixa "competence" ir para insert da tabela employees
-        # (competence NÃO existe na tabela employees)
-        if "competence" in data:
-            data.pop("competence", None)
-
-        # também não deve ir para a tabela employees
-        if "admin_code" in data:
-            data.pop("admin_code", None)
+        # ✅ employees NÃO tem coluna "competence" e nem deve receber "admin_code"
+        data.pop("competence", None)
+        data.pop("admin_code", None)
 
         # 1) cria o employee
         r = supabase.table('employees').insert(data).execute()
@@ -459,24 +462,13 @@ def create_employee():
 
         # 2) salva histórico (snapshot completo do registro criado)
         _save_employee_history(
-            employee_id=employee_id,
+            employee_id=int(employee_id),
             data_snapshot=created[0],
             action="CREATE",
             round_code=(data.get("round_code") or None)
         )
 
         return jsonify(created), 201
-
-    except PermissionError as e:
-        # ✅ aqui vira 423 (igual você já viu funcionando)
-        comp = _competence_from_request()
-        status = "CLOSED" if _is_competence_closed(comp) else "OPEN"
-        return jsonify({
-            "error": "COMPETENCE_CLOSED",
-            "message": str(e),
-            "competence": comp.isoformat(),
-            "status": status
-        }), 423
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
