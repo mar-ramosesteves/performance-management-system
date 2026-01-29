@@ -430,35 +430,22 @@ def get_employees_by_manager():
 @app.route('/api/employees', methods=['POST'])
 def create_employee():
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.get_json() or {}
 
+        # ✅ pega competência da URL (?competence=YYYY-MM-01) ou usa mês atual
         comp = _competence_from_request()
+
+        # ✅ bloqueia se competência estiver fechada (a menos que tenha admin_code válido)
         _assert_competence_open_or_admin(comp)
 
+        # ✅ MUITO IMPORTANTE: não deixa "competence" ir para insert da tabela employees
+        # (competence NÃO existe na tabela employees)
+        if "competence" in data:
+            data.pop("competence", None)
 
-        # ✅ employees NÃO tem coluna "competence"
-        # Se vier no body por engano, removemos para não quebrar o insert
-        data.pop("competence", None)
-
-        # ✅ competência vem da URL (?competence=YYYY-MM-01) via helper já existente
-        comp = _competence_from_request()
-
-        # ✅ BLOQUEIO: se competência estiver CLOSED, impedir cadastro
-        lock = (
-            supabase.table("competence_locks")
-            .select("status")
-            .eq("competence", comp.isoformat())
-            .maybe_single()
-            .execute()
-        ).data
-
-        if lock and str(lock.get("status") or "").upper() == "CLOSED":
-            return jsonify({
-                "error": "COMPETENCE_CLOSED",
-                "message": f"Competência {comp.isoformat()} está FECHADA. Cadastro bloqueado.",
-                "competence": comp.isoformat(),
-                "status": "CLOSED"
-            }), 423
+        # também não deve ir para a tabela employees
+        if "admin_code" in data:
+            data.pop("admin_code", None)
 
         # 1) cria o employee
         r = supabase.table('employees').insert(data).execute()
@@ -472,13 +459,24 @@ def create_employee():
 
         # 2) salva histórico (snapshot completo do registro criado)
         _save_employee_history(
-            employee_id=int(employee_id),
+            employee_id=employee_id,
             data_snapshot=created[0],
             action="CREATE",
             round_code=(data.get("round_code") or None)
         )
 
         return jsonify(created), 201
+
+    except PermissionError as e:
+        # ✅ aqui vira 423 (igual você já viu funcionando)
+        comp = _competence_from_request()
+        status = "CLOSED" if _is_competence_closed(comp) else "OPEN"
+        return jsonify({
+            "error": "COMPETENCE_CLOSED",
+            "message": str(e),
+            "competence": comp.isoformat(),
+            "status": status
+        }), 423
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1497,37 +1495,15 @@ def update_employee(employee_id: int):
     try:
         data = request.get_json(silent=True) or {}
 
+        # ✅ competência vem da URL (?competence=YYYY-MM-01) ou mês atual
         comp = _competence_from_request()
+
+        # ✅ bloqueia se competência estiver fechada (libera só com admin_code válido)
         _assert_competence_open_or_admin(comp)
 
-
-        # ✅ employees NÃO tem coluna "competence"
+        # ✅ employees NÃO tem coluna competence e nem deve receber admin_code
         data.pop("competence", None)
-
-        # ✅ competência vem da URL (?competence=YYYY-MM-01) via helper já existente
-        comp = _competence_from_request()
-
-        # ✅ exceção: permitir alteração mesmo fechado SE enviar admin_code válido
-        admin_code = str(data.get("admin_code") or "").strip()
-        if "admin_code" in data:
-            data.pop("admin_code", None)  # nunca enviar admin_code pro Supabase
-
-        lock = (
-            supabase.table("competence_locks")
-            .select("status")
-            .eq("competence", comp.isoformat())
-            .maybe_single()
-            .execute()
-        ).data
-
-        if lock and str(lock.get("status") or "").upper() == "CLOSED":
-            if not ADMIN_WINDOW_CODE or admin_code != ADMIN_WINDOW_CODE:
-                return jsonify({
-                    "error": "COMPETENCE_CLOSED",
-                    "message": f"Competência {comp.isoformat()} está FECHADA. Alteração bloqueada.",
-                    "competence": comp.isoformat(),
-                    "status": "CLOSED"
-                }), 423
+        data.pop("admin_code", None)
 
         # 1) pega o registro atual (para garantir que existe)
         current = (
@@ -1574,6 +1550,16 @@ def update_employee(employee_id: int):
         )
 
         return jsonify(updated), 200
+
+    except PermissionError as e:
+        comp = _competence_from_request()
+        status = "CLOSED" if _is_competence_closed(comp) else "OPEN"
+        return jsonify({
+            "error": "COMPETENCE_CLOSED",
+            "message": str(e),
+            "competence": comp.isoformat(),
+            "status": status
+        }), 423
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
