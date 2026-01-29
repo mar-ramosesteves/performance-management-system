@@ -5,6 +5,7 @@ import os
 import json
 from datetime import datetime
 from supabase import create_client, Client
+from datetime import date as _date
 
 from datetime import datetime, timezone
 
