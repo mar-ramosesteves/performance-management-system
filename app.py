@@ -1488,12 +1488,10 @@ def update_employee(employee_id: int):
         data = request.get_json(silent=True) or {}
 
         # ✅ competência vem da URL (?competence=YYYY-MM-01) ou mês atual
-        comp = _competence_from_request()
-
-        # ✅ bloqueia se competência estiver fechada (libera só com admin_code válido)
+                comp = _competence_from_request()
         _assert_competence_open_or_admin(comp)
 
-        # ✅ employees NÃO tem coluna competence e nem deve receber admin_code
+        # nunca enviar esses campos pro Supabase (employees não tem competence, e admin_code é só autorização)
         data.pop("competence", None)
         data.pop("admin_code", None)
 
