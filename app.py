@@ -1488,7 +1488,7 @@ def update_employee(employee_id: int):
         data = request.get_json(silent=True) or {}
 
         # ✅ competência vem da URL (?competence=YYYY-MM-01) ou mês atual
-                comp = _competence_from_request()
+        comp = _competence_from_request()
         _assert_competence_open_or_admin(comp)
 
         # nunca enviar esses campos pro Supabase (employees não tem competence, e admin_code é só autorização)
