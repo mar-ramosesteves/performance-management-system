@@ -979,6 +979,50 @@ def api_competence_close():
         return jsonify({"error": str(e)}), 500
 
 
+
+@app.route("/api/competence/finalize", methods=["POST"])
+def api_competence_finalize():
+    """
+    POST /api/competence/finalize
+    Body:
+      { "competence": "YYYY-MM-01", "admin_code": "...", "reason": "..." }
+    Fecha DEFINITIVAMENTE a competência (gera MONTH_SNAPSHOT no employee_history)
+    e deixa a próxima competência aberta.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+
+        admin_code = str(body.get("admin_code") or "").strip()
+        if not ADMIN_WINDOW_CODE:
+            return jsonify({"error": "ADMIN_WINDOW_CODE não configurado no servidor."}), 500
+        if admin_code != ADMIN_WINDOW_CODE:
+            return jsonify({"error": "admin_code inválido."}), 403
+
+        comp_str = str(body.get("competence") or "").strip()
+        if not comp_str:
+            return jsonify({"error": "competence obrigatória no formato YYYY-MM-01"}), 400
+
+        comp = _month_start(datetime.fromisoformat(comp_str).date())
+        reason = str(body.get("reason") or "").strip() or None
+
+        r = supabase.rpc("finalize_competence", {
+            "p_competence": comp.isoformat(),
+            "p_closed_by": _get_actor(),
+            "p_closed_reason": reason
+        }).execute()
+
+        data = r.data
+        # dependendo do client, pode vir lista com 1 item
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+
+        return jsonify(data), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 @app.route("/api/competence/reopen", methods=["POST"])
 def api_competence_reopen():
     """
