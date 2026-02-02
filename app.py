@@ -1008,8 +1008,9 @@ def api_competence_finalize():
         r = supabase.rpc("finalize_competence", {
             "p_competence": comp.isoformat(),
             "p_closed_by": _get_actor(),
-            "p_closed_reason": reason
+            "p_reason": reason
         }).execute()
+
 
         data = r.data
         # dependendo do client, pode vir lista com 1 item
@@ -1019,7 +1020,8 @@ def api_competence_finalize():
         return jsonify(data), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "FINALIZE_FAILED", "details": str(e)}), 500
+
 
 
 
