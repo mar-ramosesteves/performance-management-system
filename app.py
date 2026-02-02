@@ -1008,8 +1008,9 @@ def api_competence_finalize():
         r = supabase.rpc("finalize_competence", {
             "p_competence": comp.isoformat(),
             "p_closed_by": _get_actor(),
-            "p_reason": reason
+            "p_closed_reason": reason
         }).execute()
+
 
 
         data = r.data
