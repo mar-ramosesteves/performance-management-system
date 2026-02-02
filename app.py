@@ -1002,16 +1002,27 @@ def api_competence_finalize():
 
         reason = str(body.get("reason") or "").strip() or None
 
-        r = supabase.rpc("finalize_competence", {
-            "p_competence": comp.isoformat(),
-            "p_closed_by": _get_actor(),
-            "p_closed_reason": reason
-        }).execute()
+        from postgrest.exceptions import APIError  # se já tiver importado em outro lugar, não duplique
 
-        data = r.data
-        if isinstance(data, list) and len(data) == 1:
-            data = data[0]
-        return jsonify(data), 200
+        try:
+            r = supabase.rpc("finalize_competence", {
+                "p_competence": comp.isoformat(),
+                "p_closed_by": _get_actor(),
+                "p_closed_reason": reason
+            }).execute()
+        
+            data = r.data
+            if isinstance(data, list) and len(data) == 1:
+                data = data[0]
+            return jsonify(data), 200
+        
+        except APIError as api_err:
+            # Algumas versões do postgrest-py estouram erro quando a RPC retorna OBJETO em vez de LISTA
+            payload = api_err.args[0] if api_err.args else None
+            if isinstance(payload, dict) and payload.get("competence") and payload.get("message"):
+                return jsonify(payload), 200
+            raise
+
 
     except Exception as e:
         import traceback
