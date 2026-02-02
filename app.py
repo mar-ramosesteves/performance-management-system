@@ -980,12 +980,20 @@ def api_competence_close():
 
 
 
+from postgrest.exceptions import APIError
+import traceback
+
 @app.route("/api/competence/finalize", methods=["POST"])
 def api_competence_finalize():
+    """
+    POST /api/competence/finalize
+    Body:
+      { "competence": "YYYY-MM-01", "admin_code": "...", "reason": "..." }
+    """
     try:
         body = request.get_json(silent=True) or {}
-        admin_code = str(body.get("admin_code") or "").strip()
 
+        admin_code = str(body.get("admin_code") or "").strip()
         if not ADMIN_WINDOW_CODE:
             return jsonify({"error": "ADMIN_WINDOW_CODE não configurado no servidor."}), 500
         if admin_code != ADMIN_WINDOW_CODE:
@@ -995,14 +1003,8 @@ def api_competence_finalize():
         if not comp_str:
             return jsonify({"error": "competence obrigatória no formato YYYY-MM-01"}), 400
 
-        try:
-            comp = _month_start(datetime.fromisoformat(comp_str).date())
-        except (ValueError, TypeError) as e:
-            return jsonify({"error": "competence inválida", "details": str(e)}), 400
-
+        comp = _month_start(datetime.fromisoformat(comp_str).date())
         reason = str(body.get("reason") or "").strip() or None
-
-        from postgrest.exceptions import APIError  # se já tiver importado em outro lugar, não duplique
 
         try:
             r = supabase.rpc("finalize_competence", {
@@ -1010,26 +1012,28 @@ def api_competence_finalize():
                 "p_closed_by": _get_actor(),
                 "p_closed_reason": reason
             }).execute()
-        
+
             data = r.data
-            if isinstance(data, list) and len(data) == 1:
-                data = data[0]
-            return jsonify(data), 200
-        
-        except APIError as api_err:
-            # Algumas versões do postgrest-py estouram erro quando a RPC retorna OBJETO em vez de LISTA
-            payload = api_err.args[0] if api_err.args else None
-            if isinstance(payload, dict) and payload.get("competence") and payload.get("message"):
+
+        except APIError as e:
+            # BUG/COMPORTAMENTO do client: quando a RPC retorna OBJETO (dict),
+            # ele pode disparar APIError mesmo com "sucesso".
+            payload = e.args[0] if e.args else None
+            if isinstance(payload, dict) and payload.get("message") and payload.get("competence"):
                 return jsonify(payload), 200
             raise
 
+        # normaliza caso venha lista com 1 item
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+
+        return jsonify(data), 200
 
     except Exception as e:
-        import traceback
         return jsonify({
             "error": "FINALIZE_FAILED",
             "details": str(e),
-            "traceback": traceback.format_exc()  # remover em produção
+            "traceback": traceback.format_exc()
         }), 500
 
 
