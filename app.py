@@ -1024,10 +1024,20 @@ def api_competence_finalize():
             raise
 
         # normaliza caso venha lista com 1 item
+        
+        data = r.data
         if isinstance(data, list) and len(data) == 1:
             data = data[0]
-
+        
+        # mapeia os nomes de saída para os nomes esperados no frontend
+        if isinstance(data, dict):
+            if "out_competence" in data:
+                data["competence"] = data.pop("out_competence")
+            if "out_next_competence" in data:
+                data["next_competence"] = data.pop("out_next_competence")
+        
         return jsonify(data), 200
+
 
     except Exception as e:
         return jsonify({
