@@ -171,13 +171,15 @@ def _get_actor():
         return "admin"
 
 
-def _save_employee_history(employee_id: int, data_snapshot: dict, action: str, round_code: str | None = None):
+def _save_employee_history(employee_id: int, data_snapshot: dict, action: str, round_code: str | None = None, competence: _date | None = None):
     """
     Grava um snapshot no employee_history.
+    Se competence for informada, usa ela; senão tenta ler do request (fallback: mês atual).
     """
+    comp = competence if competence is not None else _competence_from_request()
     payload = {
         "employee_id": employee_id,
-        "competence": _competence_from_request().isoformat(),
+        "competence": comp.isoformat(),        
         "round_code": round_code,
         "action": action,
         "changed_at": datetime.now(timezone.utc).isoformat(),
@@ -489,9 +491,9 @@ def create_employee():
             employee_id=int(employee_id),
             data_snapshot=created[0],
             action="CREATE",
-            round_code=(data.get("round_code") or None)
+            round_code=(data.get("round_code") or None),
+            competence=comp
         )
-
         return jsonify(created), 201
 
     except Exception as e:
@@ -1629,7 +1631,8 @@ def update_employee(employee_id: int):
             employee_id=int(employee_id),
             data_snapshot=updated,
             action="UPDATE",
-            round_code=(updated.get("round_code") or None)
+            round_code=(updated.get("round_code") or None),
+            competence=comp
         )
 
         return jsonify(updated), 200
