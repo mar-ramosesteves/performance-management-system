@@ -3054,18 +3054,6 @@ def api_okr_objectives_list():
 
 @app.route("/api/okr/objectives", methods=["POST"])
 def api_okr_objectives_create():
-    """
-    POST /api/okr/objectives
-    Body:
-      {
-        "company_id": 1,
-        "cycle_id": 1,
-        "title": "Objetivo X",
-        "description": "...",
-        "level": "COMPANY",
-        "owner_employee_id": 123 (opcional)
-      }
-    """
     try:
         body = request.get_json(silent=True) or {}
         company_id = int(body.get("company_id") or 0)
@@ -3074,6 +3062,20 @@ def api_okr_objectives_create():
 
         if not company_id or not cycle_id or not title:
             return jsonify({"error": "company_id, cycle_id e title são obrigatórios"}), 400
+
+        # ✅ idempotência: se já existir objetivo igual, retorna ele
+        existing = (
+            supabase.table("okr_objectives")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .eq("title", title)
+            .maybe_single()
+            .execute()
+        ).data
+
+        if existing:
+            return jsonify({"created": False, "objective": existing}), 200
 
         row = {
             "company_id": company_id,
@@ -3207,21 +3209,6 @@ def api_okr_krs_list():
 
 @app.route("/api/okr/key-results", methods=["POST"])
 def api_okr_krs_create():
-    """
-    POST /api/okr/key-results
-    Body:
-      {
-        "company_id":1,"cycle_id":1,"objective_id":1,
-        "title":"...",
-        "metric_name":"...",
-        "metric_unit":"%",
-        "baseline": 10,
-        "target": 20,
-        "direction":"UP",
-        "data_source":"BI",
-        "owner_employee_id": 123
-      }
-    """
     try:
         body = request.get_json(silent=True) or {}
 
@@ -3234,6 +3221,22 @@ def api_okr_krs_create():
 
         if not company_id or not cycle_id or not objective_id or not title or not metric_name:
             return jsonify({"error": "company_id, cycle_id, objective_id, title e metric_name são obrigatórios"}), 400
+
+        # ✅ idempotência: se já existir KR igual, retorna ele
+        existing = (
+            supabase.table("okr_key_results")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .eq("objective_id", objective_id)
+            .eq("title", title)
+            .eq("metric_name", metric_name)
+            .maybe_single()
+            .execute()
+        ).data
+
+        if existing:
+            return jsonify({"created": False, "kr": existing}), 200
 
         row = {
             "company_id": company_id,
