@@ -3367,12 +3367,15 @@ def api_okr_links_list():
 def api_okr_links_create():
     """
     POST /api/okr/links
-    Body (2 tipos):
 
-    1) GOAL_TO_KR:
-      {"company_id":1,"cycle_id":1,"link_type":"GOAL_TO_KR","from_goal_id":123,"to_kr_id":1,"weight":1,"note":"..."}
-    2) GOAL_TO_GOAL:
-      {"company_id":1,"cycle_id":1,"link_type":"GOAL_TO_GOAL","from_goal_id":123,"to_goal_id":999,"weight":1,"note":"..."}
+    1) INDIVIDUAL_GOAL_TO_KR:
+      {"company_id":1,"cycle_id":1,"link_type":"INDIVIDUAL_GOAL_TO_KR","from_individual_goal_id":1245,"to_kr_id":1,"weight":1,"note":"..."}
+
+    2) GOAL_TO_KR (okr_goals -> KR):
+      {"company_id":1,"cycle_id":1,"link_type":"GOAL_TO_KR","from_goal_id":10,"to_kr_id":1,"weight":1,"note":"..."}
+
+    3) GOAL_TO_GOAL (empurrar meta -> meta):
+      {"company_id":1,"cycle_id":1,"link_type":"GOAL_TO_GOAL","from_goal_id":10,"to_goal_id":20,"weight":1,"note":"..."}
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -3384,54 +3387,107 @@ def api_okr_links_create():
         to_goal_id = body.get("to_goal_id")
         to_kr_id = body.get("to_kr_id")
 
+        # ✅ novo campo
+        from_individual_goal_id = body.get("from_individual_goal_id")
+
         weight = body.get("weight", 1)
         note = body.get("note")
 
         if not company_id or not cycle_id or not link_type:
             return jsonify({"error": "company_id, cycle_id e link_type são obrigatórios"}), 400
 
-        if link_type not in ("GOAL_TO_KR", "GOAL_TO_GOAL"):
-            return jsonify({"error": "link_type deve ser GOAL_TO_KR ou GOAL_TO_GOAL"}), 400
+        if link_type not in ("GOAL_TO_KR", "GOAL_TO_GOAL", "INDIVIDUAL_GOAL_TO_KR"):
+            return jsonify({"error": "link_type inválido"}), 400
 
-        if not from_goal_id:
-            return jsonify({"error": "from_goal_id é obrigatório"}), 400
+        # ===================== 1) INDIVIDUAL_GOAL_TO_KR =====================
+        if link_type == "INDIVIDUAL_GOAL_TO_KR":
+            if not from_individual_goal_id or not to_kr_id:
+                return jsonify({"error": "from_individual_goal_id e to_kr_id são obrigatórios"}), 400
 
-        if link_type == "GOAL_TO_KR" and not to_kr_id:
-            return jsonify({"error": "to_kr_id é obrigatório para GOAL_TO_KR"}), 400
+            r_exist = (
+                supabase.table("okr_links")
+                .select("*")
+                .eq("company_id", company_id)
+                .eq("cycle_id", cycle_id)
+                .eq("link_type", link_type)
+                .eq("from_individual_goal_id", int(from_individual_goal_id))
+                .eq("to_kr_id", int(to_kr_id))
+                .limit(1)
+                .execute()
+            )
+            ex = r_exist.data or []
+            if ex:
+                return jsonify({"created": False, "link": ex[0]}), 200
 
-        if link_type == "GOAL_TO_GOAL" and not to_goal_id:
-            return jsonify({"error": "to_goal_id é obrigatório para GOAL_TO_GOAL"}), 400
+            row = {
+                "company_id": company_id,
+                "cycle_id": cycle_id,
+                "link_type": link_type,
+                "from_individual_goal_id": int(from_individual_goal_id),
+                "to_kr_id": int(to_kr_id),
+                "weight": float(weight or 1),
+                "note": note
+            }
 
-        # ✅ idempotência: evita duplicar o mesmo vínculo
-        q = (
-            supabase.table("okr_links")
-            .select("*")
-            .eq("company_id", company_id)
-            .eq("cycle_id", cycle_id)
-            .eq("link_type", link_type)
-            .eq("from_goal_id", int(from_goal_id))
-            .limit(1)
-        )
-        if link_type == "GOAL_TO_KR":
-            q = q.eq("to_kr_id", int(to_kr_id))
+        # ===================== 2) GOAL_TO_KR =====================
+        elif link_type == "GOAL_TO_KR":
+            if not from_goal_id or not to_kr_id:
+                return jsonify({"error": "from_goal_id e to_kr_id são obrigatórios"}), 400
+
+            r_exist = (
+                supabase.table("okr_links")
+                .select("*")
+                .eq("company_id", company_id)
+                .eq("cycle_id", cycle_id)
+                .eq("link_type", link_type)
+                .eq("from_goal_id", int(from_goal_id))
+                .eq("to_kr_id", int(to_kr_id))
+                .limit(1)
+                .execute()
+            )
+            ex = r_exist.data or []
+            if ex:
+                return jsonify({"created": False, "link": ex[0]}), 200
+
+            row = {
+                "company_id": company_id,
+                "cycle_id": cycle_id,
+                "link_type": link_type,
+                "from_goal_id": int(from_goal_id),
+                "to_kr_id": int(to_kr_id),
+                "weight": float(weight or 1),
+                "note": note
+            }
+
+        # ===================== 3) GOAL_TO_GOAL =====================
         else:
-            q = q.eq("to_goal_id", int(to_goal_id))
+            if not from_goal_id or not to_goal_id:
+                return jsonify({"error": "from_goal_id e to_goal_id são obrigatórios"}), 400
 
-        r_exist = q.execute()
-        exist_list = r_exist.data or []
-        if exist_list:
-            return jsonify({"created": False, "link": exist_list[0]}), 200
+            r_exist = (
+                supabase.table("okr_links")
+                .select("*")
+                .eq("company_id", company_id)
+                .eq("cycle_id", cycle_id)
+                .eq("link_type", link_type)
+                .eq("from_goal_id", int(from_goal_id))
+                .eq("to_goal_id", int(to_goal_id))
+                .limit(1)
+                .execute()
+            )
+            ex = r_exist.data or []
+            if ex:
+                return jsonify({"created": False, "link": ex[0]}), 200
 
-        row = {
-            "company_id": company_id,
-            "cycle_id": cycle_id,
-            "link_type": link_type,
-            "from_goal_id": int(from_goal_id),
-            "to_goal_id": int(to_goal_id) if to_goal_id is not None else None,
-            "to_kr_id": int(to_kr_id) if to_kr_id is not None else None,
-            "weight": float(weight or 1),
-            "note": note
-        }
+            row = {
+                "company_id": company_id,
+                "cycle_id": cycle_id,
+                "link_type": link_type,
+                "from_goal_id": int(from_goal_id),
+                "to_goal_id": int(to_goal_id),
+                "weight": float(weight or 1),
+                "note": note
+            }
 
         ins = supabase.table("okr_links").insert(row).execute()
         rows = ins.data or []
