@@ -3024,6 +3024,309 @@ def api_okr_cycles_set_active():
         return jsonify({"error": str(e)}), 500
 
 
+# ===================== OKR Module: Objetivos (O) =====================
+
+@app.route("/api/okr/objectives", methods=["GET"])
+def api_okr_objectives_list():
+    """
+    GET /api/okr/objectives?company_id=1&cycle_id=1
+    Lista objetivos do ciclo.
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        r = (
+            supabase.table("okr_objectives")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .order("id", desc=False)
+            .execute()
+        )
+        return jsonify({"items": r.data or []}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/objectives", methods=["POST"])
+def api_okr_objectives_create():
+    """
+    POST /api/okr/objectives
+    Body:
+      {
+        "company_id": 1,
+        "cycle_id": 1,
+        "title": "Objetivo X",
+        "description": "...",
+        "level": "COMPANY",
+        "owner_employee_id": 123 (opcional)
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        company_id = int(body.get("company_id") or 0)
+        cycle_id = int(body.get("cycle_id") or 0)
+        title = (body.get("title") or "").strip()
+
+        if not company_id or not cycle_id or not title:
+            return jsonify({"error": "company_id, cycle_id e title são obrigatórios"}), 400
+
+        row = {
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "title": title,
+            "description": (body.get("description") or None),
+            "level": (body.get("level") or "COMPANY").strip(),
+            "owner_employee_id": body.get("owner_employee_id"),
+            "status": (body.get("status") or "ACTIVE").strip(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        ins = supabase.table("okr_objectives").insert(row).execute()
+        rows = ins.data or []
+        if not rows:
+            return jsonify({"error": "Falha ao criar objetivo"}), 500
+
+        obj = rows[0]
+        _okr_log(company_id, cycle_id, "OBJECTIVE", int(obj["id"]), "CREATE", obj)
+
+        return jsonify({"created": True, "objective": obj}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/objectives/<int:objective_id>", methods=["PUT"])
+def api_okr_objectives_update(objective_id: int):
+    """
+    PUT /api/okr/objectives/<id>
+    Body: campos para atualizar
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+
+        # pega atual
+        cur = (
+            supabase.table("okr_objectives")
+            .select("*")
+            .eq("id", objective_id)
+            .maybe_single()
+            .execute()
+        ).data
+        if not cur:
+            return jsonify({"error": "Objetivo não encontrado"}), 404
+
+        company_id = int(cur["company_id"])
+        cycle_id = int(cur["cycle_id"])
+
+        # monta patch permitido
+        patch = {}
+        for k in ["title", "description", "level", "owner_employee_id", "status"]:
+            if k in body:
+                patch[k] = body.get(k)
+
+        if "title" in patch and patch["title"]:
+            patch["title"] = str(patch["title"]).strip()
+
+        patch["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        r = (
+            supabase.table("okr_objectives")
+            .update(patch)
+            .eq("id", objective_id)
+            .execute()
+        )
+        updated = (r.data or [None])[0] or (
+            supabase.table("okr_objectives").select("*").eq("id", objective_id).maybe_single().execute()
+        ).data
+
+        _okr_log(company_id, cycle_id, "OBJECTIVE", objective_id, "UPDATE", {"before": cur, "after": updated})
+        return jsonify({"updated": True, "objective": updated}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/objectives/<int:objective_id>", methods=["DELETE"])
+def api_okr_objectives_delete(objective_id: int):
+    try:
+        cur = (
+            supabase.table("okr_objectives")
+            .select("*")
+            .eq("id", objective_id)
+            .maybe_single()
+            .execute()
+        ).data
+        if not cur:
+            return jsonify({"error": "Objetivo não encontrado"}), 404
+
+        company_id = int(cur["company_id"])
+        cycle_id = int(cur["cycle_id"])
+
+        supabase.table("okr_objectives").delete().eq("id", objective_id).execute()
+        _okr_log(company_id, cycle_id, "OBJECTIVE", objective_id, "DELETE", cur)
+
+        return jsonify({"deleted": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ===================== OKR Module: Key Results (KR) =====================
+
+@app.route("/api/okr/key-results", methods=["GET"])
+def api_okr_krs_list():
+    """
+    GET /api/okr/key-results?company_id=1&cycle_id=1&objective_id=1(opcional)
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+        objective_id = request.args.get("objective_id", type=int)
+
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        q = (
+            supabase.table("okr_key_results")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .order("id", desc=False)
+        )
+        if objective_id:
+            q = q.eq("objective_id", objective_id)
+
+        r = q.execute()
+        return jsonify({"items": r.data or []}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/key-results", methods=["POST"])
+def api_okr_krs_create():
+    """
+    POST /api/okr/key-results
+    Body:
+      {
+        "company_id":1,"cycle_id":1,"objective_id":1,
+        "title":"...",
+        "metric_name":"...",
+        "metric_unit":"%",
+        "baseline": 10,
+        "target": 20,
+        "direction":"UP",
+        "data_source":"BI",
+        "owner_employee_id": 123
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+
+        company_id = int(body.get("company_id") or 0)
+        cycle_id = int(body.get("cycle_id") or 0)
+        objective_id = int(body.get("objective_id") or 0)
+
+        title = (body.get("title") or "").strip()
+        metric_name = (body.get("metric_name") or "").strip()
+
+        if not company_id or not cycle_id or not objective_id or not title or not metric_name:
+            return jsonify({"error": "company_id, cycle_id, objective_id, title e metric_name são obrigatórios"}), 400
+
+        row = {
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "objective_id": objective_id,
+            "title": title,
+            "metric_name": metric_name,
+            "metric_unit": (body.get("metric_unit") or "").strip(),
+            "baseline": body.get("baseline"),
+            "target": body.get("target"),
+            "direction": (body.get("direction") or "UP").strip(),
+            "data_source": body.get("data_source"),
+            "owner_employee_id": body.get("owner_employee_id"),
+            "status": (body.get("status") or "ACTIVE").strip(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        ins = supabase.table("okr_key_results").insert(row).execute()
+        rows = ins.data or []
+        if not rows:
+            return jsonify({"error": "Falha ao criar KR"}), 500
+
+        kr = rows[0]
+        _okr_log(company_id, cycle_id, "KR", int(kr["id"]), "CREATE", kr)
+
+        return jsonify({"created": True, "kr": kr}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/key-results/<int:kr_id>", methods=["PUT"])
+def api_okr_krs_update(kr_id: int):
+    try:
+        body = request.get_json(silent=True) or {}
+
+        cur = (
+            supabase.table("okr_key_results")
+            .select("*")
+            .eq("id", kr_id)
+            .maybe_single()
+            .execute()
+        ).data
+        if not cur:
+            return jsonify({"error": "KR não encontrado"}), 404
+
+        company_id = int(cur["company_id"])
+        cycle_id = int(cur["cycle_id"])
+
+        patch = {}
+        for k in ["title","metric_name","metric_unit","baseline","target","direction","data_source","owner_employee_id","status","objective_id"]:
+            if k in body:
+                patch[k] = body.get(k)
+
+        if "title" in patch and patch["title"]:
+            patch["title"] = str(patch["title"]).strip()
+        if "metric_name" in patch and patch["metric_name"]:
+            patch["metric_name"] = str(patch["metric_name"]).strip()
+
+        patch["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        r = supabase.table("okr_key_results").update(patch).eq("id", kr_id).execute()
+        updated = (r.data or [None])[0] or (
+            supabase.table("okr_key_results").select("*").eq("id", kr_id).maybe_single().execute()
+        ).data
+
+        _okr_log(company_id, cycle_id, "KR", kr_id, "UPDATE", {"before": cur, "after": updated})
+        return jsonify({"updated": True, "kr": updated}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/key-results/<int:kr_id>", methods=["DELETE"])
+def api_okr_krs_delete(kr_id: int):
+    try:
+        cur = (
+            supabase.table("okr_key_results")
+            .select("*")
+            .eq("id", kr_id)
+            .maybe_single()
+            .execute()
+        ).data
+        if not cur:
+            return jsonify({"error": "KR não encontrado"}), 404
+
+        company_id = int(cur["company_id"])
+        cycle_id = int(cur["cycle_id"])
+
+        supabase.table("okr_key_results").delete().eq("id", kr_id).execute()
+        _okr_log(company_id, cycle_id, "KR", kr_id, "DELETE", cur)
+
+        return jsonify({"deleted": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
