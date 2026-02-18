@@ -88,6 +88,7 @@ CORS(
         "origins": [
             "https://gestor.thehrkey.tech",
             "https://*.thehrkey.tech"
+            "https://hoppscotch.io"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
