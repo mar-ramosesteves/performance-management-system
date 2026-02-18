@@ -3641,7 +3641,8 @@ def _calc_progress_percent(baseline, target, actual, direction: str):
 def api_okr_kr_progress(kr_id: int):
     """
     GET /api/okr/krs/<kr_id>/progress?company_id=1&cycle_id=1
-    Calcula progresso com base no ÚLTIMO checkpoint (maior month).
+    Calcula progresso com base no ÚLTIMO checkpoint (maior competence).
+    Usa tabela okr_kr_checkpoints (competence, actual).
     """
     try:
         company_id = request.args.get("company_id", type=int)
@@ -3664,14 +3665,14 @@ def api_okr_kr_progress(kr_id: int):
             return jsonify({"error": "KR não encontrado"}), 404
         kr = krs[0]
 
-        # 2) último checkpoint
+        # 2) último checkpoint (por competence desc)
         r_cp = (
             supabase.table("okr_kr_checkpoints")
             .select("*")
             .eq("kr_id", kr_id)
             .eq("company_id", company_id)
             .eq("cycle_id", cycle_id)
-            .order("month", desc=True)
+            .order("competence", desc=True)
             .limit(1)
             .execute()
         )
@@ -3679,11 +3680,11 @@ def api_okr_kr_progress(kr_id: int):
         last_cp = cps[0] if cps else None
 
         percent = None
-        if last_cp and last_cp.get("actual_value") is not None:
+        if last_cp and last_cp.get("actual") is not None:
             percent = _calc_progress_percent(
                 kr.get("baseline"),
                 kr.get("target"),
-                last_cp.get("actual_value"),
+                last_cp.get("actual"),
                 kr.get("direction")
             )
 
