@@ -3551,12 +3551,13 @@ def api_okr_kr_checkpoint_upsert(kr_id: int):
         "company_id":1,
         "cycle_id":1,
         "month":"2026-02" (ou "2026-02-01"),
-        "actual_value": 8,
-        "confidence":"HIGH",
-        "comment":"melhorou após automação"
+        "actual": 8,
+        "forecast": 7,
+        "status":"MEDIUM",
+        "comment":"..."
       }
-
-    Regra: unique (kr_id, month) => usamos upsert.
+    Salva em okr_kr_checkpoints usando:
+      competence (YYYY-MM-01) + kr_id
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -3566,27 +3567,28 @@ def api_okr_kr_checkpoint_upsert(kr_id: int):
         if not company_id or not cycle_id:
             return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
 
-        month = _month_start_str(str(body.get("month") or ""))
-        actual_value = body.get("actual_value")
-        confidence = (body.get("confidence") or "MEDIUM").strip().upper()
-        comment = body.get("comment")
+        competence = _month_start_str(str(body.get("month") or body.get("competence") or ""))
 
-        if confidence not in ("LOW", "MEDIUM", "HIGH"):
-            confidence = "MEDIUM"
+        actual = body.get("actual")
+        forecast = body.get("forecast")
+        status = (body.get("status") or "MEDIUM").strip().upper()
+        comment = body.get("comment")
 
         row = {
             "company_id": company_id,
             "cycle_id": cycle_id,
             "kr_id": int(kr_id),
-            "month": month,
-            "actual_value": actual_value,
-            "confidence": confidence,
+            "competence": competence,
+            "actual": actual,
+            "forecast": forecast,
+            "status": status,
             "comment": comment,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-        # upsert pelo unique(kr_id, month)
-        r = supabase.table("okr_kr_checkpoints").upsert(row, on_conflict="kr_id,month").execute()
+        # sua tabela tem unique(kr_id, competence)? se não tiver, vai inserir duplicado.
+        # vamos usar on_conflict assumindo que você tem (kr_id, competence) OU (kr_id, competence) como unique.
+        r = supabase.table("okr_kr_checkpoints").upsert(row, on_conflict="kr_id,competence").execute()
         rows = r.data or []
         if not rows:
             return jsonify({"error": "Falha ao salvar checkpoint"}), 500
