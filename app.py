@@ -3332,5 +3332,144 @@ def api_okr_krs_delete(kr_id: int):
         return jsonify({"error": str(e)}), 500
 
 
+# ===================== OKR Module: Links (schema atual okr_links) =====================
+
+@app.route("/api/okr/links", methods=["GET"])
+def api_okr_links_list():
+    """
+    GET /api/okr/links?company_id=1&cycle_id=1&to_kr_id=1(opcional)
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+        to_kr_id = request.args.get("to_kr_id", type=int)
+
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        q = (
+            supabase.table("okr_links")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .order("id", desc=False)
+        )
+        if to_kr_id:
+            q = q.eq("to_kr_id", to_kr_id)
+
+        r = q.execute()
+        return jsonify({"items": r.data or []}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/links", methods=["POST"])
+def api_okr_links_create():
+    """
+    POST /api/okr/links
+    Body (2 tipos):
+
+    1) GOAL_TO_KR:
+      {"company_id":1,"cycle_id":1,"link_type":"GOAL_TO_KR","from_goal_id":123,"to_kr_id":1,"weight":1,"note":"..."}
+    2) GOAL_TO_GOAL:
+      {"company_id":1,"cycle_id":1,"link_type":"GOAL_TO_GOAL","from_goal_id":123,"to_goal_id":999,"weight":1,"note":"..."}
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        company_id = int(body.get("company_id") or 0)
+        cycle_id = int(body.get("cycle_id") or 0)
+        link_type = (body.get("link_type") or "").strip()
+
+        from_goal_id = body.get("from_goal_id")
+        to_goal_id = body.get("to_goal_id")
+        to_kr_id = body.get("to_kr_id")
+
+        weight = body.get("weight", 1)
+        note = body.get("note")
+
+        if not company_id or not cycle_id or not link_type:
+            return jsonify({"error": "company_id, cycle_id e link_type são obrigatórios"}), 400
+
+        if link_type not in ("GOAL_TO_KR", "GOAL_TO_GOAL"):
+            return jsonify({"error": "link_type deve ser GOAL_TO_KR ou GOAL_TO_GOAL"}), 400
+
+        if not from_goal_id:
+            return jsonify({"error": "from_goal_id é obrigatório"}), 400
+
+        if link_type == "GOAL_TO_KR" and not to_kr_id:
+            return jsonify({"error": "to_kr_id é obrigatório para GOAL_TO_KR"}), 400
+
+        if link_type == "GOAL_TO_GOAL" and not to_goal_id:
+            return jsonify({"error": "to_goal_id é obrigatório para GOAL_TO_GOAL"}), 400
+
+        # ✅ idempotência: evita duplicar o mesmo vínculo
+        q = (
+            supabase.table("okr_links")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .eq("link_type", link_type)
+            .eq("from_goal_id", int(from_goal_id))
+            .limit(1)
+        )
+        if link_type == "GOAL_TO_KR":
+            q = q.eq("to_kr_id", int(to_kr_id))
+        else:
+            q = q.eq("to_goal_id", int(to_goal_id))
+
+        r_exist = q.execute()
+        exist_list = r_exist.data or []
+        if exist_list:
+            return jsonify({"created": False, "link": exist_list[0]}), 200
+
+        row = {
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "link_type": link_type,
+            "from_goal_id": int(from_goal_id),
+            "to_goal_id": int(to_goal_id) if to_goal_id is not None else None,
+            "to_kr_id": int(to_kr_id) if to_kr_id is not None else None,
+            "weight": float(weight or 1),
+            "note": note
+        }
+
+        ins = supabase.table("okr_links").insert(row).execute()
+        rows = ins.data or []
+        if not rows:
+            return jsonify({"error": "Falha ao criar link"}), 500
+
+        link = rows[0]
+        _okr_log(company_id, cycle_id, "LINK", int(link["id"]), "CREATE", link)
+        return jsonify({"created": True, "link": link}), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/links/<int:link_id>", methods=["DELETE"])
+def api_okr_links_delete(link_id: int):
+    try:
+        cur = (
+            supabase.table("okr_links")
+            .select("*")
+            .eq("id", link_id)
+            .limit(1)
+            .execute()
+        ).data
+        if not cur:
+            return jsonify({"error": "Link não encontrado"}), 404
+
+        row = cur[0]
+        company_id = int(row["company_id"])
+        cycle_id = int(row["cycle_id"])
+
+        supabase.table("okr_links").delete().eq("id", link_id).execute()
+        _okr_log(company_id, cycle_id, "LINK", link_id, "DELETE", row)
+        return jsonify({"deleted": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
