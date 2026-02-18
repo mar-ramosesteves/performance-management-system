@@ -2763,5 +2763,267 @@ def team_ninebox():
 
 
 
+# ===================== OKR Module: Empresas + Ciclos (Ano) =====================
+
+def _okr_actor():
+    """Quem alterou (audit). Reaproveita seu padrão."""
+    try:
+        return (request.headers.get("X-User") or "").strip() or "admin"
+    except Exception:
+        return "admin"
+
+
+def _okr_log(company_id: int, cycle_id: int, entity_type: str, entity_id: int, action: str, data: dict):
+    """Grava histórico em okr_history (audit trail)."""
+    try:
+        payload = {
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "action": action,
+            "changed_at": datetime.now(timezone.utc).isoformat(),
+            "changed_by": _okr_actor(),
+            "data": data or {}
+        }
+        supabase.table("okr_history").insert(payload).execute()
+    except Exception as e:
+        print("[OKR_HISTORY] erro ao gravar histórico:", e)
+
+
+def _okr_get_or_create_company(company_name: str):
+    """
+    Garante que exista uma empresa em okr_companies.
+    Retorna row {id, name, slug, ...}
+    """
+    name = (company_name or "").strip()
+    if not name:
+        return None
+
+    # tenta achar por name (exato)
+    try:
+        r = (
+            supabase.table("okr_companies")
+            .select("*")
+            .eq("name", name)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        if rows:
+            return rows[0]
+    except Exception as e:
+        print("[OKR] erro ao buscar company:", e)
+
+    # cria se não achou
+    try:
+        # slug simples
+        slug = name.lower().strip().replace(" ", "-")[:60]
+        ins = supabase.table("okr_companies").insert({
+            "name": name,
+            "slug": slug
+        }).execute()
+        rows = ins.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        print("[OKR] erro ao criar company:", e)
+        return None
+
+
+def _okr_get_active_cycle_id(company_id: int):
+    """
+    Lê okr_active_cycle (system_config) por empresa.
+    Vamos guardar como: config_key = 'okr_active_cycle::<company_id>'
+    """
+    try:
+        key = f"okr_active_cycle::{company_id}"
+        r = (
+            supabase.table("system_config")
+            .select("config_value")
+            .eq("config_key", key)
+            .maybe_single()
+            .execute()
+        )
+        val = (r.data or {}).get("config_value")
+        return int(val) if val else None
+    except Exception:
+        return None
+
+
+def _okr_set_active_cycle_id(company_id: int, cycle_id: int):
+    try:
+        key = f"okr_active_cycle::{company_id}"
+        supabase.table("system_config").upsert({
+            "config_key": key,
+            "config_value": str(cycle_id),
+            "description": f"Ciclo OKR ativo da empresa {company_id}: {cycle_id}"
+        }, on_conflict="config_key").execute()
+        return True
+    except Exception as e:
+        print("[OKR] erro ao setar ciclo ativo:", e)
+        return False
+
+
+@app.route("/api/okr/companies/ensure", methods=["POST"])
+def api_okr_ensure_company():
+    """
+    POST /api/okr/companies/ensure
+    Body: { "name": "Nome da Empresa" }
+    Retorna a empresa existente ou criada.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "name obrigatório"}), 400
+
+        row = _okr_get_or_create_company(name)
+        if not row:
+            return jsonify({"error": "Falha ao criar/buscar empresa"}), 500
+
+        return jsonify(row), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/cycles", methods=["GET"])
+def api_okr_cycles_list():
+    """
+    GET /api/okr/cycles?company_name=EmpresaX
+    ou  /api/okr/cycles?company_id=1
+    Lista ciclos (anos) de uma empresa.
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        company_name = (request.args.get("company_name") or "").strip()
+
+        if not company_id:
+            if not company_name:
+                return jsonify({"error": "company_id ou company_name obrigatório"}), 400
+            comp = _okr_get_or_create_company(company_name)
+            if not comp:
+                return jsonify({"error": "empresa não encontrada"}), 404
+            company_id = int(comp["id"])
+
+        r = (
+            supabase.table("okr_cycles")
+            .select("*")
+            .eq("company_id", company_id)
+            .order("year", desc=True)
+            .execute()
+        )
+        items = r.data or []
+
+        active_cycle_id = _okr_get_active_cycle_id(company_id)
+
+        return jsonify({
+            "company_id": company_id,
+            "active_cycle_id": active_cycle_id,
+            "items": items
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/cycles", methods=["POST"])
+def api_okr_cycles_create():
+    """
+    POST /api/okr/cycles
+    Body:
+      {
+        "company_name": "Empresa X",
+        "year": 2026,
+        "name": "OKRs 2026",
+        "status": "ACTIVE"   (opcional)
+      }
+
+    Cria ciclo se não existir. Se já existir, retorna o existente.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        company_name = (body.get("company_name") or "").strip()
+        year = body.get("year")
+
+        if not company_name:
+            return jsonify({"error": "company_name obrigatório"}), 400
+        if not year:
+            return jsonify({"error": "year obrigatório"}), 400
+
+        try:
+            year = int(year)
+        except Exception:
+            return jsonify({"error": "year inválido"}), 400
+
+        comp = _okr_get_or_create_company(company_name)
+        if not comp:
+            return jsonify({"error": "empresa não encontrada"}), 404
+        company_id = int(comp["id"])
+
+        # Se já existe, retorna
+        existing = (
+            supabase.table("okr_cycles")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("year", year)
+            .limit(1)
+            .execute()
+        ).data or []
+        if existing:
+            row = existing[0]
+            return jsonify({"created": False, "cycle": row}), 200
+
+        # cria
+        row_ins = {
+            "company_id": company_id,
+            "year": year,
+            "name": (body.get("name") or f"OKRs {year}").strip(),
+            "status": (body.get("status") or "DRAFT").strip()
+        }
+        ins = supabase.table("okr_cycles").insert(row_ins).execute()
+        rows = ins.data or []
+        if not rows:
+            return jsonify({"error": "Falha ao criar ciclo"}), 500
+
+        cycle = rows[0]
+        cycle_id = int(cycle["id"])
+
+        # histórico
+        _okr_log(company_id, cycle_id, "CYCLE", cycle_id, "CREATE", cycle)
+
+        return jsonify({"created": True, "cycle": cycle}), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/cycles/active", methods=["PUT"])
+def api_okr_cycles_set_active():
+    """
+    PUT /api/okr/cycles/active
+    Body: { "company_id": 1, "cycle_id": 10 }
+    Define o ciclo ativo (para facilitar telas e filtros).
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        company_id = body.get("company_id")
+        cycle_id = body.get("cycle_id")
+
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        company_id = int(company_id)
+        cycle_id = int(cycle_id)
+
+        ok = _okr_set_active_cycle_id(company_id, cycle_id)
+        if not ok:
+            return jsonify({"error": "Falha ao salvar ciclo ativo"}), 500
+
+        return jsonify({"message": "Ciclo ativo definido", "company_id": company_id, "cycle_id": cycle_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
