@@ -3063,19 +3063,19 @@ def api_okr_objectives_create():
         if not company_id or not cycle_id or not title:
             return jsonify({"error": "company_id, cycle_id e title são obrigatórios"}), 400
 
-        # ✅ idempotência: se já existir objetivo igual, retorna ele
-        existing = (
+        # ✅ idempotência sem maybe_single (evita 204 bug)
+        r_exist = (
             supabase.table("okr_objectives")
             .select("*")
             .eq("company_id", company_id)
             .eq("cycle_id", cycle_id)
             .eq("title", title)
-            .maybe_single()
+            .limit(1)
             .execute()
-        ).data
-
-        if existing:
-            return jsonify({"created": False, "objective": existing}), 200
+        )
+        exists_list = r_exist.data or []
+        if exists_list:
+            return jsonify({"created": False, "objective": exists_list[0]}), 200
 
         row = {
             "company_id": company_id,
@@ -3222,8 +3222,8 @@ def api_okr_krs_create():
         if not company_id or not cycle_id or not objective_id or not title or not metric_name:
             return jsonify({"error": "company_id, cycle_id, objective_id, title e metric_name são obrigatórios"}), 400
 
-        # ✅ idempotência: se já existir KR igual, retorna ele
-        existing = (
+        # ✅ idempotência sem maybe_single (evita 204 bug)
+        r_exist = (
             supabase.table("okr_key_results")
             .select("*")
             .eq("company_id", company_id)
@@ -3231,12 +3231,12 @@ def api_okr_krs_create():
             .eq("objective_id", objective_id)
             .eq("title", title)
             .eq("metric_name", metric_name)
-            .maybe_single()
+            .limit(1)
             .execute()
-        ).data
-
-        if existing:
-            return jsonify({"created": False, "kr": existing}), 200
+        )
+        exists_list = r_exist.data or []
+        if exists_list:
+            return jsonify({"created": False, "kr": exists_list[0]}), 200
 
         row = {
             "company_id": company_id,
