@@ -3526,6 +3526,180 @@ def api_okr_links_delete(link_id: int):
         return jsonify({"error": str(e)}), 500
 
 
+# ===================== OKR Module: KR Checkpoints & Progress =====================
+
+def _month_start_str(s: str) -> str:
+    """
+    Recebe 'YYYY-MM' ou 'YYYY-MM-01' e devolve sempre 'YYYY-MM-01'
+    """
+    s = (s or "").strip()
+    if not s:
+        raise ValueError("month obrigatório (YYYY-MM ou YYYY-MM-01)")
+    if len(s) == 7 and s[4] == "-":
+        return s + "-01"
+    # valida formato ISO
+    d = datetime.fromisoformat(s).date()
+    return f"{d.year:04d}-{d.month:02d}-01"
+
+
+@app.route("/api/okr/krs/<int:kr_id>/checkpoint", methods=["POST"])
+def api_okr_kr_checkpoint_upsert(kr_id: int):
+    """
+    POST /api/okr/krs/<kr_id>/checkpoint
+    Body:
+      {
+        "company_id":1,
+        "cycle_id":1,
+        "month":"2026-02" (ou "2026-02-01"),
+        "actual_value": 8,
+        "confidence":"HIGH",
+        "comment":"melhorou após automação"
+      }
+
+    Regra: unique (kr_id, month) => usamos upsert.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        company_id = int(body.get("company_id") or 0)
+        cycle_id = int(body.get("cycle_id") or 0)
+
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        month = _month_start_str(str(body.get("month") or ""))
+        actual_value = body.get("actual_value")
+        confidence = (body.get("confidence") or "MEDIUM").strip().upper()
+        comment = body.get("comment")
+
+        if confidence not in ("LOW", "MEDIUM", "HIGH"):
+            confidence = "MEDIUM"
+
+        row = {
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "kr_id": int(kr_id),
+            "month": month,
+            "actual_value": actual_value,
+            "confidence": confidence,
+            "comment": comment,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        # upsert pelo unique(kr_id, month)
+        r = supabase.table("okr_kr_checkpoints").upsert(row, on_conflict="kr_id,month").execute()
+        rows = r.data or []
+        if not rows:
+            return jsonify({"error": "Falha ao salvar checkpoint"}), 500
+
+        saved = rows[0]
+        _okr_log(company_id, cycle_id, "KR_CHECKPOINT", int(saved["id"]), "UPSERT", saved)
+
+        return jsonify({"saved": True, "checkpoint": saved}), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _calc_progress_percent(baseline, target, actual, direction: str):
+    """
+    Retorna progresso 0..100 (float).
+    direction:
+      - UP: quanto maior melhor (baseline -> target)
+      - DOWN: quanto menor melhor (baseline -> target)
+    """
+    try:
+        b = float(baseline)
+        t = float(target)
+        a = float(actual)
+    except Exception:
+        return None
+
+    direction = (direction or "UP").strip().upper()
+
+    if direction == "DOWN":
+        denom = (b - t)
+        if denom == 0:
+            return 0.0
+        p = (b - a) / denom
+    else:
+        denom = (t - b)
+        if denom == 0:
+            return 0.0
+        p = (a - b) / denom
+
+    # clamp 0..1
+    if p < 0:
+        p = 0.0
+    if p > 1:
+        p = 1.0
+    return round(p * 100.0, 2)
+
+
+@app.route("/api/okr/krs/<int:kr_id>/progress", methods=["GET"])
+def api_okr_kr_progress(kr_id: int):
+    """
+    GET /api/okr/krs/<kr_id>/progress?company_id=1&cycle_id=1
+    Calcula progresso com base no ÚLTIMO checkpoint (maior month).
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        # 1) KR
+        r_kr = (
+            supabase.table("okr_key_results")
+            .select("*")
+            .eq("id", kr_id)
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .limit(1)
+            .execute()
+        )
+        krs = r_kr.data or []
+        if not krs:
+            return jsonify({"error": "KR não encontrado"}), 404
+        kr = krs[0]
+
+        # 2) último checkpoint
+        r_cp = (
+            supabase.table("okr_kr_checkpoints")
+            .select("*")
+            .eq("kr_id", kr_id)
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .order("month", desc=True)
+            .limit(1)
+            .execute()
+        )
+        cps = r_cp.data or []
+        last_cp = cps[0] if cps else None
+
+        percent = None
+        if last_cp and last_cp.get("actual_value") is not None:
+            percent = _calc_progress_percent(
+                kr.get("baseline"),
+                kr.get("target"),
+                last_cp.get("actual_value"),
+                kr.get("direction")
+            )
+
+        return jsonify({
+            "kr_id": kr_id,
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "baseline": kr.get("baseline"),
+            "target": kr.get("target"),
+            "direction": kr.get("direction"),
+            "last_checkpoint": last_cp,
+            "progress_percent": percent
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
