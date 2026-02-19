@@ -3780,6 +3780,23 @@ def _okr_settings_default_row(company_id: int, cycle_id: int) -> dict:
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
 
+from postgrest.exceptions import APIError
+
+def _safe_exec_and_ignore_204(fn):
+    """
+    Alguns inserts/upserts retornam 204 e o client levanta APIError 'Missing response'.
+    Aqui a gente ignora 204 e segue o fluxo (depois fazemos SELECT).
+    """
+    try:
+        return fn()
+    except APIError as e:
+        payload = e.args[0] if e.args else None
+        if isinstance(payload, dict) and str(payload.get("code")) == "204":
+            return None
+        raise
+
+
+
 
 @app.route("/api/okr/settings", methods=["GET"])
 def api_okr_settings_get():
@@ -3805,9 +3822,21 @@ def api_okr_settings_get():
 
         if not row:
             payload = _okr_settings_default_row(company_id, cycle_id)
-            ins = supabase.table("okr_settings").insert(payload).execute()
-            rows = ins.data or []
-            row = rows[0] if rows else payload
+
+            
+            _safe_exec_and_ignore_204(lambda: supabase.table("okr_settings").insert(payload).execute())
+
+            # re-busca (garante retorno mesmo se veio 204)
+            r2 = (
+                supabase.table("okr_settings")
+                .select("*")
+                .eq("company_id", company_id)
+                .eq("cycle_id", cycle_id)
+                .maybe_single()
+                .execute()
+            )
+            row = r2.data or payload
+
 
         return jsonify({"settings": row}), 200
 
@@ -3858,12 +3887,23 @@ def api_okr_settings_put():
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-        r = supabase.table("okr_settings").upsert(payload, on_conflict="company_id,cycle_id").execute()
-        rows = r.data or []
-        if not rows:
-            return jsonify({"error": "Falha ao salvar settings"}), 500
+        _safe_exec_and_ignore_204(lambda: supabase.table("okr_settings").upsert(payload, on_conflict="company_id,cycle_id").execute())
 
-        saved = rows[0]
+        # re-busca (garante retorno mesmo se veio 204)
+        r2 = (
+            supabase.table("okr_settings")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .maybe_single()
+            .execute()
+        )
+        saved = r2.data
+        if not saved:
+            return jsonify({"error": "Falha ao salvar settings (sem retorno após re-busca)"}), 500
+
+
+        
         _okr_log(company_id, cycle_id, "SETTINGS", int(saved["id"]), "UPSERT", saved)
 
         return jsonify({"saved": True, "settings": saved}), 200
