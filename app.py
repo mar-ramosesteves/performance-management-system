@@ -4047,6 +4047,93 @@ def api_okr_kr_progress_auto(kr_id: int):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def _build_company_tree(rows):
+    """
+    rows: lista de dicts de okr_companies
+    Retorna árvore: [{id, name, slug, company_type, children:[...]}]
+    """
+    by_id = {r["id"]: {**r, "children": []} for r in rows}
+    roots = []
+
+    for r in rows:
+        pid = r.get("parent_company_id")
+        node = by_id[r["id"]]
+        if pid and pid in by_id:
+            by_id[pid]["children"].append(node)
+        else:
+            roots.append(node)
+
+    # ordenação opcional: sort_order, depois name
+    def sort_children(n):
+        n["children"].sort(key=lambda x: (x.get("sort_order") or 0, (x.get("name") or "").lower()))
+        for c in n["children"]:
+            sort_children(c)
+
+    roots.sort(key=lambda x: (x.get("sort_order") or 0, (x.get("name") or "").lower()))
+    for r in roots:
+        sort_children(r)
+
+    return roots
+
+
+def _tree_to_flat_options(nodes, level=0, out=None):
+    """
+    Converte árvore em lista flat para <select>, com label indentado.
+    """
+    if out is None:
+        out = []
+    for n in nodes:
+        prefix = ("— " * level)
+        label = f"{prefix}{n.get('name')} ({n.get('company_type')})"
+        out.append({
+            "id": n.get("id"),
+            "label": label,
+            "name": n.get("name"),
+            "slug": n.get("slug"),
+            "company_type": n.get("company_type"),
+            "parent_company_id": n.get("parent_company_id"),
+        })
+        if n.get("children"):
+            _tree_to_flat_options(n["children"], level + 1, out)
+    return out
+
+
+@app.route("/api/okr/companies/tree", methods=["GET"])
+def api_okr_companies_tree():
+    """
+    GET /api/okr/companies/tree
+    params:
+      include_inactive=true|false (default false)
+      include_demo=true|false (default false) -> controla 'empresa-demo'
+    Retorna:
+      { tree:[...], options:[...] }
+    """
+    try:
+        include_inactive = (request.args.get("include_inactive", "false").lower() == "true")
+        include_demo = (request.args.get("include_demo", "false").lower() == "true")
+
+        q = supabase.table("okr_companies").select(
+            "id,name,slug,company_type,parent_company_id,active,sort_order"
+        )
+
+        if not include_inactive:
+            q = q.eq("active", True)
+
+        if not include_demo:
+            q = q.neq("slug", "empresa-demo")
+
+        r = q.execute()
+        rows = r.data or []
+
+        tree = _build_company_tree(rows)
+        options = _tree_to_flat_options(tree)
+
+        return jsonify({"tree": tree, "options": options}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 
 
