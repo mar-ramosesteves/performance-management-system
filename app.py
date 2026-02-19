@@ -3908,6 +3908,147 @@ def api_okr_settings_put():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def _rating_to_percent_from_settings(r, settings: dict):
+    """
+    Converte rating (1..5) para % usando okr_settings.
+    Seu modelo: 1=excelente ... 5=insuficiente.
+    """
+    try:
+        rr = int(float(r))
+    except Exception:
+        return None
+
+    table = {
+        1: float(settings.get("rating_1_percent", 140)),
+        2: float(settings.get("rating_2_percent", 120)),
+        3: float(settings.get("rating_3_percent", 100)),
+        4: float(settings.get("rating_4_percent", 70)),
+        5: float(settings.get("rating_5_percent", 40)),
+    }
+    return table.get(rr, None)
+
+
+
+@app.route("/api/okr/krs/<int:kr_id>/progress-auto", methods=["GET"])
+def api_okr_kr_progress_auto(kr_id: int):
+    """
+    GET /api/okr/krs/<kr_id>/progress-auto?company_id=1&cycle_id=1
+    Progresso AUTOMÁTICO do KR baseado nas metas (individual_goals) linkadas.
+    Usa okr_settings (rating->%) e clamp_over_100.
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        # 1) carrega settings (sem maybe_single)
+        rs = (
+            supabase.table("okr_settings")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .limit(1)
+            .execute()
+        )
+        srows = rs.data or []
+        settings = srows[0] if srows else _okr_settings_default_row(company_id, cycle_id)
+        clamp = bool(settings.get("clamp_over_100", True))
+
+        # 2) links do tipo INDIVIDUAL_GOAL_TO_KR
+        r_links = (
+            supabase.table("okr_links")
+            .select("id,from_individual_goal_id,weight,note,created_at")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .eq("link_type", "INDIVIDUAL_GOAL_TO_KR")
+            .eq("to_kr_id", kr_id)
+            .order("id", desc=False)
+            .execute()
+        )
+        links = r_links.data or []
+        if not links:
+            return jsonify({
+                "kr_id": kr_id,
+                "company_id": company_id,
+                "cycle_id": cycle_id,
+                "mode": "AUTO",
+                "settings": settings,
+                "items": [],
+                "progress_percent_auto": None
+            }), 200
+
+        goal_ids = [x.get("from_individual_goal_id") for x in links if x.get("from_individual_goal_id") is not None]
+        goal_ids = [int(x) for x in goal_ids if x is not None]
+        if not goal_ids:
+            return jsonify({
+                "kr_id": kr_id,
+                "company_id": company_id,
+                "cycle_id": cycle_id,
+                "mode": "AUTO",
+                "settings": settings,
+                "items": [],
+                "progress_percent_auto": None
+            }), 200
+
+        # 3) metas (individual_goals)
+        r_goals = (
+            supabase.table("individual_goals")
+            .select("id,employee_id,goal_name,weight,rating")
+            .in_("id", goal_ids)
+            .execute()
+        )
+        goals = r_goals.data or []
+        goals_by_id = {int(g["id"]): g for g in goals if g.get("id") is not None}
+
+        # 4) calcula média ponderada pelo weight do link
+        items = []
+        total_w = 0.0
+        sum_w = 0.0
+
+        for l in links:
+            gid = l.get("from_individual_goal_id")
+            g = goals_by_id.get(int(gid)) if gid is not None else None
+
+            link_w = float(l.get("weight") or 1.0)
+            rating = (g or {}).get("rating")
+            pct = _rating_to_percent_from_settings(rating, settings) if rating is not None else None
+
+            items.append({
+                "link_id": l.get("id"),
+                "from_individual_goal_id": gid,
+                "link_weight": link_w,
+                "goal": g,
+                "rating": rating,
+                "percent": pct
+            })
+
+            if pct is not None:
+                total_w += link_w
+                sum_w += (pct * link_w)
+
+        progress = None
+        if total_w > 0:
+            progress = round(sum_w / total_w, 2)
+
+        if progress is not None and clamp and progress > 100:
+            progress = 100.0
+
+        return jsonify({
+            "kr_id": kr_id,
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "mode": "AUTO",
+            "settings": settings,
+            "items": items,
+            "progress_percent_auto": progress
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 
 if __name__ == '__main__':
