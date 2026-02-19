@@ -3798,6 +3798,17 @@ def _safe_exec_and_ignore_204(fn):
 
 
 
+from postgrest.exceptions import APIError
+
+def _safe_ignore_204(fn):
+    try:
+        return fn()
+    except APIError as e:
+        payload = e.args[0] if e.args else None
+        if isinstance(payload, dict) and str(payload.get("code")) == "204":
+            return None
+        raise
+
 @app.route("/api/okr/settings", methods=["GET"])
 def api_okr_settings_get():
     """
@@ -3810,33 +3821,32 @@ def api_okr_settings_get():
         if not company_id or not cycle_id:
             return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
 
+        # busca SEM maybe_single (evita bug 204)
         r = (
             supabase.table("okr_settings")
             .select("*")
             .eq("company_id", company_id)
             .eq("cycle_id", cycle_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        row = r.data
+        rows = r.data or []
+        row = rows[0] if rows else None
 
         if not row:
             payload = _okr_settings_default_row(company_id, cycle_id)
+            _safe_ignore_204(lambda: supabase.table("okr_settings").insert(payload).execute())
 
-            
-            _safe_exec_and_ignore_204(lambda: supabase.table("okr_settings").insert(payload).execute())
-
-            # re-busca (garante retorno mesmo se veio 204)
             r2 = (
                 supabase.table("okr_settings")
                 .select("*")
                 .eq("company_id", company_id)
                 .eq("cycle_id", cycle_id)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            row = r2.data or payload
-
+            rows2 = r2.data or []
+            row = rows2[0] if rows2 else payload
 
         return jsonify({"settings": row}), 200
 
@@ -3848,17 +3858,6 @@ def api_okr_settings_get():
 def api_okr_settings_put():
     """
     PUT /api/okr/settings
-    Body:
-    {
-      "company_id":1,
-      "cycle_id":1,
-      "rating_1_percent":140,
-      "rating_2_percent":120,
-      "rating_3_percent":100,
-      "rating_4_percent":70,
-      "rating_5_percent":40,
-      "clamp_over_100": true
-    }
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -3887,23 +3886,21 @@ def api_okr_settings_put():
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-        _safe_exec_and_ignore_204(lambda: supabase.table("okr_settings").upsert(payload, on_conflict="company_id,cycle_id").execute())
+        _safe_ignore_204(lambda: supabase.table("okr_settings").upsert(payload, on_conflict="company_id,cycle_id").execute())
 
-        # re-busca (garante retorno mesmo se veio 204)
         r2 = (
             supabase.table("okr_settings")
             .select("*")
             .eq("company_id", company_id)
             .eq("cycle_id", cycle_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        saved = r2.data
+        rows2 = r2.data or []
+        saved = rows2[0] if rows2 else None
         if not saved:
             return jsonify({"error": "Falha ao salvar settings (sem retorno após re-busca)"}), 500
 
-
-        
         _okr_log(company_id, cycle_id, "SETTINGS", int(saved["id"]), "UPSERT", saved)
 
         return jsonify({"saved": True, "settings": saved}), 200
