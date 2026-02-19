@@ -4134,6 +4134,54 @@ def api_okr_companies_tree():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/okr/org-units", methods=["GET"])
+def api_okr_org_units():
+    """
+    GET /api/okr/org-units
+    Retorna opções hierárquicas (HOLDING -> COMPANY -> DIVISION -> BUSINESS_LINE)
+    para popular o SELECT do front.
+    """
+    try:
+        r = (
+            supabase.table("okr_companies")
+            .select("id,name,slug,company_type,parent_company_id,sort_order,active")
+            .order("sort_order", desc=False)
+            .order("name", desc=False)
+            .execute()
+        )
+        rows = r.data or []
+
+        # agrupa por parent_company_id
+        by_parent = {}
+        for x in rows:
+            by_parent.setdefault(x.get("parent_company_id"), []).append(x)
+
+        def _sort(lst):
+            return sorted(lst, key=lambda a: ((a.get("sort_order") or 0), (a.get("name") or "")))
+
+        def walk(parent_id, depth):
+            out = []
+            for node in _sort(by_parent.get(parent_id, [])):
+                prefix = "— " * depth
+                out.append({
+                    "id": node["id"],
+                    "name": node.get("name"),
+                    "slug": node.get("slug"),
+                    "company_type": node.get("company_type"),
+                    "parent_company_id": node.get("parent_company_id"),
+                    "label": f"{prefix}{node.get('name')} ({node.get('company_type')})"
+                })
+                out.extend(walk(node["id"], depth + 1))
+            return out
+
+        options = walk(None, 0)
+        return jsonify({"options": options}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 
 
