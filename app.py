@@ -3699,6 +3699,69 @@ def api_okr_kr_progress(kr_id: int):
             "progress_percent": percent
         }), 200
 
+
+@app.route("/api/okr/krs/<int:kr_id>/linked-individual-goals", methods=["GET"])
+def api_okr_kr_linked_individual_goals(kr_id: int):
+    """
+    GET /api/okr/krs/<kr_id>/linked-individual-goals?company_id=1&cycle_id=1
+    Retorna as metas (individual_goals) linkadas ao KR via okr_links (INDIVIDUAL_GOAL_TO_KR)
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        # 1) links
+        r_links = (
+            supabase.table("okr_links")
+            .select("id,from_individual_goal_id,weight,note,created_at")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .eq("link_type", "INDIVIDUAL_GOAL_TO_KR")
+            .eq("to_kr_id", kr_id)
+            .order("id", desc=False)
+            .execute()
+        )
+        links = r_links.data or []
+        if not links:
+            return jsonify({"items": []}), 200
+
+        goal_ids = [x.get("from_individual_goal_id") for x in links if x.get("from_individual_goal_id") is not None]
+        goal_ids = [int(x) for x in goal_ids if x is not None]
+        if not goal_ids:
+            return jsonify({"items": []}), 200
+
+        # 2) metas (individual_goals)
+        r_goals = (
+            supabase.table("individual_goals")
+            .select("id,employee_id,goal_name,goal_description,weight,rating,round_code,evaluation_id")
+            .in_("id", goal_ids)
+            .execute()
+        )
+        goals = r_goals.data or []
+        goals_by_id = {int(g["id"]): g for g in goals if g.get("id") is not None}
+
+        # 3) merge link + meta
+        out = []
+        for l in links:
+            gid = l.get("from_individual_goal_id")
+            g = goals_by_id.get(int(gid)) if gid is not None else None
+            out.append({
+                "link_id": l.get("id"),
+                "weight": l.get("weight"),
+                "note": l.get("note"),
+                "created_at": l.get("created_at"),
+                "goal": g
+            })
+
+        return jsonify({"items": out}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
