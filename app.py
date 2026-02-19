@@ -3762,8 +3762,7 @@ def api_okr_kr_linked_individual_goals(kr_id: int):
 
     
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    
 
 
 
