@@ -3765,6 +3765,114 @@ def api_okr_kr_linked_individual_goals(kr_id: int):
 # ===== FIM DA NOVA ROTA =====
 
 
+# ===================== OKR Module: Settings (rating -> percent) =====================
+
+def _okr_settings_default_row(company_id: int, cycle_id: int) -> dict:
+    return {
+        "company_id": company_id,
+        "cycle_id": cycle_id,
+        "rating_1_percent": 140,
+        "rating_2_percent": 120,
+        "rating_3_percent": 100,
+        "rating_4_percent": 70,
+        "rating_5_percent": 40,
+        "clamp_over_100": True,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+
+@app.route("/api/okr/settings", methods=["GET"])
+def api_okr_settings_get():
+    """
+    GET /api/okr/settings?company_id=1&cycle_id=1
+    Se não existir, cria com default e retorna.
+    """
+    try:
+        company_id = request.args.get("company_id", type=int)
+        cycle_id = request.args.get("cycle_id", type=int)
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        r = (
+            supabase.table("okr_settings")
+            .select("*")
+            .eq("company_id", company_id)
+            .eq("cycle_id", cycle_id)
+            .maybe_single()
+            .execute()
+        )
+        row = r.data
+
+        if not row:
+            payload = _okr_settings_default_row(company_id, cycle_id)
+            ins = supabase.table("okr_settings").insert(payload).execute()
+            rows = ins.data or []
+            row = rows[0] if rows else payload
+
+        return jsonify({"settings": row}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/okr/settings", methods=["PUT"])
+def api_okr_settings_put():
+    """
+    PUT /api/okr/settings
+    Body:
+    {
+      "company_id":1,
+      "cycle_id":1,
+      "rating_1_percent":140,
+      "rating_2_percent":120,
+      "rating_3_percent":100,
+      "rating_4_percent":70,
+      "rating_5_percent":40,
+      "clamp_over_100": true
+    }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        company_id = int(body.get("company_id") or 0)
+        cycle_id = int(body.get("cycle_id") or 0)
+
+        if not company_id or not cycle_id:
+            return jsonify({"error": "company_id e cycle_id obrigatórios"}), 400
+
+        def _num(name, default):
+            v = body.get(name, default)
+            try:
+                return float(v)
+            except Exception:
+                return float(default)
+
+        payload = {
+            "company_id": company_id,
+            "cycle_id": cycle_id,
+            "rating_1_percent": _num("rating_1_percent", 140),
+            "rating_2_percent": _num("rating_2_percent", 120),
+            "rating_3_percent": _num("rating_3_percent", 100),
+            "rating_4_percent": _num("rating_4_percent", 70),
+            "rating_5_percent": _num("rating_5_percent", 40),
+            "clamp_over_100": bool(body.get("clamp_over_100", True)),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        r = supabase.table("okr_settings").upsert(payload, on_conflict="company_id,cycle_id").execute()
+        rows = r.data or []
+        if not rows:
+            return jsonify({"error": "Falha ao salvar settings"}), 500
+
+        saved = rows[0]
+        _okr_log(company_id, cycle_id, "SETTINGS", int(saved["id"]), "UPSERT", saved)
+
+        return jsonify({"saved": True, "settings": saved}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
 
