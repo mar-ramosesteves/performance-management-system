@@ -4181,6 +4181,170 @@ def api_okr_org_units():
         return jsonify({"error": str(e)}), 500
 
 
+# ===================== Employee History (snapshot + movements) =====================
+
+def _get_previous_closed_competence(comp: _date):
+    """Retorna a competência CLOSED imediatamente anterior à informada."""
+    try:
+        r = (
+            supabase.table("competence_locks")
+            .select("competence")
+            .eq("status", "CLOSED")
+            .lt("competence", comp.isoformat())
+            .order("competence", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        if not rows:
+            return None
+        return _date.fromisoformat(rows[0]["competence"])
+    except Exception as e:
+        print("[employee-history] erro _get_previous_closed_competence:", e)
+        return None
+
+
+def _rpc_month_snapshot(comp: _date):
+    """
+    Tenta montar snapshot do mês via RPC hc_month_rows.
+    Retorna lista de colaboradores no formato esperado pelo frontend.
+    """
+    if not comp:
+        return []
+
+    try:
+        rpc_res = supabase.rpc("hc_month_rows", {"p_competence": comp.isoformat()}).execute()
+        rows = rpc_res.data or []
+        out = []
+
+        for r in rows:
+            rt = str(r.get("registro_tipo") or "").upper()
+            if rt not in ("HC", "LEAK"):
+                continue
+            if r.get("admission_after_month"):
+                continue
+
+            out.append({
+                "id": r.get("employee_id"),
+                "employee_id": r.get("employee_id"),
+                "employee_code": r.get("employee_code"),
+                "nome": r.get("nome"),
+                "cargo": r.get("cargo"),
+                "empresa": r.get("company_name") or r.get("empresa"),
+                "company_name": r.get("company_name") or r.get("empresa"),
+                "department_name": r.get("department_name"),
+                "employment_status": r.get("employment_status"),
+                "leave_reason": r.get("leave_reason"),
+                "admission_date": r.get("admission_date"),
+                "manager_name": r.get("manager_name") or "Sem gestor",
+                "holding": r.get("holding"),
+                "salario": r.get("salario"),
+            })
+
+        out.sort(key=lambda x: str(x.get("nome") or "").upper())
+        return out
+
+    except Exception as e:
+        print("[employee-history] erro _rpc_month_snapshot:", e)
+        return []
+
+
+def _load_competence_movements(comp: _date):
+    """Lê movimentos do employee_history da competência informada."""
+    try:
+        r = (
+            supabase.table("employee_history")
+            .select("employee_id,competence,round_code,action,changed_at,changed_by,data")
+            .eq("competence", comp.isoformat())
+            .order("changed_at", desc=False)
+            .execute()
+        )
+        return r.data or []
+    except Exception as e:
+        print("[employee-history] erro _load_competence_movements:", e)
+        return []
+
+
+def _apply_movements_to_snapshot(base_snapshot: list, movements: list):
+    """
+    Aplica CREATE/UPDATE/DELETE em memória:
+    - CREATE/UPDATE: substitui estado do colaborador pelo data mais recente
+    - DELETE/REMOVE: remove do snapshot
+    """
+    by_id = {}
+
+    for row in (base_snapshot or []):
+        rid = row.get("id") or row.get("employee_id")
+        if rid is None:
+            continue
+        by_id[int(rid)] = dict(row)
+
+    for mv in (movements or []):
+        action = str(mv.get("action") or "").upper()
+        data = mv.get("data") or {}
+
+        emp_id = mv.get("employee_id") or data.get("id") or data.get("employee_id")
+        if emp_id is None:
+            continue
+        emp_id = int(emp_id)
+
+        if action in ("DELETE", "REMOVE"):
+            by_id.pop(emp_id, None)
+            continue
+
+        if isinstance(data, dict) and data:
+            merged = dict(data)
+            merged.setdefault("id", emp_id)
+            by_id[emp_id] = merged
+
+    snapshot = list(by_id.values())
+    snapshot.sort(key=lambda x: str(x.get("nome") or "").upper())
+    return snapshot
+
+
+@app.route("/api/employee-history", methods=["GET"])
+def api_employee_history():
+    """
+    GET /api/employee-history?competence=YYYY-MM-01
+
+    Regras:
+    - CLOSED: retorna snapshot fechado da própria competência + movimentos da competência
+    - OPEN: snapshot da última CLOSED anterior + movimentos da competência aberta aplicados
+    """
+    try:
+        comp = _competence_from_request()
+        is_closed = _is_competence_closed(comp)
+
+        movements = _load_competence_movements(comp)
+
+        if is_closed:
+            snapshot = _rpc_month_snapshot(comp)
+            if not snapshot:
+                snapshot = _apply_movements_to_snapshot([], movements)
+        else:
+            prev_closed = _get_previous_closed_competence(comp)
+            base_snapshot = _rpc_month_snapshot(prev_closed) if prev_closed else []
+
+            if not base_snapshot:
+                try:
+                    er = supabase.table("employees").select("*").execute()
+                    base_snapshot = er.data or []
+                except Exception:
+                    base_snapshot = []
+
+            snapshot = _apply_movements_to_snapshot(base_snapshot, movements)
+
+        return jsonify({
+            "competence": comp.isoformat(),
+            "status": "CLOSED" if is_closed else "OPEN",
+            "snapshot": snapshot,
+            "movements": movements
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 
 
