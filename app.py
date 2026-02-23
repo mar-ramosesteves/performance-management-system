@@ -8,7 +8,7 @@ from supabase import create_client, Client
 from datetime import date as _date
 
 from datetime import datetime, timezone
-
+from datetime import datetime, timedelta
 import base64, hmac, hashlib, time
 from urllib.parse import urlencode
 from flask import make_response
@@ -4308,8 +4308,8 @@ def api_employee_history():
     GET /api/employee-history?competence=YYYY-MM-01
 
     Retorna:
-    - snapshot: lista de profissionais (enriquecidos com employees) para headcount agrupado
-    - movements: movimentações no mês (CREATE, UPDATE)
+    - snapshot: MONTH_SNAPSHOT da competência OU, se vazio, vigentes = mês anterior + movimentos do mês
+    - movements: CREATE e UPDATE da competência
     """
     try:
         comp_str = (request.args.get('competence') or '').strip()
@@ -4325,8 +4325,8 @@ def api_employee_history():
 
         comp_iso = comp.isoformat()
 
-        # 1) Snapshot: MONTH_SNAPSHOT da employee_history
-        snapshot_raw = []
+        # 1) Snapshot: MONTH_SNAPSHOT da competência
+        snapshot = []
         try:
             r_snap = (
                 supabase.table('employee_history')
@@ -4349,45 +4349,11 @@ def api_employee_history():
                     d['employee_id'] = row.get('employee_id')
                     if d.get('id') is None:
                         d['id'] = row.get('employee_id')
-                    snapshot_raw.append(d)
+                    snapshot.append(d)
         except Exception as e:
             print('[api_employee_history] snapshot:', e)
 
-        # 2) Enriquecer snapshot com employees (holding, company_name, manager_name) para agrupamento
-        snapshot = []
-        if snapshot_raw:
-            try:
-                ids = [r.get('id') or r.get('employee_id') for r in snapshot_raw if (r.get('id') or r.get('employee_id')) is not None]
-                ids = list(set(ids))
-                if ids:
-                    r_emp = supabase.table('employees').select('*').in_('id', ids).execute()
-                    emp_map = {e['id']: e for e in (r_emp.data or [])}
-                    for r in snapshot_raw:
-                        eid = r.get('id') or r.get('employee_id')
-                        emp = emp_map.get(eid) if eid is not None else None
-                        if emp:
-                            out = dict(emp)
-                            # Manter status da competência do snapshot
-                            if r.get('employment_status') is not None:
-                                out['employment_status'] = r['employment_status']
-                            if r.get('leave_reason') is not None:
-                                out['leave_reason'] = r['leave_reason']
-                            if r.get('admission_date') is not None:
-                                out['admission_date'] = r['admission_date']
-                            snapshot.append(out)
-                        else:
-                            # Fallback: usar o que veio do snapshot
-                            r.setdefault('holding', 'Não informado')
-                            r.setdefault('company_name', r.get('empresa') or 'Não informado')
-                            r.setdefault('manager_name', 'Sem gestor')
-                            snapshot.append(r)
-                else:
-                    snapshot = snapshot_raw
-            except Exception as e:
-                print('[api_employee_history] enriquecimento:', e)
-                snapshot = snapshot_raw
-
-        # 3) Movimentações: CREATE e UPDATE da competência (ordenado por data)
+        # 2) Movimentações: CREATE e UPDATE da competência (ordenado por data)
         movements = []
         try:
             r_mov = (
@@ -4415,6 +4381,67 @@ def api_employee_history():
                 })
         except Exception as e:
             print('[api_employee_history] movements:', e)
+
+        # 3) Se não tem MONTH_SNAPSHOT (mês aberto), montar vigentes = mês anterior + alterações e inclusões
+        if not snapshot:
+            try:
+                # Mês anterior
+                if comp.month == 1:
+                    comp_prev = comp.replace(year=comp.year - 1, month=12, day=1)
+                else:
+                    comp_prev = comp.replace(month=comp.month - 1, day=1)
+                comp_prev_iso = comp_prev.isoformat()
+
+                r_prev = (
+                    supabase.table('employee_history')
+                    .select('employee_id, data')
+                    .eq('competence', comp_prev_iso)
+                    .eq('action', 'MONTH_SNAPSHOT')
+                    .execute()
+                )
+                # base: employee_id -> estado (dict)
+                base = {}
+                for row in (r_prev.data or []):
+                    d = row.get('data')
+                    if d is None:
+                        continue
+                    if isinstance(d, str):
+                        try:
+                            d = json.loads(d)
+                        except Exception:
+                            continue
+                    if isinstance(d, dict):
+                        eid = row.get('employee_id')
+                        if eid is not None:
+                            d = dict(d)
+                            d['id'] = d.get('id') or eid
+                            d['employee_id'] = eid
+                            base[eid] = d
+
+                # Aplicar movimentos do mês (CREATE e UPDATE) em ordem
+                for m in movements:
+                    eid = m.get('employee_id')
+                    data = m.get('data') or {}
+                    if eid is None:
+                        continue
+                    if m.get('action') == 'CREATE':
+                        data = dict(data)
+                        data['id'] = data.get('id') or eid
+                        data['employee_id'] = eid
+                        base[eid] = data
+                    else:
+                        # UPDATE: mesclar no estado atual
+                        if eid in base:
+                            base[eid] = {**base[eid], **{k: v for k, v in data.items() if v is not None}}
+                        else:
+                            data = dict(data)
+                            data['id'] = data.get('id') or eid
+                            data['employee_id'] = eid
+                            base[eid] = data
+
+                snapshot = list(base.values())
+            except Exception as e:
+                print('[api_employee_history] vigentes:', e)
 
         return jsonify({
             'competence': comp_iso,
