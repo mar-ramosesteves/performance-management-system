@@ -4302,47 +4302,128 @@ def _apply_movements_to_snapshot(base_snapshot: list, movements: list):
     return snapshot
 
 
-@app.route("/api/employee-history", methods=["GET"])
+@app.route('/api/employee-history', methods=['GET'])
 def api_employee_history():
     """
     GET /api/employee-history?competence=YYYY-MM-01
 
-    Regras:
-    - CLOSED: retorna snapshot fechado da própria competência + movimentos da competência
-    - OPEN: snapshot da última CLOSED anterior + movimentos da competência aberta aplicados
+    Retorna:
+    - snapshot: lista de profissionais (enriquecidos com employees) para headcount agrupado
+    - movements: movimentações no mês (CREATE, UPDATE)
     """
     try:
-        comp = _competence_from_request()
-        is_closed = _is_competence_closed(comp)
+        comp_str = (request.args.get('competence') or '').strip()
+        if not comp_str:
+            return jsonify({'error': 'competence obrigatória (YYYY-MM-01)'}), 400
+        if len(comp_str) == 7 and comp_str[4] == '-':
+            comp_str = comp_str + '-01'
 
-        movements = _load_competence_movements(comp)
+        try:
+            comp = _month_start(datetime.fromisoformat(comp_str).date())
+        except (ValueError, TypeError):
+            return jsonify({'error': 'competence inválida'}), 400
 
-        if is_closed:
-            snapshot = _rpc_month_snapshot(comp)
-            if not snapshot:
-                snapshot = _apply_movements_to_snapshot([], movements)
-        else:
-            prev_closed = _get_previous_closed_competence(comp)
-            base_snapshot = _rpc_month_snapshot(prev_closed) if prev_closed else []
+        comp_iso = comp.isoformat()
 
-            if not base_snapshot:
-                try:
-                    er = supabase.table("employees").select("*").execute()
-                    base_snapshot = er.data or []
-                except Exception:
-                    base_snapshot = []
+        # 1) Snapshot: MONTH_SNAPSHOT da employee_history
+        snapshot_raw = []
+        try:
+            r_snap = (
+                supabase.table('employee_history')
+                .select('employee_id, data')
+                .eq('competence', comp_iso)
+                .eq('action', 'MONTH_SNAPSHOT')
+                .execute()
+            )
+            for row in (r_snap.data or []):
+                d = row.get('data')
+                if d is None:
+                    continue
+                if isinstance(d, str):
+                    try:
+                        d = json.loads(d)
+                    except Exception:
+                        continue
+                if isinstance(d, dict):
+                    d = dict(d)
+                    d['employee_id'] = row.get('employee_id')
+                    if d.get('id') is None:
+                        d['id'] = row.get('employee_id')
+                    snapshot_raw.append(d)
+        except Exception as e:
+            print('[api_employee_history] snapshot:', e)
 
-            snapshot = _apply_movements_to_snapshot(base_snapshot, movements)
+        # 2) Enriquecer snapshot com employees (holding, company_name, manager_name) para agrupamento
+        snapshot = []
+        if snapshot_raw:
+            try:
+                ids = [r.get('id') or r.get('employee_id') for r in snapshot_raw if (r.get('id') or r.get('employee_id')) is not None]
+                ids = list(set(ids))
+                if ids:
+                    r_emp = supabase.table('employees').select('*').in_('id', ids).execute()
+                    emp_map = {e['id']: e for e in (r_emp.data or [])}
+                    for r in snapshot_raw:
+                        eid = r.get('id') or r.get('employee_id')
+                        emp = emp_map.get(eid) if eid is not None else None
+                        if emp:
+                            out = dict(emp)
+                            # Manter status da competência do snapshot
+                            if r.get('employment_status') is not None:
+                                out['employment_status'] = r['employment_status']
+                            if r.get('leave_reason') is not None:
+                                out['leave_reason'] = r['leave_reason']
+                            if r.get('admission_date') is not None:
+                                out['admission_date'] = r['admission_date']
+                            snapshot.append(out)
+                        else:
+                            # Fallback: usar o que veio do snapshot
+                            r.setdefault('holding', 'Não informado')
+                            r.setdefault('company_name', r.get('empresa') or 'Não informado')
+                            r.setdefault('manager_name', 'Sem gestor')
+                            snapshot.append(r)
+                else:
+                    snapshot = snapshot_raw
+            except Exception as e:
+                print('[api_employee_history] enriquecimento:', e)
+                snapshot = snapshot_raw
+
+        # 3) Movimentações: CREATE e UPDATE da competência (ordenado por data)
+        movements = []
+        try:
+            r_mov = (
+                supabase.table('employee_history')
+                .select('employee_id, action, changed_at, changed_by, data')
+                .eq('competence', comp_iso)
+                .in_('action', ['CREATE', 'UPDATE'])
+                .order('changed_at', desc=False)
+                .execute()
+            )
+            for row in (r_mov.data or []):
+                d = row.get('data')
+                if isinstance(d, str):
+                    try:
+                        d = json.loads(d) if d else {}
+                    except Exception:
+                        d = {}
+                movements.append({
+                    'employee_id': row.get('employee_id'),
+                    'action': row.get('action'),
+                    'changed_at': row.get('changed_at'),
+                    'changed_by': row.get('changed_by'),
+                    'data': d if isinstance(d, dict) else {},
+                    'previous_data': None
+                })
+        except Exception as e:
+            print('[api_employee_history] movements:', e)
 
         return jsonify({
-            "competence": comp.isoformat(),
-            "status": "CLOSED" if is_closed else "OPEN",
-            "snapshot": snapshot,
-            "movements": movements
+            'competence': comp_iso,
+            'snapshot': snapshot,
+            'movements': movements
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': 'HISTORY_FAILED', 'details': str(e)}), 500
 
 
 
