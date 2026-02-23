@@ -4382,10 +4382,10 @@ def api_employee_history():
         except Exception as e:
             print('[api_employee_history] movements:', e)
 
-        # 3) Se não tem MONTH_SNAPSHOT (mês aberto), montar vigentes = mês anterior + alterações e inclusões
-        if not snapshot:
+        # 3) Só vigentes quando o mês NÃO tem snapshot no DB E tem movimentos.
+        #    Dez = 70 (tem snapshot). Jan = 73 (sem snapshot no DB + tem CREATE/UPDATE). Fev = 0 (sem snapshot, sem movimentos).
+        if not snapshot and movements:
             try:
-                # Mês anterior
                 if comp.month == 1:
                     comp_prev = comp.replace(year=comp.year - 1, month=12, day=1)
                 else:
@@ -4399,7 +4399,6 @@ def api_employee_history():
                     .eq('action', 'MONTH_SNAPSHOT')
                     .execute()
                 )
-                # base: employee_id -> estado (dict)
                 base = {}
                 for row in (r_prev.data or []):
                     d = row.get('data')
@@ -4418,7 +4417,6 @@ def api_employee_history():
                             d['employee_id'] = eid
                             base[eid] = d
 
-                # Aplicar movimentos do mês (CREATE e UPDATE) em ordem
                 for m in movements:
                     eid = m.get('employee_id')
                     data = m.get('data') or {}
@@ -4430,7 +4428,6 @@ def api_employee_history():
                         data['employee_id'] = eid
                         base[eid] = data
                     else:
-                        # UPDATE: mesclar no estado atual
                         if eid in base:
                             base[eid] = {**base[eid], **{k: v for k, v in data.items() if v is not None}}
                         else:
@@ -4442,6 +4439,7 @@ def api_employee_history():
                 snapshot = list(base.values())
             except Exception as e:
                 print('[api_employee_history] vigentes:', e)
+        # Se não tem movimentos (ex.: fev), snapshot fica o que veio do DB (vazio) = 0.
 
         return jsonify({
             'competence': comp_iso,
