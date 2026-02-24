@@ -4353,7 +4353,7 @@ def api_employee_history():
         except Exception as e:
             print('[api_employee_history] snapshot:', e)
 
-                # 2) Movimentações: CREATE e UPDATE da competência (ordenado por data)
+        # 2) Movimentações: CREATE e UPDATE da competência (ordenado por data)
         #    Paginação: buscar em lotes de 1000 para não perder nenhum registro
         movements = []
         try:
@@ -4387,8 +4387,6 @@ def api_employee_history():
                         'data': d if isinstance(d, dict) else {},
                         'previous_data': None
                     })
-                if len(rows) < page_size:
-                    break
                 offset += page_size
             # DEBUG: ver no Render Logs se o Pedro (250) está na resposta
             _pedro = sum(1 for m in movements if m.get('employee_id') == 250)
