@@ -4353,8 +4353,8 @@ def api_employee_history():
         except Exception as e:
             print('[api_employee_history] snapshot:', e)
 
-        # 2) Movimentações: CREATE e UPDATE da competência (ordenado por data)
-        #    Paginação: buscar em lotes de 1000 para não perder nenhum registro (limite padrão do PostgREST)
+                # 2) Movimentações: CREATE e UPDATE da competência (ordenado por data)
+        #    Paginação: buscar em lotes de 1000 para não perder nenhum registro
         movements = []
         try:
             page_size = 1000
@@ -4390,6 +4390,9 @@ def api_employee_history():
                 if len(rows) < page_size:
                     break
                 offset += page_size
+            # DEBUG: ver no Render Logs se o Pedro (250) está na resposta
+            _pedro = sum(1 for m in movements if m.get('employee_id') == 250)
+            print(f'[api_employee_history] competence={comp_iso} total_movements={len(movements)} employee_250_count={_pedro}')
         except Exception as e:
             print('[api_employee_history] movements:', e)
 
