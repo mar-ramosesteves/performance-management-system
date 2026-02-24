@@ -4354,32 +4354,42 @@ def api_employee_history():
             print('[api_employee_history] snapshot:', e)
 
         # 2) Movimentações: CREATE e UPDATE da competência (ordenado por data)
+        #    Paginação: buscar em lotes de 1000 para não perder nenhum registro (limite padrão do PostgREST)
         movements = []
         try:
-            r_mov = (
-                supabase.table('employee_history')
-                .select('employee_id, action, changed_at, changed_by, data')
-                .eq('competence', comp_iso)
-                .in_('action', ['CREATE', 'UPDATE'])
-                .order('changed_at', desc=False)
-                .limit(10000)
-                .execute()
-            )
-            for row in (r_mov.data or []):
-                d = row.get('data')
-                if isinstance(d, str):
-                    try:
-                        d = json.loads(d) if d else {}
-                    except Exception:
-                        d = {}
-                movements.append({
-                    'employee_id': row.get('employee_id'),
-                    'action': row.get('action'),
-                    'changed_at': row.get('changed_at'),
-                    'changed_by': row.get('changed_by'),
-                    'data': d if isinstance(d, dict) else {},
-                    'previous_data': None
-                })
+            page_size = 1000
+            offset = 0
+            while True:
+                r_mov = (
+                    supabase.table('employee_history')
+                    .select('employee_id, action, changed_at, changed_by, data')
+                    .eq('competence', comp_iso)
+                    .in_('action', ['CREATE', 'UPDATE'])
+                    .order('changed_at', desc=False)
+                    .range(offset, offset + page_size - 1)
+                    .execute()
+                )
+                rows = r_mov.data or []
+                if not rows:
+                    break
+                for row in rows:
+                    d = row.get('data')
+                    if isinstance(d, str):
+                        try:
+                            d = json.loads(d) if d else {}
+                        except Exception:
+                            d = {}
+                    movements.append({
+                        'employee_id': row.get('employee_id'),
+                        'action': row.get('action'),
+                        'changed_at': row.get('changed_at'),
+                        'changed_by': row.get('changed_by'),
+                        'data': d if isinstance(d, dict) else {},
+                        'previous_data': None
+                    })
+                if len(rows) < page_size:
+                    break
+                offset += page_size
         except Exception as e:
             print('[api_employee_history] movements:', e)
 
