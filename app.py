@@ -4362,6 +4362,7 @@ def api_employee_history():
                 .eq('competence', comp_iso)
                 .in_('action', ['CREATE', 'UPDATE'])
                 .order('changed_at', desc=False)
+                .limit(10000)
                 .execute()
             )
             for row in (r_mov.data or []):
