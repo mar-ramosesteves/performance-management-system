@@ -497,6 +497,14 @@
       .replace(/^"+|"+$/g, '')
       .trim();
 
+    function excludeDismissedEmployees(rows) {
+      if (!Array.isArray(rows)) return [];
+      return rows.filter((emp) => {
+        const s = String(emp?.employment_status ?? '').trim().toUpperCase();
+        return s !== 'DESLIGADO';
+      });
+    }    
+
     // ===== Helpers de formatação (únicos) =====
     window.moneyBR = window.moneyBR || function(v){
       if (v==null || v==='') return '-';
@@ -579,7 +587,12 @@
         if (sec) sec.style.display = 'block';
         try {
           const resp = await fetch('/api/employees/by-manager?manager_name=' + encodeURIComponent(MANAGER_NAME));
-          const employees = await resp.json();
+
+            
+          let employees = await resp.json();
+          employees = excludeDismissedEmployees(employees);
+
+            
           const container = document.getElementById('employees-container');
           if (!container) return;
           container.innerHTML = '';
@@ -622,7 +635,11 @@
 
       try {
         const response = await fetch('/api/employees');
-        const employees = await response.json();
+          
+        let employees = await response.json();
+        employees = excludeDismissedEmployees(employees);
+
+          
         const sec = document.getElementById('employees-section');
         if (sec) sec.style.display = 'block';
         const container = document.getElementById('employees-container');
@@ -1678,8 +1695,13 @@
         const url = `/api/employees/by-manager?manager_name=${encodeURIComponent(managerName)}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error('Falha ao buscar funcionários do gestor');
-        const data = await r.json();
-        renderEmployeesCards(data || []);
+
+          
+        let data = await r.json();
+        data = excludeDismissedEmployees(Array.isArray(data) ? data : []);
+        renderEmployeesCards(data);
+
+          
       }catch(e){
         console.error(e);
         alert('Erro ao carregar equipe do gestor.');
