@@ -2069,6 +2069,148 @@ def api_ninebox():
     except Exception as e:
         return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
+@app.route('/api/ninebox-contexto', methods=['GET'])
+def api_ninebox_contexto():
+    """
+    GET /api/ninebox-contexto
+
+    Versão multiempresa/multifilial do ninebox.
+
+    Parâmetros opcionais:
+      - round_code ou ciclo_codigo
+      - cliente_id
+      - holding_id
+      - empresa_id
+      - filial_id
+      - manager_name
+
+    Se não receber contexto, retorna dados gerais compatíveis com a lógica antiga.
+    """
+    try:
+        round_code = (
+            request.args.get('round_code')
+            or request.args.get('ciclo_codigo')
+            or ''
+        ).strip()
+
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+        manager_name = (request.args.get('manager_name') or '').strip()
+
+        # Se não vier round_code/ciclo_codigo, pega a rodada ativa antiga
+        if not round_code:
+            try:
+                r_cfg = (
+                    supabase
+                    .table('system_config')
+                    .select('config_value')
+                    .eq('config_key', 'active_round_code')
+                    .maybe_single()
+                    .execute()
+                )
+                round_code = ((r_cfg.data or {}).get('config_value') or '').strip()
+            except Exception as e:
+                print('[api_ninebox_contexto] erro ao ler active_round_code:', e)
+
+        q = (
+            supabase
+            .table('v_desempenho_contexto')
+            .select(
+                'evaluation_id,'
+                'employee_id,employee_name,cargo,'
+                'empresa_id,empresa_nome,'
+                'holding_id,holding_nome,'
+                'filial_id,filial_nome,'
+                'department_name,'
+                'manager_name,'
+                'round_code,ciclo_codigo,evaluation_year,ano_referencia,'
+                'final_rating,performance_rating,potential_rating,nine_box_position'
+            )
+        )
+
+        if round_code:
+            q = q.eq('ciclo_codigo', round_code)
+
+        if cliente_id:
+            q = q.eq('cliente_id', cliente_id)
+
+        if holding_id:
+            q = q.eq('holding_id', holding_id)
+
+        if empresa_id:
+            q = q.eq('empresa_id', empresa_id)
+
+        if filial_id:
+            q = q.eq('filial_id', filial_id)
+
+        if manager_name:
+            q = q.eq('manager_name', manager_name)
+
+        r = q.execute()
+        rows = r.data or []
+
+        items = []
+        for row in rows:
+            items.append({
+                'evaluation_id': row.get('evaluation_id'),
+                'employee_id': row.get('employee_id'),
+                'employee_name': row.get('employee_name'),
+                'cargo': row.get('cargo'),
+
+                # Campos compatíveis com o front antigo
+                'empresa': row.get('empresa_nome'),
+                'department_name': row.get('department_name'),
+                'manager_name': row.get('manager_name'),
+                'manager_code': None,
+
+                'final_rating': row.get('final_rating'),
+                'performance_rating': row.get('performance_rating'),
+                'potential_rating': row.get('potential_rating'),
+                'nine_box_position': row.get('nine_box_position'),
+
+                'round_code': row.get('ciclo_codigo') or row.get('round_code'),
+                'evaluation_year': row.get('ano_referencia') or row.get('evaluation_year'),
+                'evaluation_date': None,
+                'created_at': None,
+
+                # Campos novos multiempresa/multifilial
+                'holding_id': row.get('holding_id'),
+                'holding_nome': row.get('holding_nome'),
+                'empresa_id': row.get('empresa_id'),
+                'empresa_nome': row.get('empresa_nome'),
+                'filial_id': row.get('filial_id'),
+                'filial_nome': row.get('filial_nome'),
+            })
+
+        counts = {str(i): 0 for i in range(1, 10)}
+        for it in items:
+            p = it.get('nine_box_position')
+            if p is None:
+                continue
+            ps = str(p)
+            if ps in counts:
+                counts[ps] += 1
+
+        return jsonify({
+            'round_code': round_code,
+            'ciclo_codigo': round_code,
+            'cliente_id': cliente_id or None,
+            'holding_id': holding_id or None,
+            'empresa_id': empresa_id or None,
+            'filial_id': filial_id or None,
+            'manager_name': manager_name or None,
+            'total': len(items),
+            'counts': counts,
+            'items': items
+        }), 200
+
+    except Exception as e:
+        print('[api_ninebox_contexto] erro:', e)
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
+
 
 @app.route('/api/rounds/list', methods=['GET'], endpoint='api_rounds_list_v2')
 def api_rounds_list_v2():
