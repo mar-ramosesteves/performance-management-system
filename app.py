@@ -1717,8 +1717,14 @@ def classificar_colaborador(ratings: dict, final_rating: float,
     return 'NEUTRO'
 
 
-def buscar_avaliacoes_brutas(round_code: str | None = None,
-                             empresa: str | None = None) -> list[dict]:
+def buscar_avaliacoes_brutas(
+    round_code: str | None = None,
+    empresa: str | None = None,
+    holding_id: str | None = None,
+    empresa_id: str | None = None,
+    filial_id: str | None = None,
+    nivel_contexto: str | None = None
+) -> list[dict]:
     """
     Lê do Supabase:
       - evaluations  (médias por dimensão e rating final)
@@ -1726,7 +1732,13 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
 
     Retorna uma lista de dicts já no formato que a tela de
     'Mapas de Reconhecimento e PDI' vai consumir.
+
+    Agora também respeita contexto:
+      - holding
+      - empresa
+      - filial
     """
+
     # 1) Buscar avaliações
     try:
         query = (
@@ -1744,6 +1756,7 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
 
         r_eval = query.execute()
         eval_rows = r_eval.data or []
+
     except Exception as e:
         print('[buscar_avaliacoes_brutas] erro ao buscar evaluations:', e)
         return []
@@ -1769,18 +1782,36 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
             .select(
                 'id,'
                 'nome,cargo,empresa,'
+                'empresa_id,filial_id,'
                 'company_name,branch_name,department_name,'
                 'manager_name,manager_code'
             )
             .in_('id', employee_ids)
         )
 
-        # Filtro opcional por empresa
+        # Filtro antigo textual por empresa, mantido por compatibilidade
         if empresa:
             emp_query = emp_query.eq('empresa', empresa)
 
+        # Filtro novo por contexto
+        nivel = (nivel_contexto or '').strip().lower()
+
+        if nivel == 'empresa' and empresa_id:
+            emp_query = emp_query.eq('empresa_id', empresa_id)
+
+        elif nivel == 'filial':
+            if empresa_id:
+                emp_query = emp_query.eq('empresa_id', empresa_id)
+            if filial_id:
+                emp_query = emp_query.eq('filial_id', filial_id)
+
+        # Para holding, neste momento não filtramos na employees,
+        # pois a holding PROSPERA engloba todas as empresas do cliente atual.
+        # O filtro de holding pode ser refinado depois com cliente_id se necessário.
+
         r_emp = emp_query.execute()
         emp_rows = r_emp.data or []
+
     except Exception as e:
         print('[buscar_avaliacoes_brutas] erro ao buscar employees:', e)
         return []
@@ -1788,18 +1819,23 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
     if not emp_rows:
         return []
 
-    emp_by_id = {row['id']: row for row in emp_rows if row.get('id') is not None}
+    emp_by_id = {
+        row['id']: row
+        for row in emp_rows
+        if row.get('id') is not None
+    }
 
     # 4) Montar lista final
     resultado = []
+
     for ev in eval_rows:
         emp_id = ev.get('employee_id')
         emp = emp_by_id.get(emp_id)
+
         if not emp:
-            # Se aplicou filtro de empresa, alguns evaluations podem ficar sem employee
+            # Se aplicou filtro de contexto, alguns evaluations podem ficar sem employee
             continue
 
-        # Garantir floats
         def _f(v):
             try:
                 return round(float(v or 0), 2)
@@ -1812,6 +1848,7 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
             'INDIVIDUAL':    _f(ev.get('individual_avg')),
             'METAS':         _f(ev.get('metas_avg')),
         }
+
         final_rating = _f(ev.get('final_rating'))
 
         classificacao = classificar_colaborador(ratings, final_rating)
@@ -1820,12 +1857,18 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
             'employee_id': emp_id,
             'employee_name': emp.get('nome'),
             'cargo': emp.get('cargo'),
+
+            # Campos importantes para contexto/filtro no front
             'empresa': emp.get('empresa'),
+            'empresa_id': emp.get('empresa_id'),
             'company_name': emp.get('company_name'),
+            'filial_id': emp.get('filial_id'),
             'branch_name': emp.get('branch_name'),
+
             'department_name': emp.get('department_name'),
             'manager_name': emp.get('manager_name'),
             'manager_code': emp.get('manager_code'),
+
             'ratings': ratings,
             'final_rating': final_rating,
             'classificacao': classificacao,
@@ -1835,15 +1878,14 @@ def buscar_avaliacoes_brutas(round_code: str | None = None,
             'evaluation_id': ev.get('id'),
         })
 
-    # Ordenar para ficar bonitinho: por gestor, depois por nome
     resultado.sort(
         key=lambda x: (
             (x.get('manager_name') or '').strip().upper(),
             (x.get('employee_name') or '').strip().upper()
         )
     )
-    return resultado
 
+    return resultado
 
 @app.route('/api/relatorio-pdi-dimensoes', methods=['GET'])
 def api_relatorio_pdi_dimensoes():
@@ -1865,6 +1907,27 @@ def api_relatorio_pdi_dimensoes():
         # Parâmetros opcionais
         round_code = (request.args.get('round_code') or '').strip()
         empresa = (request.args.get('empresa') or '').strip() or None
+
+        holding_id = (request.args.get('holding_id') or '').strip() or None
+        empresa_id = (request.args.get('empresa_id') or '').strip() or None
+        filial_id = (request.args.get('filial_id') or '').strip() or None
+        nivel_contexto = (request.args.get('nivel_contexto') or '').strip().lower() or None
+        contexto_codigo = (request.args.get('contexto_codigo') or '').strip() or None
+        
+        print(
+            '[api_relatorio_pdi_dimensoes] contexto recebido:',
+            'nivel_contexto=', nivel_contexto,
+            'holding_id=', holding_id,
+            'empresa_id=', empresa_id,
+            'filial_id=', filial_id,
+            'contexto_codigo=', contexto_codigo
+        )
+
+
+
+
+
+        
 
         # ✅ Suporte a ?year=2025 (prioridade sobre active_round_code)
         year_param = (request.args.get('year') or '').strip()
@@ -1962,7 +2025,18 @@ def api_relatorio_pdi_dimensoes():
                 print('[api_relatorio_pdi_dimensoes] erro ao ler active_round_code:', e)
                 # se não achar, fica None mesmo -> busca todas as avaliações
 
-        avaliacoes = buscar_avaliacoes_brutas(round_code=round_code, empresa=empresa)
+        avaliacoes = buscar_avaliacoes_brutas(
+            round_code=round_code,
+            empresa=empresa,
+            holding_id=holding_id,
+            empresa_id=empresa_id,
+            filial_id=filial_id,
+            nivel_contexto=nivel_contexto
+        )
+
+
+
+        
 
         # Pequeno resumo de critérios (só informativo para o front)
         criteria = {
@@ -1981,6 +2055,15 @@ def api_relatorio_pdi_dimensoes():
             'source': 'supabase',
             'round_code': round_code,
             'empresa': empresa,
+
+            'nivel_contexto': nivel_contexto,
+            'holding_id': holding_id,
+            'empresa_id': empresa_id,
+            'filial_id': filial_id,
+            'contexto_codigo': contexto_codigo,
+
+
+            
             'generated_at': datetime.now(_tz.utc).isoformat(),
             'criteria': criteria,
             'total_avaliacoes': len(avaliacoes),
