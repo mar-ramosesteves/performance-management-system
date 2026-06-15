@@ -1259,38 +1259,28 @@ def api_competence_reopen():
                 "message": "filial_id é obrigatório para reabrir competência por filial."
             }), 400
 
-        payload = {
-            "competence": comp.isoformat(),
-            "cliente_id": cliente_id,
-            "holding_id": holding_id or None,
-            "empresa_id": empresa_id or None,
-            "filial_id": filial_id or None,
-            "nivel_contexto": nivel_contexto,
-            "contexto_nome": contexto_nome,
-            "status": "OPEN",
-
-            "reopened_at": datetime.now(timezone.utc).isoformat(),
-            "reopened_by": _get_actor(),
-            "reopen_reason": notes,
-
-            "closed_at": None,
-            "closed_by": None,
-            "closed_reason": None,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-
-        supabase.table("competence_context_locks").upsert(
-            payload,
-            on_conflict="competence,cliente_id,holding_id,empresa_id,filial_id"
-        ).execute()
-
-        return jsonify({
-            "message": "Competência contextual reaberta com sucesso.",
-            "competence": comp.isoformat(),
-            "status": "OPEN",
-            "nivel_contexto": nivel_contexto,
-            "contexto_nome": contexto_nome
-        }), 200
+        r = supabase.rpc("reopen_competence_contextual", {
+            "p_competence": comp.isoformat(),
+            "p_reopened_by": _get_actor(),
+            "p_reopen_reason": notes,
+            "p_nivel_contexto": nivel_contexto,
+            "p_cliente_id": cliente_id,
+            "p_holding_id": holding_id or None,
+            "p_empresa_id": empresa_id or None,
+            "p_filial_id": filial_id or None,
+            "p_contexto_nome": contexto_nome
+        }).execute()
+        
+        data = r.data
+        
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+        
+        if isinstance(data, dict):
+            if "out_competence" in data:
+                data["competence"] = data.pop("out_competence")
+        
+        return jsonify(data), 200
 
     except Exception as e:
         return jsonify({
