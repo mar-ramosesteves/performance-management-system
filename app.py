@@ -990,8 +990,25 @@ import traceback
 def api_competence_finalize():
     """
     POST /api/competence/finalize
-    Body:
-      { "competence": "YYYY-MM-01", "admin_code": "...", "reason": "..." }
+
+    Agora é contextual.
+    Body esperado:
+      {
+        "competence": "YYYY-MM-01",
+        "admin_code": "...",
+        "reason": "...",
+
+        "nivel_contexto": "holding|empresa|filial|cliente",
+        "cliente_id": "...",
+        "holding_id": "...",
+        "empresa_id": "...",
+        "filial_id": "...",
+        "contexto_nome": "..."
+      }
+
+    Importante:
+    - Não fecha mais globalmente sem contexto.
+    - Chama a RPC public.finalize_competence_contextual.
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -1009,46 +1026,87 @@ def api_competence_finalize():
         comp = _month_start(datetime.fromisoformat(comp_str).date())
         reason = str(body.get("reason") or "").strip() or None
 
+        nivel_contexto = str(body.get("nivel_contexto") or "").strip().lower()
+        cliente_id = str(body.get("cliente_id") or "").strip()
+        holding_id = str(body.get("holding_id") or "").strip()
+        empresa_id = str(body.get("empresa_id") or "").strip()
+        filial_id = str(body.get("filial_id") or "").strip()
+        contexto_nome = str(body.get("contexto_nome") or "").strip() or None
+
+        if not nivel_contexto:
+            return jsonify({
+                "error": "CONTEXT_REQUIRED",
+                "message": "Fechamento global bloqueado. Informe nivel_contexto."
+            }), 400
+
+        if nivel_contexto not in ["cliente", "holding", "empresa", "filial"]:
+            return jsonify({
+                "error": "INVALID_CONTEXT_LEVEL",
+                "message": "nivel_contexto inválido. Use cliente, holding, empresa ou filial."
+            }), 400
+
+        if not cliente_id:
+            return jsonify({
+                "error": "CLIENTE_ID_REQUIRED",
+                "message": "cliente_id é obrigatório para fechamento contextual."
+            }), 400
+
+        if nivel_contexto == "holding" and not holding_id:
+            return jsonify({
+                "error": "HOLDING_ID_REQUIRED",
+                "message": "holding_id é obrigatório para fechar competência por holding."
+            }), 400
+
+        if nivel_contexto == "empresa" and not empresa_id:
+            return jsonify({
+                "error": "EMPRESA_ID_REQUIRED",
+                "message": "empresa_id é obrigatório para fechar competência por empresa."
+            }), 400
+
+        if nivel_contexto == "filial" and not filial_id:
+            return jsonify({
+                "error": "FILIAL_ID_REQUIRED",
+                "message": "filial_id é obrigatório para fechar competência por filial."
+            }), 400
+
         try:
-            r = supabase.rpc("finalize_competence", {
+            r = supabase.rpc("finalize_competence_contextual", {
                 "p_competence": comp.isoformat(),
                 "p_closed_by": _get_actor(),
-                "p_closed_reason": reason
+                "p_closed_reason": reason,
+                "p_nivel_contexto": nivel_contexto,
+                "p_cliente_id": cliente_id,
+                "p_holding_id": holding_id or None,
+                "p_empresa_id": empresa_id or None,
+                "p_filial_id": filial_id or None,
+                "p_contexto_nome": contexto_nome
             }).execute()
 
             data = r.data
 
         except APIError as e:
-            # BUG/COMPORTAMENTO do client: quando a RPC retorna OBJETO (dict),
-            # ele pode disparar APIError mesmo com "sucesso".
             payload = e.args[0] if e.args else None
-            if isinstance(payload, dict) and payload.get("message") and payload.get("competence"):
+            if isinstance(payload, dict) and payload.get("message"):
                 return jsonify(payload), 200
             raise
 
-        # normaliza caso venha lista com 1 item
-        
-        data = r.data
         if isinstance(data, list) and len(data) == 1:
             data = data[0]
-        
-        # mapeia os nomes de saída para os nomes esperados no frontend
+
         if isinstance(data, dict):
             if "out_competence" in data:
                 data["competence"] = data.pop("out_competence")
             if "out_next_competence" in data:
                 data["next_competence"] = data.pop("out_next_competence")
-        
-        return jsonify(data), 200
 
+        return jsonify(data), 200
 
     except Exception as e:
         return jsonify({
-            "error": "FINALIZE_FAILED",
+            "error": "FINALIZE_CONTEXTUAL_FAILED",
             "details": str(e),
             "traceback": traceback.format_exc()
         }), 500
-
 
 
 @app.route("/api/competence/reopen", methods=["POST"])
