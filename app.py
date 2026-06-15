@@ -938,11 +938,29 @@ def api_competence_status():
 def api_competence_close():
     """
     POST /api/competence/close
-    Body:
-      { "competence": "YYYY-MM-01", "admin_code": "...", "notes": "..." }
+
+    Agora também é contextual.
+    Body esperado:
+      {
+        "competence": "YYYY-MM-01",
+        "admin_code": "...",
+        "notes": "...",
+
+        "nivel_contexto": "holding|empresa|filial|cliente",
+        "cliente_id": "...",
+        "holding_id": "...",
+        "empresa_id": "...",
+        "filial_id": "...",
+        "contexto_nome": "..."
+      }
+
+    Importante:
+    - Não fecha mais globalmente sem contexto.
+    - Usa a mesma RPC contextual do finalize.
     """
     try:
         body = request.get_json(silent=True) or {}
+
         admin_code = str(body.get("admin_code") or "").strip()
         if not ADMIN_WINDOW_CODE:
             return jsonify({"error": "ADMIN_WINDOW_CODE não configurado no servidor."}), 500
@@ -954,33 +972,82 @@ def api_competence_close():
             return jsonify({"error": "competence obrigatória no formato YYYY-MM-01"}), 400
 
         comp = _month_start(datetime.fromisoformat(comp_str).date())
-        notes = str(body.get("notes") or "").strip() or None
+        notes = str(body.get("notes") or body.get("reason") or "").strip() or None
 
-        # upsert (insere ou atualiza)
-        
-        payload = {
-            "competence": comp.isoformat(),
-            "status": "CLOSED",
-            "closed_at": datetime.now(timezone.utc).isoformat(),
-            "closed_by": _get_actor(),
-            "closed_reason": notes,   # <— era "notes"
-            "reopened_at": None,
-            "reopened_by": None,
-            "reopen_reason": None     # <— zera também o motivo de reabertura
-        }
+        nivel_contexto = str(body.get("nivel_contexto") or "").strip().lower()
+        cliente_id = str(body.get("cliente_id") or "").strip()
+        holding_id = str(body.get("holding_id") or "").strip()
+        empresa_id = str(body.get("empresa_id") or "").strip()
+        filial_id = str(body.get("filial_id") or "").strip()
+        contexto_nome = str(body.get("contexto_nome") or "").strip() or None
 
+        if not nivel_contexto:
+            return jsonify({
+                "error": "CONTEXT_REQUIRED",
+                "message": "Fechamento global bloqueado. Informe nivel_contexto."
+            }), 400
 
-        supabase.table("competence_locks").upsert(payload).execute()
+        if nivel_contexto not in ["cliente", "holding", "empresa", "filial"]:
+            return jsonify({
+                "error": "INVALID_CONTEXT_LEVEL",
+                "message": "nivel_contexto inválido. Use cliente, holding, empresa ou filial."
+            }), 400
 
-        return jsonify({
-            "message": "Competência fechada com sucesso.",
-            "competence": comp.isoformat(),
-            "status": "CLOSED"
-        }), 200
+        if not cliente_id:
+            return jsonify({
+                "error": "CLIENTE_ID_REQUIRED",
+                "message": "cliente_id é obrigatório para fechamento contextual."
+            }), 400
+
+        if nivel_contexto == "holding" and not holding_id:
+            return jsonify({
+                "error": "HOLDING_ID_REQUIRED",
+                "message": "holding_id é obrigatório para fechar competência por holding."
+            }), 400
+
+        if nivel_contexto == "empresa" and not empresa_id:
+            return jsonify({
+                "error": "EMPRESA_ID_REQUIRED",
+                "message": "empresa_id é obrigatório para fechar competência por empresa."
+            }), 400
+
+        if nivel_contexto == "filial" and not filial_id:
+            return jsonify({
+                "error": "FILIAL_ID_REQUIRED",
+                "message": "filial_id é obrigatório para fechar competência por filial."
+            }), 400
+
+        r = supabase.rpc("finalize_competence_contextual", {
+            "p_competence": comp.isoformat(),
+            "p_closed_by": _get_actor(),
+            "p_closed_reason": notes,
+            "p_nivel_contexto": nivel_contexto,
+            "p_cliente_id": cliente_id,
+            "p_holding_id": holding_id or None,
+            "p_empresa_id": empresa_id or None,
+            "p_filial_id": filial_id or None,
+            "p_contexto_nome": contexto_nome
+        }).execute()
+
+        data = r.data
+
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+
+        if isinstance(data, dict):
+            if "out_competence" in data:
+                data["competence"] = data.pop("out_competence")
+            if "out_next_competence" in data:
+                data["next_competence"] = data.pop("out_next_competence")
+
+        return jsonify(data), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({
+            "error": "CLOSE_CONTEXTUAL_FAILED",
+            "details": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
 
 
 from postgrest.exceptions import APIError
