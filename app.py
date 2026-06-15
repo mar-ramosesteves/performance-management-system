@@ -1180,8 +1180,25 @@ def api_competence_finalize():
 def api_competence_reopen():
     """
     POST /api/competence/reopen
-    Body:
-      { "competence": "YYYY-MM-01", "admin_code": "...", "notes": "..." }
+
+    Agora é contextual.
+    Body esperado:
+      {
+        "competence": "YYYY-MM-01",
+        "admin_code": "...",
+        "notes": "...",
+
+        "nivel_contexto": "holding|empresa|filial|cliente",
+        "cliente_id": "...",
+        "holding_id": "...",
+        "empresa_id": "...",
+        "filial_id": "...",
+        "contexto_nome": "..."
+      }
+
+    Importante:
+    - Não reabre mais globalmente sem contexto.
+    - Reabre apenas o contexto informado.
     """
     try:
         body = request.get_json(silent=True) or {}
@@ -1197,34 +1214,90 @@ def api_competence_reopen():
             return jsonify({"error": "competence obrigatória no formato YYYY-MM-01"}), 400
 
         comp = _month_start(datetime.fromisoformat(comp_str).date())
-        notes = str(body.get("notes") or "").strip() or None
+        notes = str(body.get("notes") or body.get("reason") or "").strip() or None
 
-        # ✅ colunas reais da tabela competence_locks
+        nivel_contexto = str(body.get("nivel_contexto") or "").strip().lower()
+        cliente_id = str(body.get("cliente_id") or "").strip()
+        holding_id = str(body.get("holding_id") or "").strip()
+        empresa_id = str(body.get("empresa_id") or "").strip()
+        filial_id = str(body.get("filial_id") or "").strip()
+        contexto_nome = str(body.get("contexto_nome") or "").strip() or None
+
+        if not nivel_contexto:
+            return jsonify({
+                "error": "CONTEXT_REQUIRED",
+                "message": "Reabertura global bloqueada. Informe nivel_contexto."
+            }), 400
+
+        if nivel_contexto not in ["cliente", "holding", "empresa", "filial"]:
+            return jsonify({
+                "error": "INVALID_CONTEXT_LEVEL",
+                "message": "nivel_contexto inválido. Use cliente, holding, empresa ou filial."
+            }), 400
+
+        if not cliente_id:
+            return jsonify({
+                "error": "CLIENTE_ID_REQUIRED",
+                "message": "cliente_id é obrigatório para reabertura contextual."
+            }), 400
+
+        if nivel_contexto == "holding" and not holding_id:
+            return jsonify({
+                "error": "HOLDING_ID_REQUIRED",
+                "message": "holding_id é obrigatório para reabrir competência por holding."
+            }), 400
+
+        if nivel_contexto == "empresa" and not empresa_id:
+            return jsonify({
+                "error": "EMPRESA_ID_REQUIRED",
+                "message": "empresa_id é obrigatório para reabrir competência por empresa."
+            }), 400
+
+        if nivel_contexto == "filial" and not filial_id:
+            return jsonify({
+                "error": "FILIAL_ID_REQUIRED",
+                "message": "filial_id é obrigatório para reabrir competência por filial."
+            }), 400
+
         payload = {
             "competence": comp.isoformat(),
+            "cliente_id": cliente_id,
+            "holding_id": holding_id or None,
+            "empresa_id": empresa_id or None,
+            "filial_id": filial_id or None,
+            "nivel_contexto": nivel_contexto,
+            "contexto_nome": contexto_nome,
             "status": "OPEN",
 
             "reopened_at": datetime.now(timezone.utc).isoformat(),
             "reopened_by": _get_actor(),
             "reopen_reason": notes,
 
-            # opcional: “zera” fechamento anterior ao reabrir
             "closed_at": None,
             "closed_by": None,
             "closed_reason": None,
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-        supabase.table("competence_locks").upsert(payload).execute()
+        supabase.table("competence_context_locks").upsert(
+            payload,
+            on_conflict="competence,cliente_id,holding_id,empresa_id,filial_id"
+        ).execute()
 
         return jsonify({
-            "message": "Competência reaberta com sucesso.",
+            "message": "Competência contextual reaberta com sucesso.",
             "competence": comp.isoformat(),
-            "status": "OPEN"
+            "status": "OPEN",
+            "nivel_contexto": nivel_contexto,
+            "contexto_nome": contexto_nome
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({
+            "error": "REOPEN_CONTEXTUAL_FAILED",
+            "details": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
 
 
 
