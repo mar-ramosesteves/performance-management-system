@@ -301,6 +301,113 @@ def _assert_competence_open_or_admin(comp: _date):
     if admin_code != ADMIN_WINDOW_CODE:
         raise PermissionError(f"Competência {comp.isoformat()} está FECHADA. Informe admin_code válido para alterar.")
 
+def _extract_competence_context_from_body(body: dict) -> dict:
+    """
+    Extrai contexto multiempresa do body.
+    O WordPress envia esses campos junto no cadastro/edição.
+    """
+    body = body or {}
+
+    return {
+        "nivel_contexto": str(body.get("nivel_contexto") or "").strip().lower(),
+        "cliente_id": str(body.get("cliente_id") or "").strip(),
+        "holding_id": str(body.get("holding_id") or "").strip(),
+        "empresa_id": str(body.get("empresa_id") or "").strip(),
+        "filial_id": str(body.get("filial_id") or "").strip(),
+        "contexto_nome": str(body.get("contexto_nome") or "").strip()
+    }
+
+
+def _remove_context_fields_from_employee_payload(data: dict):
+    """
+    Remove campos que servem só para controle de contexto.
+    Eles não devem ser gravados diretamente na tabela employees.
+    """
+    for k in [
+        "nivel_contexto",
+        "cliente_id",
+        "holding_id",
+        "empresa_id",
+        "filial_id",
+        "contexto_nome",
+        "admin_code"
+    ]:
+        data.pop(k, None)
+
+
+def _is_competence_context_closed(comp: _date, ctx: dict) -> bool:
+    """
+    Consulta o status contextual da competência.
+    Retorna True se o contexto estiver CLOSED.
+    """
+    comp = _month_start(comp)
+
+    nivel_contexto = str(ctx.get("nivel_contexto") or "").strip().lower()
+    cliente_id = str(ctx.get("cliente_id") or "").strip()
+    holding_id = str(ctx.get("holding_id") or "").strip()
+    empresa_id = str(ctx.get("empresa_id") or "").strip()
+    filial_id = str(ctx.get("filial_id") or "").strip()
+
+    if not nivel_contexto or not cliente_id:
+        return False
+
+    try:
+        r = supabase.rpc("get_competence_context_status", {
+            "p_competence": comp.isoformat(),
+            "p_nivel_contexto": nivel_contexto,
+            "p_cliente_id": cliente_id,
+            "p_holding_id": holding_id or None,
+            "p_empresa_id": empresa_id or None,
+            "p_filial_id": filial_id or None
+        }).execute()
+
+        data = r.data
+
+        if isinstance(data, list) and len(data) == 1:
+            data = data[0]
+
+        if isinstance(data, dict):
+            return str(data.get("status") or "OPEN").upper() == "CLOSED"
+
+        return False
+
+    except Exception as e:
+        print("[_is_competence_context_closed] erro:", e)
+        return False
+
+
+def _assert_competence_context_open_or_admin(comp: _date, body: dict):
+    """
+    Bloqueia cadastro/edição quando a competência do contexto estiver CLOSED.
+    Se não vier contexto, cai na trava antiga global por compatibilidade.
+    """
+    comp = _month_start(comp)
+    ctx = _extract_competence_context_from_body(body)
+
+    # Se não veio contexto, mantém compatibilidade com a regra antiga.
+    if not ctx.get("nivel_contexto") or not ctx.get("cliente_id"):
+        _assert_competence_open_or_admin(comp)
+        return
+
+    if not _is_competence_context_closed(comp, ctx):
+        return
+
+    admin_code = ""
+
+    try:
+        admin_code = str(body.get("admin_code") or "").strip()
+    except Exception:
+        admin_code = ""
+
+    if not ADMIN_WINDOW_CODE:
+        raise PermissionError("Competência contextual fechada e ADMIN_WINDOW_CODE não configurado no servidor.")
+
+    if admin_code != ADMIN_WINDOW_CODE:
+        nome = ctx.get("contexto_nome") or ctx.get("nivel_contexto") or "contexto"
+        raise PermissionError(
+            f"Competência {comp.isoformat()} está FECHADA para {nome}. Informe admin_code válido para alterar."
+        )    
+
 
 
 # ===== CORS simples sem dependências =====
@@ -462,13 +569,14 @@ def create_employee():
         # ✅ Competência vem da URL (?competence=YYYY-MM-01) ou fallback do helper
         comp = _competence_from_request()
 
-        # ✅ Bloqueia cadastro se competência estiver FECHADA (a não ser admin_code válido)
+        # ✅ Bloqueia cadastro se competência do contexto estiver FECHADA
         try:
-            _assert_competence_open_or_admin(comp)
+            _assert_competence_context_open_or_admin(comp, data)
+            _remove_context_fields_from_employee_payload(data)
         except PermissionError as e:
             return jsonify({
                 "error": "COMPETENCE_CLOSED",
-                "message": f"Competência {comp.isoformat()} está FECHADA. Cadastro bloqueado.",
+                "message": str(e),
                 "competence": comp.isoformat(),
                 "status": "CLOSED"
             }), 423
@@ -1819,9 +1927,13 @@ def update_employee(employee_id: int):
 
         # ✅ competência vem da URL (?competence=YYYY-MM-01) ou mês atual
         comp = _competence_from_request()
-        _assert_competence_open_or_admin(comp)
 
-        # nunca enviar esses campos pro Supabase (employees não tem competence, e admin_code é só autorização)
+        # ✅ Bloqueia edição se competência do contexto estiver FECHADA
+        _assert_competence_context_open_or_admin(comp, data)
+        _remove_context_fields_from_employee_payload(data)
+
+        # nunca enviar esses campos pro Supabase
+        # (employees não tem competence, e admin_code é só autorização)
         data.pop("competence", None)
         data.pop("admin_code", None)
 
@@ -1835,7 +1947,10 @@ def update_employee(employee_id: int):
         ).data
 
         if not current:
-            return jsonify({"error": "NOT_FOUND", "message": "Funcionário não encontrado."}), 404
+            return jsonify({
+                "error": "NOT_FOUND",
+                "message": "Funcionário não encontrado."
+            }), 404
 
         # 2) atualiza employee
         r = (
@@ -1859,7 +1974,10 @@ def update_employee(employee_id: int):
             updated = updated_list[0]
 
         if not updated:
-            return jsonify({"error": "UPDATE_FAILED", "message": "Falha ao atualizar funcionário."}), 500
+            return jsonify({
+                "error": "UPDATE_FAILED",
+                "message": "Falha ao atualizar funcionário."
+            }), 500
 
         # 3) salva histórico (snapshot do estado atualizado)
         _save_employee_history(
@@ -1874,17 +1992,15 @@ def update_employee(employee_id: int):
 
     except PermissionError as e:
         comp = _competence_from_request()
-        status = "CLOSED" if _is_competence_closed(comp) else "OPEN"
         return jsonify({
             "error": "COMPETENCE_CLOSED",
             "message": str(e),
             "competence": comp.isoformat(),
-            "status": status
+            "status": "CLOSED"
         }), 423
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # ========= Movimentações salariais (histórico) =========
 @app.route('/api/employees/<int:employee_id>/movements', methods=['GET'])
