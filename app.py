@@ -883,7 +883,17 @@ def api_evaluation_responses_dashboard():
 def api_competence_status():
     """
     GET /api/competence/status?competence=YYYY-MM-01
-    Se não enviar competence, usa a competência do request (_competence_from_request()).
+
+    Agora suporta status contextual:
+      ?competence=YYYY-MM-01
+      &nivel_contexto=holding
+      &cliente_id=...
+      &holding_id=...
+      &empresa_id=...
+      &filial_id=...
+
+    Se vier contexto, lê public.competence_context_locks.
+    Se não vier contexto, mantém compatibilidade lendo public.competence_locks.
     """
     try:
         comp_str = (request.args.get("competence") or "").strip()
@@ -892,47 +902,125 @@ def api_competence_status():
         else:
             comp = _month_start(_competence_from_request())
 
+        nivel_contexto = (request.args.get("nivel_contexto") or "").strip().lower()
+        cliente_id = (request.args.get("cliente_id") or "").strip()
+        holding_id = (request.args.get("holding_id") or "").strip()
+        empresa_id = (request.args.get("empresa_id") or "").strip()
+        filial_id = (request.args.get("filial_id") or "").strip()
 
-        
+        # =========================================================
+        # 1) STATUS CONTEXTUAL
+        # =========================================================
+        if nivel_contexto and cliente_id:
+            r = (
+                supabase.table("competence_context_locks")
+                .select(
+                    "competence,status,cliente_id,holding_id,empresa_id,filial_id,"
+                    "nivel_contexto,contexto_nome,"
+                    "closed_at,closed_by,closed_reason,"
+                    "reopened_at,reopened_by,reopen_reason"
+                )
+                .eq("competence", comp.isoformat())
+                .eq("cliente_id", cliente_id)
+                .execute()
+            )
+
+            rows = r.data or []
+
+            def _same(a, b):
+                return str(a or "").strip() == str(b or "").strip()
+
+            row = None
+            for item in rows:
+                if nivel_contexto == "cliente":
+                    if not item.get("holding_id") and not item.get("empresa_id") and not item.get("filial_id"):
+                        row = item
+                        break
+
+                elif nivel_contexto == "holding":
+                    if _same(item.get("holding_id"), holding_id) and not item.get("empresa_id") and not item.get("filial_id"):
+                        row = item
+                        break
+
+                elif nivel_contexto == "empresa":
+                    if _same(item.get("empresa_id"), empresa_id) and not item.get("filial_id"):
+                        row = item
+                        break
+
+                elif nivel_contexto == "filial":
+                    if _same(item.get("filial_id"), filial_id):
+                        row = item
+                        break
+
+            if not row:
+                return jsonify({
+                    "competence": comp.isoformat(),
+                    "status": "OPEN",
+                    "exists": False,
+                    "nivel_contexto": nivel_contexto,
+                    "cliente_id": cliente_id,
+                    "holding_id": holding_id or None,
+                    "empresa_id": empresa_id or None,
+                    "filial_id": filial_id or None
+                }), 200
+
+            return jsonify({
+                "competence": row.get("competence"),
+                "status": row.get("status") or "OPEN",
+                "exists": True,
+
+                "nivel_contexto": row.get("nivel_contexto"),
+                "contexto_nome": row.get("contexto_nome"),
+                "cliente_id": row.get("cliente_id"),
+                "holding_id": row.get("holding_id"),
+                "empresa_id": row.get("empresa_id"),
+                "filial_id": row.get("filial_id"),
+
+                "locked_at": row.get("closed_at"),
+                "locked_by": row.get("closed_by"),
+                "reason": row.get("closed_reason"),
+
+                "reopened_at": row.get("reopened_at"),
+                "reopened_by": row.get("reopened_by"),
+                "reopen_reason": row.get("reopen_reason"),
+            }), 200
+
+        # =========================================================
+        # 2) FALLBACK ANTIGO GLOBAL, para não quebrar telas antigas
+        # =========================================================
         r = (
             supabase.table("competence_locks")
-            
             .select("competence,status,closed_at,closed_by,closed_reason,reopened_at,reopened_by,reopen_reason")
-            
             .eq("competence", comp.isoformat())
             .execute()
         )
-        
+
         rows = r.data or []
         row = rows[0] if rows else None
-        
+
         if not row:
             return jsonify({
                 "competence": comp.isoformat(),
-                "status": "OPEN"
+                "status": "OPEN",
+                "exists": False
             }), 200
-        
+
         return jsonify({
             "competence": row.get("competence"),
             "status": row.get("status") or "OPEN",
             "exists": True,
-        
-            # Mantém nomes "locked_*" na resposta, mas lê das colunas "closed_*"
+
             "locked_at": row.get("closed_at"),
             "locked_by": row.get("closed_by"),
             "reason": row.get("closed_reason"),
-        
+
             "reopened_at": row.get("reopened_at"),
             "reopened_by": row.get("reopened_by"),
             "reopen_reason": row.get("reopen_reason"),
         }), 200
 
-            
-            
-        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/competence/close", methods=["POST"])
 def api_competence_close():
