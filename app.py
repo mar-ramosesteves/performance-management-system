@@ -1063,7 +1063,7 @@ def api_competence_close():
                 "message": "filial_id é obrigatório para fechar competência por filial."
             }), 400
 
-        r = supabase.rpc("finalize_competence_contextual", {
+        r = supabase.rpc("close_competence_contextual", {
             "p_competence": comp.isoformat(),
             "p_closed_by": _get_actor(),
             "p_closed_reason": notes,
