@@ -912,47 +912,21 @@ def api_competence_status():
         # 1) STATUS CONTEXTUAL
         # =========================================================
         if nivel_contexto and cliente_id:
-            r = (
-                supabase.table("competence_context_locks")
-                .select(
-                    "competence,status,cliente_id,holding_id,empresa_id,filial_id,"
-                    "nivel_contexto,contexto_nome,"
-                    "closed_at,closed_by,closed_reason,"
-                    "reopened_at,reopened_by,reopen_reason"
-                )
-                .eq("competence", comp.isoformat())
-                .eq("cliente_id", cliente_id)
-                .execute()
-            )
+            r = supabase.rpc("get_competence_context_status", {
+                "p_competence": comp.isoformat(),
+                "p_nivel_contexto": nivel_contexto,
+                "p_cliente_id": cliente_id,
+                "p_holding_id": holding_id or None,
+                "p_empresa_id": empresa_id or None,
+                "p_filial_id": filial_id or None
+            }).execute()
 
-            rows = r.data or []
+            data = r.data
 
-            def _same(a, b):
-                return str(a or "").strip() == str(b or "").strip()
+            if isinstance(data, list) and len(data) == 1:
+                data = data[0]
 
-            row = None
-            for item in rows:
-                if nivel_contexto == "cliente":
-                    if not item.get("holding_id") and not item.get("empresa_id") and not item.get("filial_id"):
-                        row = item
-                        break
-
-                elif nivel_contexto == "holding":
-                    if _same(item.get("holding_id"), holding_id) and not item.get("empresa_id") and not item.get("filial_id"):
-                        row = item
-                        break
-
-                elif nivel_contexto == "empresa":
-                    if _same(item.get("empresa_id"), empresa_id) and not item.get("filial_id"):
-                        row = item
-                        break
-
-                elif nivel_contexto == "filial":
-                    if _same(item.get("filial_id"), filial_id):
-                        row = item
-                        break
-
-            if not row:
+            if not data:
                 return jsonify({
                     "competence": comp.isoformat(),
                     "status": "OPEN",
@@ -964,27 +938,11 @@ def api_competence_status():
                     "filial_id": filial_id or None
                 }), 200
 
-            return jsonify({
-                "competence": row.get("competence"),
-                "status": row.get("status") or "OPEN",
-                "exists": True,
+            if isinstance(data, dict):
+                if "exists_lock" in data:
+                    data["exists"] = data.pop("exists_lock")
 
-                "nivel_contexto": row.get("nivel_contexto"),
-                "contexto_nome": row.get("contexto_nome"),
-                "cliente_id": row.get("cliente_id"),
-                "holding_id": row.get("holding_id"),
-                "empresa_id": row.get("empresa_id"),
-                "filial_id": row.get("filial_id"),
-
-                "locked_at": row.get("closed_at"),
-                "locked_by": row.get("closed_by"),
-                "reason": row.get("closed_reason"),
-
-                "reopened_at": row.get("reopened_at"),
-                "reopened_by": row.get("reopened_by"),
-                "reopen_reason": row.get("reopen_reason"),
-            }), 200
-
+            return jsonify(data), 200
         # =========================================================
         # 2) FALLBACK ANTIGO GLOBAL, para não quebrar telas antigas
         # =========================================================
