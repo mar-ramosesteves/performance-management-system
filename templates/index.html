@@ -1798,7 +1798,11 @@
         }
 
         // ✅ Bloquear campos se for gestor
-        lockDimensionWeightsForManager();
+        if (typeof lockDimensionWeightsForManager === 'function') {
+          lockDimensionWeightsForManager();
+        } else {
+          console.warn('[startEvaluationForEmployee] lockDimensionWeightsForManager não carregou; seguindo sem bloquear pesos.');
+        }
 
           
       }catch(e){
