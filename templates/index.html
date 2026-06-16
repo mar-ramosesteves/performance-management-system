@@ -141,7 +141,7 @@
    - Se ela não carregar a tempo, usa fallback que lê /api/evaluations/latest
    ============================================================ */
 
-(function () {
+window.addEventListener('load', function () {
   const params  = new URLSearchParams(window.location.search);
   const empId   = params.get('employee_id');         // ex.: 149
   const manager = params.get('manager_name') || params.get('manager');
@@ -239,7 +239,7 @@
       }
     });
   }
-})();
+});
 </script>
 
 
