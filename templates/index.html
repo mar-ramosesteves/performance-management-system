@@ -1428,11 +1428,21 @@
       const responsesArray = Object.entries(responsesObj).map(([criteria_id, rating]) => ({
         criteria_id: Number(criteria_id), rating: Number(rating)
       }));
-    
+        
+      const activeModel = window.activeEvaluationModel || {};        
+
       const basePayload = {
         employee_id: Number(emp.id),
+
+        cliente_id: activeModel.cliente_id || emp.cliente_id || null,
+        empresa_id: activeModel.empresa_id || emp.empresa_id || null,
+        filial_id: activeModel.filial_id || emp.filial_id || null,
+        modelo_avaliacao_id: activeModel.modelo_avaliacao_id || null,
+        versao_modelo_id: activeModel.versao_modelo_id || null,
         employee_name: emp.nome || emp.name || undefined,
         manager_name: managerFromUrl || emp.manager_name || undefined,
+        
+          
     
         evaluation_year: 2025,
         round_code: roundCode,
