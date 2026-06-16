@@ -1831,42 +1831,20 @@ def get_dimension_weights():
 
             return jsonify(out_old), 200
 
-        # Descobre o modelo ativo do contexto
-        q_model = (
-            supabase
-            .table('modelos_avaliacao_contextos')
-            .select('modelo_avaliacao_id, cliente_id, nivel_contexto, holding_id, empresa_id, filial_id, contexto_nome')
-            .eq('cliente_id', cliente_id)
-            .eq('status', 'ativo')
-        )
+        # ✅ Descobre o modelo/versão ativos do contexto usando função SQL segura
+        r_model = supabase.rpc(
+            'get_active_evaluation_model_for_context',
+            {
+                'p_cliente_id': cliente_id,
+                'p_holding_id': holding_id or None,
+                'p_empresa_id': empresa_id or None,
+                'p_filial_id': filial_id or None,
+                'p_nivel_contexto': nivel_contexto or None,
+                'p_contexto_nome': contexto_nome or None
+            }
+        ).execute()
 
-        if filial_id:
-            q_model = q_model.eq('filial_id', filial_id)
-        elif empresa_id:
-            q_model = q_model.eq('empresa_id', empresa_id)
-        elif holding_id:
-            q_model = q_model.eq('holding_id', holding_id)
-
-        r_model = q_model.limit(1).execute()
         model_rows = r_model.data or []
-
-        # ✅ Fallback por nome do contexto, caso o ID não encontre
-        # Ex.: contexto_nome = LEVEN ou PROSPERA
-        if not model_rows and contexto_nome:
-            q_fallback = (
-                supabase
-                .table('modelos_avaliacao_contextos')
-                .select('modelo_avaliacao_id, cliente_id, nivel_contexto, holding_id, empresa_id, filial_id, contexto_nome')
-                .eq('cliente_id', cliente_id)
-                .eq('status', 'ativo')
-                .eq('contexto_nome', contexto_nome)
-            )
-
-            if nivel_contexto:
-                q_fallback = q_fallback.eq('nivel_contexto', nivel_contexto)
-
-            r_fallback = q_fallback.limit(1).execute()
-            model_rows = r_fallback.data or []
 
         if not model_rows:
             return jsonify({
@@ -1883,29 +1861,9 @@ def get_dimension_weights():
             }), 404
 
         modelo_id = model_rows[0].get('modelo_avaliacao_id')
+        versao_id = model_rows[0].get('versao_modelo_id')
 
-        # Busca versão ativa do modelo
-        r_version = (
-            supabase
-            .table('versoes_modelo_avaliacao')
-            .select('id')
-            .eq('modelo_avaliacao_id', modelo_id)
-            .eq('status', 'ativo')
-            .order('numero_versao', desc=True)
-            .limit(1)
-            .execute()
-        )
-
-        version_rows = r_version.data or []
-
-        if not version_rows:
-            return jsonify({
-                'error': 'NO_ACTIVE_VERSION_FOR_MODEL',
-                'message': 'Nenhuma versão ativa encontrada para o modelo do contexto.'
-            }), 404
-
-        versao_id = version_rows[0].get('id')
-
+        
         # Busca pesos contextualizados do modelo/versão
         r_weights = (
             supabase
