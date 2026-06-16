@@ -938,6 +938,23 @@
                       <strong>${c.name}</strong>
                     </div>
                     <p class="text-muted mb-3">${c.description||''}</p>
+
+
+
+                    <div class="mt-2">
+                      <label class="form-label" style="font-size:12px;font-weight:700;color:#374151;">
+                        Comentário do gestor sobre este rating
+                      </label>
+                      <textarea
+                        class="form-control criteria-comment"
+                        data-criteria-comment="${c.id}"
+                        rows="2"
+                        placeholder="Justifique brevemente o rating atribuído a esta afirmação..."
+                        style="font-size:13px;resize:vertical;"
+                      ></textarea>
+                    </div>
+
+                    
                   </div>
                   <div class="rating-buttons">
                     ${[1,2,3,4,5].map(r => `
