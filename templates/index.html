@@ -2041,7 +2041,8 @@ window.addEventListener('load', function () {
               latestResponses[cid] = {
                 criteria_id: cid,
                 rating: rating,
-                id: rowId
+                id: rowId,
+                manager_comment: row.manager_comment || row.comment || ''
               };
             }
           });
