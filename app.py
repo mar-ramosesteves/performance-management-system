@@ -627,6 +627,60 @@ def get_evaluation_criteria():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/evaluation-form/active', methods=['GET'])
+def get_active_evaluation_form():
+    try:
+        employee_id = request.args.get('employee_id', type=int)
+
+        if not employee_id:
+            return jsonify({
+                'error': 'EMPLOYEE_REQUIRED',
+                'message': 'employee_id é obrigatório.'
+            }), 400
+
+        # 1) Descobre qual modelo ativo vale para este funcionário
+        r_model = supabase.rpc(
+            'get_active_evaluation_model_for_employee',
+            {'p_employee_id': employee_id}
+        ).execute()
+
+        model_rows = r_model.data or []
+
+        if not model_rows:
+            return jsonify({
+                'error': 'NO_ACTIVE_EVALUATION_MODEL',
+                'message': 'Nenhum modelo de avaliação ativo encontrado para o contexto deste profissional.',
+                'employee_id': employee_id
+            }), 404
+
+        model = model_rows[0]
+        versao_modelo_id = model.get('versao_modelo_id')
+
+        # 2) Por enquanto, mantém compatibilidade com a tabela antiga evaluation_criteria
+        # Isso permite que PROSPERA continue funcionando.
+        # LEVEN, sem modelo vinculado, será bloqueada antes de chegar aqui.
+        r_criteria = (
+            supabase
+            .table('evaluation_criteria')
+            .select('*')
+            .order('dimension', desc=False)
+            .execute()
+        )
+
+        return jsonify({
+            'model': model,
+            'criteria': r_criteria.data or []
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'error': 'INTERNAL_ERROR',
+            'message': str(e)
+        }), 500
+
+
+
 @app.route('/api/evaluation-criteria', methods=['POST'])
 def create_evaluation_criteria():
     try:
