@@ -657,20 +657,105 @@ def get_active_evaluation_form():
         model = model_rows[0]
         versao_modelo_id = model.get('versao_modelo_id')
 
-        # 2) Por enquanto, mantém compatibilidade com a tabela antiga evaluation_criteria
-        # Isso permite que PROSPERA continue funcionando.
-        # LEVEN, sem modelo vinculado, será bloqueada antes de chegar aqui.
-        r_criteria = (
+        if not versao_modelo_id:
+            return jsonify({
+                'error': 'NO_ACTIVE_MODEL_VERSION',
+                'message': 'Modelo encontrado, mas sem versão ativa vinculada.',
+                'employee_id': employee_id,
+                'model': model
+            }), 404
+
+        # 2) Busca dimensões da versão ativa
+        r_dims = (
             supabase
-            .table('evaluation_criteria')
+            .table('dimensoes_avaliacao')
             .select('*')
-            .order('dimension', desc=False)
+            .eq('versao_modelo_id', versao_modelo_id)
+            .eq('status', 'ativo')
+            .order('ordem', desc=False)
             .execute()
         )
 
+        dimensoes = r_dims.data or []
+
+        if not dimensoes:
+            return jsonify({
+                'error': 'NO_ACTIVE_DIMENSIONS',
+                'message': 'Nenhuma dimensão ativa encontrada para a versão do modelo.',
+                'employee_id': employee_id,
+                'model': model
+            }), 404
+
+        dimensao_ids = [d.get('id') for d in dimensoes if d.get('id')]
+
+        # 3) Busca afirmativas das dimensões
+        r_af = (
+            supabase
+            .table('afirmativas_avaliacao')
+            .select('*')
+            .in_('dimensao_id', dimensao_ids)
+            .eq('status', 'ativo')
+            .order('ordem', desc=False)
+            .execute()
+        )
+
+        afirmativas = r_af.data or []
+
+        dim_by_id = {
+            str(d.get('id')): d
+            for d in dimensoes
+            if d.get('id')
+        }
+
+        # 4) Monta saída compatível com o front antigo
+        # IMPORTANTE:
+        # id = criterio_original_id para manter compatibilidade com setRating(criteria_id)
+        criteria = []
+
+        for a in afirmativas:
+            dim = dim_by_id.get(str(a.get('dimensao_id'))) or {}
+
+            criterio_original_id = a.get('criterio_original_id')
+
+            if criterio_original_id is None:
+                continue
+
+            eixo = str(a.get('eixo_9box') or '').lower().strip()
+
+            if eixo == 'desempenho':
+                tipo = 'DESEMPENHO'
+            elif eixo == 'potencial':
+                tipo = 'POTENCIAL'
+            else:
+                tipo = 'NAO_APLICAVEL'
+
+            criteria.append({
+                'id': int(criterio_original_id),
+                'dimension': dim.get('nome'),
+                'type': tipo,
+                'name': a.get('nome'),
+                'description': a.get('texto'),
+                'weight': a.get('peso'),
+
+                # campos novos para rastreabilidade
+                'modelo_avaliacao_id': model.get('modelo_avaliacao_id'),
+                'versao_modelo_id': model.get('versao_modelo_id'),
+                'dimensao_id': a.get('dimensao_id'),
+                'afirmativa_avaliacao_id': a.get('id'),
+                'eixo_9box': a.get('eixo_9box'),
+                'peso_usado': a.get('peso'),
+                'ordem': a.get('ordem')
+            })
+
+        criteria.sort(key=lambda c: (
+            str(c.get('dimension') or ''),
+            int(c.get('ordem') or 0)
+        ))
+
         return jsonify({
             'model': model,
-            'criteria': r_criteria.data or []
+            'dimensions': dimensoes,
+            'criteria': criteria
         }), 200
 
     except Exception as e:
@@ -678,7 +763,6 @@ def get_active_evaluation_form():
             'error': 'INTERNAL_ERROR',
             'message': str(e)
         }), 500
-
 
 
 @app.route('/api/evaluation-criteria', methods=['POST'])
