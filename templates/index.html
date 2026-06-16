@@ -835,19 +835,46 @@
                 (data.message || 'Nenhum modelo ativo encontrado para este profissional.') +
               '</div>';
           }
+
+      function hideClosestBlock(selector){
+        var el = document.querySelector(selector);
+        if(!el) return;
+    
+        var block =
+          el.closest('.evaluation-section') ||
+          el.closest('.goal-section') ||
+          el.closest('.card') ||
+          el.closest('.section') ||
+          el.closest('.container') ||
+          el.parentElement;
+    
+        if(block){
+          block.style.display = 'none';
+        }
+      }
+    
+      // Esconde bloco de pesos das dimensões
+      hideClosestBlock('#weight-institucional');
+    
+      // Esconde bloco de metas individuais
+      hideClosestBlock('#goals-container');
+    
+      // Esconde bloco de rating final
+      hideClosestBlock('#final-rating');
+    
+      // Esconde botão principal de salvar avaliação
+      var btnSalvar = document.getElementById('btnSalvarAvaliacao');
+      if (btnSalvar) btnSalvar.style.display = 'none';
+    
+      // Esconde botões de metas, caso ainda estejam visíveis
+      document.querySelectorAll('button').forEach(function(btn){
+        var txt = (btn.textContent || '').toLowerCase();
+        if(txt.includes('adicionar meta') || txt.includes('salvar metas')){
+          btn.style.display = 'none';
+        }
+      });    
         
-          const goalsSection = document.getElementById('goals-section');
-          if (goalsSection) goalsSection.style.display = 'none';
-        
-          const ratingSection = document.getElementById('rating-section');
-          if (ratingSection) ratingSection.style.display = 'none';
-        
-          const finalRatingBox = document.getElementById('final-rating-section');
-          if (finalRatingBox) finalRatingBox.style.display = 'none';
-        
-          const btnSalvar = document.getElementById('btnSalvarAvaliacao');
-          if (btnSalvar) btnSalvar.style.display = 'none';
-        
+                    
           alert(data.message || 'Nenhum modelo ativo encontrado para este profissional.');
           return;
         }
