@@ -1630,18 +1630,48 @@ def create_evaluation():
         except Exception as e:
             print(f"DEBUG: Erro ao deletar respostas antigas: {e}")
         
+                # ✅ Mapa de critérios/afirmativas do modelo ativo do funcionário
+        # Usado para gravar cada resposta com rastreabilidade completa:
+        # afirmativa_avaliacao_id, peso_usado e eixo_9box_usado.
+        criteria_map = {}
+
+        try:
+            r_crit = supabase.rpc(
+                'get_active_evaluation_criteria_for_employee',
+                {'p_employee_id': int(data['employee_id'])}
+            ).execute()
+
+            for row in (r_crit.data or []):
+                cid = row.get('criterio_id')
+                if cid is not None:
+                    criteria_map[int(cid)] = row
+
+            print(f"DEBUG: criteria_map carregado com {len(criteria_map)} critérios")
+
+        except Exception as e:
+            print(f"DEBUG: erro ao carregar criteria_map: {e}")
+            criteria_map = {}
+
         # Inserir novas respostas
         responses = []
         for criteria_id, rating in data['responses'].items():
+            cid = int(criteria_id)
+            meta = criteria_map.get(cid, {})
+
             responses.append({
                 'evaluation_id': evaluation_id,
-                'criteria_id': int(criteria_id),
+                'criteria_id': cid,
                 'rating': int(rating),
 
                 # ✅ rastreabilidade multiempresa / modelo
                 'cliente_id': data.get('cliente_id'),
                 'modelo_avaliacao_id': data.get('modelo_avaliacao_id'),
-                'versao_modelo_id': data.get('versao_modelo_id')
+                'versao_modelo_id': data.get('versao_modelo_id'),
+
+                # ✅ rastreabilidade por afirmativa
+                'afirmativa_avaliacao_id': meta.get('afirmativa_avaliacao_id'),
+                'eixo_9box_usado': meta.get('eixo_9box'),
+                'peso_usado': meta.get('peso_usado')
             })
 
         
