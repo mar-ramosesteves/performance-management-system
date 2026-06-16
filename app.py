@@ -1578,7 +1578,14 @@ def create_evaluation():
            'dimension_weights': data.get('dimension_weights', {}),
            'dimension_averages': data.get('dimension_averages', {}),
            'final_rating': data.get('final_rating'),
-           'goals_average': data.get('goals_average')
+           'goals_average': data.get('goals_average'),
+
+           # ✅ rastreabilidade multiempresa / modelo
+           'cliente_id': data.get('cliente_id'),
+           'empresa_id': data.get('empresa_id'),
+           'filial_id': data.get('filial_id'),
+           'modelo_avaliacao_id': data.get('modelo_avaliacao_id'),
+           'versao_modelo_id': data.get('versao_modelo_id')
        }
         
         # ✅ CORREÇÃO: Verificar se já existe avaliação para este funcionário + rodada
@@ -1629,8 +1636,15 @@ def create_evaluation():
             responses.append({
                 'evaluation_id': evaluation_id,
                 'criteria_id': int(criteria_id),
-                'rating': int(rating)
+                'rating': int(rating),
+
+                # ✅ rastreabilidade multiempresa / modelo
+                'cliente_id': data.get('cliente_id'),
+                'modelo_avaliacao_id': data.get('modelo_avaliacao_id'),
+                'versao_modelo_id': data.get('versao_modelo_id')
             })
+
+        
         if responses:
             supabase.table('evaluation_responses').insert(responses).execute()
             print(f"DEBUG: {len(responses)} respostas inseridas para avaliação {evaluation_id}")
@@ -1653,7 +1667,17 @@ def create_evaluation():
                     'employee_id': data['employee_id'],
                     'evaluation_id': evaluation_id,
                     'round_code': round_code or data.get('round_code', ''),
+
+                    # ✅ rastreabilidade multiempresa / modelo
+                    'cliente_id': data.get('cliente_id'),
+                    'empresa_id': data.get('empresa_id'),
+                    'filial_id': data.get('filial_id'),
+                    'modelo_avaliacao_id': data.get('modelo_avaliacao_id'),
+                    'versao_modelo_id': data.get('versao_modelo_id'),
+
                     'goal_name': goal.get('name', ''),
+
+                    
                     'goal_description': goal.get('description', ''),
                     'weight': float(goal.get('weight', 0)),
                     'rating_1_criteria': goal.get('rating_1_criteria', ''),
