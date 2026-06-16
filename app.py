@@ -1570,11 +1570,34 @@ def create_evaluation():
         print(f"DEBUG: round_code recebido: {data.get('round_code')}")
         print(f"DEBUG: dados completos: {data}")
 
+
+
+        # ✅ Define ano da avaliação com base no round_code, quando possível
+        # Ex.: Start2026, IR2026, YE2026 -> 2026
+        round_code_raw = str(data.get('round_code') or '').strip()
+        evaluation_year_value = data.get('evaluation_year', None)
+
+        try:
+            import re
+            m_year = re.search(r'(20\d{2})', round_code_raw)
+            if m_year:
+                evaluation_year_value = int(m_year.group(1))
+            elif evaluation_year_value:
+                evaluation_year_value = int(evaluation_year_value)
+            else:
+                evaluation_year_value = _date.today().year
+        except Exception:
+            evaluation_year_value = _date.today().year
+
+
+        
+
         evaluation_data = {
            'employee_id': data['employee_id'],
            'evaluator_id': data.get('evaluator_id', 1),
-           'evaluation_year': data.get('evaluation_year', 2025),
+           'evaluation_year': evaluation_year_value,
            'round_code': data.get('round_code'),
+            
            'dimension_weights': data.get('dimension_weights', {}),
            'dimension_averages': data.get('dimension_averages', {}),
            'final_rating': data.get('final_rating'),
