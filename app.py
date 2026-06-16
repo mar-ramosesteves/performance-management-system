@@ -868,7 +868,7 @@ def calculate_nine_box_position(performance, potential):
 # ===================== Última Avaliação =====================
 def _get_responses_rows(evaluation_id: int):
     r = (supabase.table('evaluation_responses')
-         .select('evaluation_id,criteria_id,rating')
+         .select('evaluation_id,criteria_id,rating,manager_comment')
          .eq('evaluation_id', evaluation_id)
          .order('criteria_id', desc=False)
          .execute())
@@ -876,7 +876,8 @@ def _get_responses_rows(evaluation_id: int):
     return [{
         'evaluation_id': x.get('evaluation_id'),
         'criteria_id': x.get('criteria_id'),
-        'rating': x.get('rating')
+        'rating': x.get('rating'),
+        'manager_comment': x.get('manager_comment')
     } for x in rows]
 
 @app.route('/api/evaluations/latest', methods=['GET'])
@@ -908,7 +909,7 @@ def api_evaluations_latest():
 
         # Buscar respostas
         r_resp = (supabase.table('evaluation_responses')
-                  .select('evaluation_id,criteria_id,rating')
+                  .select('evaluation_id,criteria_id,rating,manager_comment')
                   .eq('evaluation_id', ev['id'])
                   .order('criteria_id', desc=False)
                   .execute())
@@ -917,7 +918,8 @@ def api_evaluations_latest():
         responses = [{
             'evaluation_id': x.get('evaluation_id'),
             'criteria_id': x.get('criteria_id'),
-            'rating': x.get('rating')
+            'rating': x.get('rating'),
+            'manager_comment': x.get('manager_comment')
         } for x in rows]
 
         # Buscar metas da tabela individual_goals (FILTRANDO por employee_id + round_code + evaluation_id)
