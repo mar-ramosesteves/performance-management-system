@@ -803,25 +803,67 @@
 
     async function loadEvaluationCriteria() {
       try {
-        const response = await fetch('/api/evaluation-criteria');
-        const criteria = await response.json();
+        const params = new URLSearchParams(window.location.search);
+        const employeeIdFromUrl = params.get('employee_id');
+    
+        const emp =
+          window.currentEmployee ||
+          currentEmployee ||
+          null;
+    
+        const employeeId =
+          employeeIdFromUrl ||
+          (emp && emp.id ? emp.id : null);
+    
+        if (!employeeId) {
+          alert('Funcionário não identificado para carregar o formulário de avaliação.');
+          return;
+        }
+    
+        const response = await fetch('/api/evaluation-form/active?employee_id=' + encodeURIComponent(employeeId));
+        const data = await response.json();
+    
+        if (!response.ok) {
+          const container = qs('#evaluation-criteria');
+          if (container) {
+            container.innerHTML =
+              '<div class="alert alert-warning">' +
+                '<strong>Formulário de avaliação não disponível.</strong><br>' +
+                (data.message || 'Nenhum modelo ativo encontrado para este profissional.') +
+              '</div>';
+          }
+    
+          alert(data.message || 'Nenhum modelo ativo encontrado para este profissional.');
+          return;
+        }
+    
+        window.activeEvaluationModel = data.model || null;
+    
+        const criteria = Array.isArray(data.criteria) ? data.criteria : [];
         const container = qs('#evaluation-criteria');
+    
         container.innerHTML = '';
+    
         const dimensions = {};
+    
         criteria.forEach(c => {
           const dim = (c.dimension || '').toUpperCase();
           if (!dimensions[dim]) dimensions[dim] = [];
           dimensions[dim].push(c);
         });
+    
         Object.keys(dimensions).forEach(dimension => {
           const section = document.createElement('div');
           section.className = 'evaluation-section';
+    
           let html = `
             <div class="dimension-header">
               <h4>DIMENSÃO ${dimension}</h4>
             </div>`;
+    
           dimensions[dimension].forEach(c => {
             const typeClass = `type-${(c.type||'').toLowerCase()}`;
+    
             html += `
               <div class="criteria-card" data-dimension="${dimension}">
                 <div class="d-flex justify-content-between align-items-start">
@@ -842,15 +884,16 @@
                 </div>
               </div>`;
           });
+    
           section.innerHTML = html;
           container.appendChild(section);
         });
+    
       } catch (e) {
         console.error(e);
-        alert('Erro ao carregar critérios de avaliação');
+        alert('Erro ao carregar formulário de avaliação');
       }
     }
-
     /* -------- Metas -------- */
     async function loadGoals() {
       try {
