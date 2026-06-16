@@ -2720,7 +2720,7 @@ def api_ninebox_contexto():
         )
 
         if round_code:
-            q = q.eq('ciclo_codigo', round_code)
+            q = q.or_(f"ciclo_codigo.eq.{round_code},round_code.eq.{round_code}")
 
         if cliente_id:
             q = q.eq('cliente_id', cliente_id)
