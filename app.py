@@ -1907,15 +1907,68 @@ def get_dimension_weights():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+        
 @app.route('/api/dimension-weights', methods=['PUT'])
 def update_dimension_weights():
     try:
-        data = request.get_json()
-        for weight_data in data:
-            supabase.table('dimension_weights').update({
-                'weight': weight_data['weight']
-            }).eq('dimension', weight_data['dimension']).execute()
-        return jsonify({'message': 'Pesos atualizados com sucesso'})
+        data = request.get_json() or {}
+
+        cliente_id = (data.get('cliente_id') or '').strip()
+        holding_id = (data.get('holding_id') or '').strip()
+        empresa_id = (data.get('empresa_id') or '').strip()
+        filial_id = (data.get('filial_id') or '').strip()
+        nivel_contexto = (data.get('nivel_contexto') or '').strip().lower()
+        contexto_nome = (data.get('contexto_nome') or '').strip()
+
+        institutional = data.get('institutional')
+        functional = data.get('functional')
+        individual = data.get('individual')
+        metas = data.get('metas')
+
+        # Se não vier contexto, bloqueia para evitar alteração global acidental
+        if not cliente_id:
+            return jsonify({
+                'error': 'CONTEXT_REQUIRED',
+                'message': 'Contexto obrigatório para salvar pesos. A alteração global foi bloqueada por segurança.'
+            }), 400
+
+        total = (
+            float(institutional or 0) +
+            float(functional or 0) +
+            float(individual or 0) +
+            float(metas or 0)
+        )
+
+        if round(total, 2) != 100:
+            return jsonify({
+                'error': 'INVALID_TOTAL',
+                'message': f'A soma dos pesos deve ser 100%. Soma atual: {total:.2f}%.'
+            }), 400
+
+        r = supabase.rpc(
+            'update_dimension_weights_for_context',
+            {
+                'p_cliente_id': cliente_id,
+                'p_holding_id': holding_id or None,
+                'p_empresa_id': empresa_id or None,
+                'p_filial_id': filial_id or None,
+                'p_nivel_contexto': nivel_contexto or None,
+                'p_contexto_nome': contexto_nome or None,
+                'p_institucional': institutional,
+                'p_funcional': functional,
+                'p_individual': individual,
+                'p_metas': metas
+            }
+        ).execute()
+
+        rows = r.data or []
+
+        return jsonify({
+            'message': 'Pesos do contexto atualizados com sucesso.',
+            'total': total,
+            'items': rows
+        }), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
