@@ -655,106 +655,48 @@ def get_active_evaluation_form():
             }), 404
 
         model = model_rows[0]
-        versao_modelo_id = model.get('versao_modelo_id')
 
-        if not versao_modelo_id:
+        # 2) Busca critérios/afirmativas pela função SQL segura
+        r_criteria = supabase.rpc(
+            'get_active_evaluation_criteria_for_employee',
+            {'p_employee_id': employee_id}
+        ).execute()
+
+        rows = r_criteria.data or []
+
+        if not rows:
             return jsonify({
-                'error': 'NO_ACTIVE_MODEL_VERSION',
-                'message': 'Modelo encontrado, mas sem versão ativa vinculada.',
+                'error': 'NO_ACTIVE_CRITERIA',
+                'message': 'Nenhuma afirmativa ativa encontrada para o modelo deste profissional.',
                 'employee_id': employee_id,
                 'model': model
             }), 404
 
-        # 2) Busca dimensões da versão ativa
-        r_dims = (
-            supabase
-            .table('dimensoes_avaliacao')
-            .select('*')
-            .eq('versao_modelo_id', versao_modelo_id)
-            .eq('status', 'ativo')
-            .order('ordem', desc=False)
-            .execute()
-        )
-
-        dimensoes = r_dims.data or []
-
-        if not dimensoes:
-            return jsonify({
-                'error': 'NO_ACTIVE_DIMENSIONS',
-                'message': 'Nenhuma dimensão ativa encontrada para a versão do modelo.',
-                'employee_id': employee_id,
-                'model': model
-            }), 404
-
-        dimensao_ids = [d.get('id') for d in dimensoes if d.get('id')]
-
-        # 3) Busca afirmativas das dimensões
-        r_af = (
-            supabase
-            .table('afirmativas_avaliacao')
-            .select('*')
-            .in_('dimensao_id', dimensao_ids)
-            .eq('status', 'ativo')
-            .order('ordem', desc=False)
-            .execute()
-        )
-
-        afirmativas = r_af.data or []
-
-        dim_by_id = {
-            str(d.get('id')): d
-            for d in dimensoes
-            if d.get('id')
-        }
-
-        # 4) Monta saída compatível com o front antigo
-        # IMPORTANTE:
-        # id = criterio_original_id para manter compatibilidade com setRating(criteria_id)
+        # 3) Monta saída compatível com o front antigo
         criteria = []
 
-        for a in afirmativas:
-            dim = dim_by_id.get(str(a.get('dimensao_id'))) or {}
-
-            criterio_original_id = a.get('criterio_original_id')
-
-            if criterio_original_id is None:
-                continue
-
-            eixo = str(a.get('eixo_9box') or '').lower().strip()
-
-            if eixo == 'desempenho':
-                tipo = 'DESEMPENHO'
-            elif eixo == 'potencial':
-                tipo = 'POTENCIAL'
-            else:
-                tipo = 'NAO_APLICAVEL'
-
+        for row in rows:
             criteria.append({
-                'id': int(criterio_original_id),
-                'dimension': dim.get('nome'),
-                'type': tipo,
-                'name': a.get('nome'),
-                'description': a.get('texto'),
-                'weight': a.get('peso'),
+                'id': row.get('criterio_id'),
+                'dimension': row.get('dimension'),
+                'type': row.get('type'),
+                'name': row.get('name'),
+                'description': row.get('description'),
+                'weight': row.get('weight'),
 
                 # campos novos para rastreabilidade
-                'modelo_avaliacao_id': model.get('modelo_avaliacao_id'),
-                'versao_modelo_id': model.get('versao_modelo_id'),
-                'dimensao_id': a.get('dimensao_id'),
-                'afirmativa_avaliacao_id': a.get('id'),
-                'eixo_9box': a.get('eixo_9box'),
-                'peso_usado': a.get('peso'),
-                'ordem': a.get('ordem')
+                'modelo_avaliacao_id': row.get('modelo_avaliacao_id'),
+                'versao_modelo_id': row.get('versao_modelo_id'),
+                'dimensao_id': row.get('dimensao_id'),
+                'afirmativa_avaliacao_id': row.get('afirmativa_avaliacao_id'),
+                'eixo_9box': row.get('eixo_9box'),
+                'peso_usado': row.get('peso_usado'),
+                'ordem_dimensao': row.get('ordem_dimensao'),
+                'ordem_afirmativa': row.get('ordem_afirmativa')
             })
-
-        criteria.sort(key=lambda c: (
-            str(c.get('dimension') or ''),
-            int(c.get('ordem') or 0)
-        ))
 
         return jsonify({
             'model': model,
-            'dimensions': dimensoes,
             'criteria': criteria
         }), 200
 
@@ -763,7 +705,6 @@ def get_active_evaluation_form():
             'error': 'INTERNAL_ERROR',
             'message': str(e)
         }), 500
-
 
 @app.route('/api/evaluation-criteria', methods=['POST'])
 def create_evaluation_criteria():
