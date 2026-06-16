@@ -2060,6 +2060,12 @@ window.addEventListener('load', function () {
           Object.values(latestResponses).forEach(row => {
             const cid = String(row.criteria_id);
             const r = Number(row.rating);
+
+            const comment = row.manager_comment || row.comment || '';
+            const commentEl = document.querySelector(`[data-criteria-comment="${cid}"]`);
+            if (commentEl) {
+              commentEl.value = comment;
+            }
             
             // Remove seleção anterior
             document.querySelectorAll(`[data-criteria="${cid}"]`).forEach(b => {
