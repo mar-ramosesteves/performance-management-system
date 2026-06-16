@@ -1796,11 +1796,127 @@ def create_individual_goal():
 @app.route('/api/dimension-weights', methods=['GET'])
 def get_dimension_weights():
     try:
-        r = supabase.table('dimension_weights').select('*').execute()
-        return jsonify(r.data)
+        # Contexto recebido do WordPress
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+
+        # Se não vier contexto, mantém compatibilidade com a tabela antiga global
+        if not cliente_id:
+            r_old = supabase.table('dimension_weights').select('*').execute()
+            rows_old = r_old.data or []
+
+            out_old = {
+                'institutional': None,
+                'functional': None,
+                'individual': None,
+                'metas': None
+            }
+
+            for row in rows_old:
+                dim = str(row.get('dimension') or '').upper()
+                val = row.get('weight')
+
+                if dim == 'INSTITUCIONAL':
+                    out_old['institutional'] = val
+                elif dim == 'FUNCIONAL':
+                    out_old['functional'] = val
+                elif dim == 'INDIVIDUAL':
+                    out_old['individual'] = val
+                elif dim == 'METAS':
+                    out_old['metas'] = val
+
+            return jsonify(out_old), 200
+
+        # Descobre o modelo ativo do contexto
+        q_model = (
+            supabase
+            .table('modelos_avaliacao_contextos')
+            .select('modelo_avaliacao_id, cliente_id, nivel_contexto, holding_id, empresa_id, filial_id, contexto_nome')
+            .eq('cliente_id', cliente_id)
+            .eq('status', 'ativo')
+        )
+
+        if filial_id:
+            q_model = q_model.eq('filial_id', filial_id)
+        elif empresa_id:
+            q_model = q_model.eq('empresa_id', empresa_id)
+        elif holding_id:
+            q_model = q_model.eq('holding_id', holding_id)
+
+        r_model = q_model.limit(1).execute()
+        model_rows = r_model.data or []
+
+        if not model_rows:
+            return jsonify({
+                'error': 'NO_ACTIVE_MODEL_FOR_CONTEXT',
+                'message': 'Nenhum modelo ativo encontrado para o contexto selecionado.'
+            }), 404
+
+        modelo_id = model_rows[0].get('modelo_avaliacao_id')
+
+        # Busca versão ativa do modelo
+        r_version = (
+            supabase
+            .table('versoes_modelo_avaliacao')
+            .select('id')
+            .eq('modelo_avaliacao_id', modelo_id)
+            .eq('status', 'ativo')
+            .order('numero_versao', desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        version_rows = r_version.data or []
+
+        if not version_rows:
+            return jsonify({
+                'error': 'NO_ACTIVE_VERSION_FOR_MODEL',
+                'message': 'Nenhuma versão ativa encontrada para o modelo do contexto.'
+            }), 404
+
+        versao_id = version_rows[0].get('id')
+
+        # Busca pesos contextualizados do modelo/versão
+        r_weights = (
+            supabase
+            .table('dimension_weights_modelos')
+            .select('dimension, weight')
+            .eq('cliente_id', cliente_id)
+            .eq('modelo_avaliacao_id', modelo_id)
+            .eq('versao_modelo_id', versao_id)
+            .execute()
+        )
+
+        rows = r_weights.data or []
+
+        out = {
+            'institutional': None,
+            'functional': None,
+            'individual': None,
+            'metas': None,
+            'modelo_avaliacao_id': modelo_id,
+            'versao_modelo_id': versao_id
+        }
+
+        for row in rows:
+            dim = str(row.get('dimension') or '').upper()
+            val = row.get('weight')
+
+            if dim == 'INSTITUCIONAL':
+                out['institutional'] = val
+            elif dim == 'FUNCIONAL':
+                out['functional'] = val
+            elif dim == 'INDIVIDUAL':
+                out['individual'] = val
+            elif dim == 'METAS':
+                out['metas'] = val
+
+        return jsonify(out), 200
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 @app.route('/api/dimension-weights', methods=['PUT'])
 def update_dimension_weights():
     try:
