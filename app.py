@@ -1864,16 +1864,20 @@ def get_dimension_weights():
         versao_id = model_rows[0].get('versao_modelo_id')
 
         
-        # Busca pesos contextualizados do modelo/versão
-        r_weights = (
-            supabase
-            .table('dimension_weights_modelos')
-            .select('dimension, weight')
-            .eq('cliente_id', cliente_id)
-            .eq('modelo_avaliacao_id', modelo_id)
-            .eq('versao_modelo_id', versao_id)
-            .execute()
-        )
+        # ✅ Busca pesos contextualizados usando função SQL segura
+        r_weights = supabase.rpc(
+            'get_dimension_weights_for_context',
+            {
+                'p_cliente_id': cliente_id,
+                'p_holding_id': holding_id or None,
+                'p_empresa_id': empresa_id or None,
+                'p_filial_id': filial_id or None,
+                'p_nivel_contexto': nivel_contexto or None,
+                'p_contexto_nome': contexto_nome or None
+            }
+        ).execute()
+
+        rows = r_weights.data or []
 
         rows = r_weights.data or []
 
