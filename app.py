@@ -1801,6 +1801,8 @@ def get_dimension_weights():
         holding_id = (request.args.get('holding_id') or '').strip()
         empresa_id = (request.args.get('empresa_id') or '').strip()
         filial_id = (request.args.get('filial_id') or '').strip()
+        nivel_contexto = (request.args.get('nivel_contexto') or '').strip().lower()
+        contexto_nome = (request.args.get('contexto_nome') or '').strip()
 
         # Se não vier contexto, mantém compatibilidade com a tabela antiga global
         if not cliente_id:
@@ -1848,10 +1850,36 @@ def get_dimension_weights():
         r_model = q_model.limit(1).execute()
         model_rows = r_model.data or []
 
+        # ✅ Fallback por nome do contexto, caso o ID não encontre
+        # Ex.: contexto_nome = LEVEN ou PROSPERA
+        if not model_rows and contexto_nome:
+            q_fallback = (
+                supabase
+                .table('modelos_avaliacao_contextos')
+                .select('modelo_avaliacao_id, cliente_id, nivel_contexto, holding_id, empresa_id, filial_id, contexto_nome')
+                .eq('cliente_id', cliente_id)
+                .eq('status', 'ativo')
+                .eq('contexto_nome', contexto_nome)
+            )
+
+            if nivel_contexto:
+                q_fallback = q_fallback.eq('nivel_contexto', nivel_contexto)
+
+            r_fallback = q_fallback.limit(1).execute()
+            model_rows = r_fallback.data or []
+
         if not model_rows:
             return jsonify({
                 'error': 'NO_ACTIVE_MODEL_FOR_CONTEXT',
-                'message': 'Nenhum modelo ativo encontrado para o contexto selecionado.'
+                'message': 'Nenhum modelo ativo encontrado para o contexto selecionado.',
+                'debug': {
+                    'cliente_id': cliente_id,
+                    'holding_id': holding_id,
+                    'empresa_id': empresa_id,
+                    'filial_id': filial_id,
+                    'nivel_contexto': nivel_contexto,
+                    'contexto_nome': contexto_nome
+                }
             }), 404
 
         modelo_id = model_rows[0].get('modelo_avaliacao_id')
