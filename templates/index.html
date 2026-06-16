@@ -1473,7 +1473,7 @@ window.addEventListener('load', function () {
 
       const criteriaComments = {};
       document.querySelectorAll('.criteria-comment').forEach(function(el) {
-        const criteriaId = el.getAttribute('data-criteria-comment'
+        const criteriaId = el.getAttribute('data-criteria-comment');
         const comment = (el.value || '').trim();
         
         if (criteriaId) {
