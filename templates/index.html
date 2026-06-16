@@ -824,15 +824,30 @@
         const data = await response.json();
     
         if (!response.ok) {
+          window.activeEvaluationModel = null;
+          window.evaluationFormBlocked = true;
+        
           const container = qs('#evaluation-criteria');
           if (container) {
             container.innerHTML =
-              '<div class="alert alert-warning">' +
+              '<div class="alert alert-warning" style="padding:18px;border-radius:10px;">' +
                 '<strong>Formulário de avaliação não disponível.</strong><br>' +
                 (data.message || 'Nenhum modelo ativo encontrado para este profissional.') +
               '</div>';
           }
-    
+        
+          const goalsSection = document.getElementById('goals-section');
+          if (goalsSection) goalsSection.style.display = 'none';
+        
+          const ratingSection = document.getElementById('rating-section');
+          if (ratingSection) ratingSection.style.display = 'none';
+        
+          const finalRatingBox = document.getElementById('final-rating-section');
+          if (finalRatingBox) finalRatingBox.style.display = 'none';
+        
+          const btnSalvar = document.getElementById('btnSalvarAvaliacao');
+          if (btnSalvar) btnSalvar.style.display = 'none';
+        
           alert(data.message || 'Nenhum modelo ativo encontrado para este profissional.');
           return;
         }
@@ -1284,6 +1299,11 @@
 
     
     async function submitEvaluation() {
+
+    if (window.evaluationFormBlocked || !window.activeEvaluationModel) {
+      alert('Não é possível salvar: nenhum modelo de avaliação ativo foi encontrado para este profissional.');
+      return;
+    }
       // ============================================
       // CÓDIGO PARA DESABILITAR BOTÃO E MOSTRAR "SALVANDO..."
       // ============================================
