@@ -1677,6 +1677,16 @@ def create_evaluation():
 
         # Inserir novas respostas
         responses = []
+
+        criteria_comments = data.get('criteria_comments') or data.get('comments_by_criteria') or {}
+
+        if isinstance(criteria_comments, str):
+            try:
+                criteria_comments = json.loads(criteria_comments)
+            except Exception:
+                criteria_comments = {}
+
+        
         for criteria_id, rating in data['responses'].items():
             cid = int(criteria_id)
             meta = criteria_map.get(cid, {})
@@ -1694,7 +1704,10 @@ def create_evaluation():
                 # ✅ rastreabilidade por afirmativa
                 'afirmativa_avaliacao_id': meta.get('afirmativa_avaliacao_id'),
                 'eixo_9box_usado': meta.get('eixo_9box'),
-                'peso_usado': meta.get('peso_usado')
+                'peso_usado': meta.get('peso_usado'),
+
+                # ✅ comentário do gestor por afirmação/rating
+                'manager_comment': str(criteria_comments.get(str(cid)) or criteria_comments.get(cid) or '').strip()
             })
 
         
