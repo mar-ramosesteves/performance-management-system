@@ -5411,7 +5411,121 @@ def api_employee_history():
         return jsonify({'error': 'HISTORY_FAILED', 'details': str(e)}), 500
 
 
+# ===================== Workflow de Avaliação de Desempenho =====================
 
+@app.route('/api/evaluations/<int:evaluation_id>/workflow/submit-manager', methods=['POST', 'OPTIONS'])
+def api_workflow_submit_manager(evaluation_id):
+    """
+    Gestor finaliza a avaliação e envia para o comitê de avaliação de desempenho.
+
+    Status gerado:
+      enviada_ao_comite
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        action_by = (
+            payload.get('action_by')
+            or payload.get('user_email')
+            or payload.get('manager_name')
+            or 'gestor'
+        )
+
+        action_comment = (
+            payload.get('comment')
+            or payload.get('action_comment')
+            or ''
+        )
+
+        # 1) Buscar avaliação
+        r_eval = (
+            supabase
+            .table('evaluations')
+            .select('*')
+            .eq('id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        eval_rows = r_eval.data or []
+
+        if not eval_rows:
+            return jsonify({
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliação não encontrada para iniciar workflow.'
+            }), 404
+
+        ev = eval_rows[0]
+
+        employee_id = ev.get('employee_id')
+        manager_name = ev.get('manager_name') or payload.get('manager_name') or ''
+        round_code = ev.get('round_code') or payload.get('round_code') or ''
+
+        # 2) Verificar workflow anterior, se existir
+        r_prev = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        prev_rows = r_prev.data or []
+        prev_workflow = prev_rows[0] if prev_rows else None
+        from_status = prev_workflow.get('status_workflow') if prev_workflow else None
+
+        # 3) Criar/atualizar workflow
+        workflow_row = {
+            'evaluation_id': evaluation_id,
+            'employee_id': employee_id,
+            'manager_name': manager_name,
+            'round_code': round_code,
+            'status_workflow': 'enviada_ao_comite',
+            'submitted_by_manager_at': datetime.now(timezone.utc).isoformat(),
+            'submitted_by_manager_by': str(action_by),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }
+
+        r_workflow = (
+            supabase
+            .table('evaluation_workflows')
+            .upsert(workflow_row, on_conflict='evaluation_id')
+            .execute()
+        )
+
+        workflow_data = r_workflow.data or []
+        workflow = workflow_data[0] if workflow_data else workflow_row
+        workflow_id = workflow.get('id') if isinstance(workflow, dict) else None
+
+        # 4) Registrar log
+        log_row = {
+            'workflow_id': workflow_id,
+            'evaluation_id': evaluation_id,
+            'from_status': from_status,
+            'to_status': 'enviada_ao_comite',
+            'action_by': str(action_by),
+            'action_role': 'gestor',
+            'action_comment': str(action_comment)
+        }
+
+        supabase.table('evaluation_workflow_logs').insert(log_row).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Avaliação enviada ao comitê com sucesso.',
+            'workflow': workflow
+        }), 200
+
+    except Exception as e:
+        print('[api_workflow_submit_manager] erro:', e)
+        return jsonify({
+            'error': 'workflow_submit_manager_failed',
+            'detail': str(e)
+        }), 500
 
 
 
