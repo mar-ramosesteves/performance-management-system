@@ -5729,6 +5729,118 @@ def api_workflow_manager_feedback(evaluation_id):
         }), 500
 
 
+@app.route('/api/evaluations/<int:evaluation_id>/workflow/employee-acknowledge', methods=['POST', 'OPTIONS'])
+def api_workflow_employee_acknowledge(evaluation_id):
+    """
+    Profissional confirma ciência da avaliação.
+
+    Pode registrar:
+      - de_acordo
+      - ciencia_com_ressalva
+      - discordo
+
+    Status gerado:
+      ciencia_do_profissional
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        acknowledgement_status = (
+            payload.get('acknowledgement_status')
+            or payload.get('employee_acknowledgement_status')
+            or payload.get('status')
+            or 'de_acordo'
+        )
+
+        action_by = (
+            payload.get('action_by')
+            or payload.get('employee_email')
+            or payload.get('employee_name')
+            or 'profissional'
+        )
+
+        action_comment = (
+            payload.get('comment')
+            or payload.get('employee_comment')
+            or payload.get('action_comment')
+            or ''
+        )
+
+        # 1) Buscar workflow existente
+        r_prev = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        prev_rows = r_prev.data or []
+
+        if not prev_rows:
+            return jsonify({
+                'error': 'workflow_nao_encontrado',
+                'message': 'Workflow não encontrado. O feedback precisa ser registrado antes da ciência do profissional.'
+            }), 404
+
+        prev_workflow = prev_rows[0]
+        workflow_id = prev_workflow.get('id')
+        from_status = prev_workflow.get('status_workflow')
+
+        # 2) Atualizar workflow
+        update_row = {
+            'status_workflow': 'ciencia_do_profissional',
+            'employee_acknowledged_at': datetime.now(timezone.utc).isoformat(),
+            'employee_acknowledgement_status': str(acknowledgement_status),
+            'employee_comment': str(action_comment),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }
+
+        r_update = (
+            supabase
+            .table('evaluation_workflows')
+            .update(update_row)
+            .eq('evaluation_id', evaluation_id)
+            .execute()
+        )
+
+        workflow_data = r_update.data or []
+        workflow = workflow_data[0] if workflow_data else {
+            **prev_workflow,
+            **update_row
+        }
+
+        # 3) Registrar log
+        log_row = {
+            'workflow_id': workflow_id,
+            'evaluation_id': evaluation_id,
+            'from_status': from_status,
+            'to_status': 'ciencia_do_profissional',
+            'action_by': str(action_by),
+            'action_role': 'profissional',
+            'action_comment': str(action_comment)
+        }
+
+        supabase.table('evaluation_workflow_logs').insert(log_row).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Ciência do profissional registrada com sucesso.',
+            'workflow': workflow
+        }), 200
+
+    except Exception as e:
+        print('[api_workflow_employee_acknowledge] erro:', e)
+        return jsonify({
+            'error': 'workflow_employee_acknowledge_failed',
+            'detail': str(e)
+        }), 500
+
+
 
 
 if __name__ == '__main__':
