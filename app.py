@@ -2714,7 +2714,50 @@ def api_relatorio_pdi_dimensoes():
         )
 
 
+        # Afirmações reais do modelo ativo do contexto selecionado
+        afirmacoes_por_dimensao = {}
 
+        try:
+            employee_ref_id = None
+
+            if avaliacoes and isinstance(avaliacoes, list):
+                employee_ref_id = avaliacoes[0].get('employee_id')
+
+            if employee_ref_id:
+                r_criteria = supabase.rpc(
+                    'get_active_evaluation_criteria_for_employee',
+                    {'p_employee_id': int(employee_ref_id)}
+                ).execute()
+
+                criteria_rows = r_criteria.data or []
+
+                dim_label_map = {
+                    'FUNCIONAL': 'Funcional',
+                    'INDIVIDUAL': 'Individual',
+                    'INSTITUCIONAL': 'Institucional',
+                    'METAS': 'Metas'
+                }
+
+                for row in criteria_rows:
+                    dim_raw = (row.get('dimension') or '').strip().upper()
+                    dim_label = dim_label_map.get(dim_raw, dim_raw.title())
+
+                    name = (row.get('name') or '').strip()
+                    description = (row.get('description') or '').strip()
+
+                    if name and description:
+                        texto = f'{name} - {description}'
+                    else:
+                        texto = name or description
+
+                    if dim_label and texto:
+                        if dim_label not in afirmacoes_por_dimensao:
+                            afirmacoes_por_dimensao[dim_label] = []
+                        afirmacoes_por_dimensao[dim_label].append(texto)
+
+        except Exception as e:
+            print('[api_relatorio_pdi_dimensoes] erro ao buscar afirmações do modelo ativo:', e)
+            afirmacoes_por_dimensao = {}
         
 
         # Pequeno resumo de critérios (só informativo para o front)
@@ -2746,6 +2789,7 @@ def api_relatorio_pdi_dimensoes():
             'generated_at': datetime.now(_tz.utc).isoformat(),
             'criteria': criteria,
             'total_avaliacoes': len(avaliacoes),
+            'afirmacoes_por_dimensao': afirmacoes_por_dimensao,
             'avaliacoes': avaliacoes
         }), 200
     except Exception as e:
