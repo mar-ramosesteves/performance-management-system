@@ -5629,6 +5629,106 @@ def api_workflow_committee_approve(evaluation_id):
         }), 500
 
 
+@app.route('/api/evaluations/<int:evaluation_id>/workflow/manager-feedback', methods=['POST', 'OPTIONS'])
+def api_workflow_manager_feedback(evaluation_id):
+    """
+    Gestor registra que realizou o feedback com o profissional.
+
+    Status gerado:
+      feedback_realizado
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        action_by = (
+            payload.get('action_by')
+            or payload.get('user_email')
+            or payload.get('manager_name')
+            or 'gestor'
+        )
+
+        action_comment = (
+            payload.get('comment')
+            or payload.get('action_comment')
+            or payload.get('feedback_comment')
+            or ''
+        )
+
+        # 1) Buscar workflow existente
+        r_prev = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        prev_rows = r_prev.data or []
+
+        if not prev_rows:
+            return jsonify({
+                'error': 'workflow_nao_encontrado',
+                'message': 'Workflow não encontrado. A avaliação precisa passar pelo comitê antes do feedback.'
+            }), 404
+
+        prev_workflow = prev_rows[0]
+        workflow_id = prev_workflow.get('id')
+        from_status = prev_workflow.get('status_workflow')
+
+        # 2) Atualizar workflow
+        update_row = {
+            'status_workflow': 'feedback_realizado',
+            'feedback_done_at': datetime.now(timezone.utc).isoformat(),
+            'feedback_done_by': str(action_by),
+            'feedback_comment': str(action_comment),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }
+
+        r_update = (
+            supabase
+            .table('evaluation_workflows')
+            .update(update_row)
+            .eq('evaluation_id', evaluation_id)
+            .execute()
+        )
+
+        workflow_data = r_update.data or []
+        workflow = workflow_data[0] if workflow_data else {
+            **prev_workflow,
+            **update_row
+        }
+
+        # 3) Registrar log
+        log_row = {
+            'workflow_id': workflow_id,
+            'evaluation_id': evaluation_id,
+            'from_status': from_status,
+            'to_status': 'feedback_realizado',
+            'action_by': str(action_by),
+            'action_role': 'gestor',
+            'action_comment': str(action_comment)
+        }
+
+        supabase.table('evaluation_workflow_logs').insert(log_row).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Feedback registrado com sucesso.',
+            'workflow': workflow
+        }), 200
+
+    except Exception as e:
+        print('[api_workflow_manager_feedback] erro:', e)
+        return jsonify({
+            'error': 'workflow_manager_feedback_failed',
+            'detail': str(e)
+        }), 500
+
+
 
 
 if __name__ == '__main__':
