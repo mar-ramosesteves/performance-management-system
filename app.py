@@ -2485,9 +2485,8 @@ def buscar_avaliacoes_brutas(
             if filial_id:
                 emp_query = emp_query.eq('filial_id', filial_id)
 
-        # Para holding, neste momento não filtramos na employees,
-        # pois a holding PROSPERA engloba todas as empresas do cliente atual.
-        # O filtro de holding pode ser refinado depois com cliente_id se necessário.
+        elif nivel == 'holding' and holding_id:
+            emp_query = emp_query.eq('holding_id', holding_id)
 
         r_emp = emp_query.execute()
         emp_rows = r_emp.data or []
