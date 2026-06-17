@@ -5464,6 +5464,21 @@ def api_workflow_submit_manager(evaluation_id):
         manager_name = ev.get('manager_name') or payload.get('manager_name') or ''
         round_code = ev.get('round_code') or payload.get('round_code') or ''
 
+
+        # Workflow formal permitido somente para avaliações Year End (YE)
+        round_code_normalized = str(round_code or '').strip().upper()
+
+        if not round_code_normalized.startswith('YE'):
+            return jsonify({
+                'error': 'workflow_apenas_year_end',
+                'message': 'O workflow formal de comitê está disponível somente para avaliações Year End (YE).',
+                'round_code': round_code
+            }), 400
+
+
+
+        
+
         # 2) Verificar workflow anterior, se existir
         r_prev = (
             supabase
