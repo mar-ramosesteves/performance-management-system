@@ -5410,6 +5410,54 @@ def api_employee_history():
     except Exception as e:
         return jsonify({'error': 'HISTORY_FAILED', 'details': str(e)}), 500
 
+@app.route('/api/evaluations/<int:evaluation_id>/summary', methods=['GET', 'OPTIONS'])
+def api_get_evaluation_summary(evaluation_id):
+    """
+    Consulta um resumo da avaliação.
+    Usado pelo painel de workflow para exibir dados mesmo antes do workflow iniciar.
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        r_eval = (
+            supabase
+            .table('evaluations')
+            .select(
+                'id, employee_id, evaluator_id, evaluation_year, evaluation_date, status, '
+                'final_rating, nine_box_position, performance_rating, potential_rating, '
+                'round_code, cliente_id, empresa_id, filial_id, modelo_avaliacao_id, '
+                'versao_modelo_id, ciclo_avaliacao_id, evaluation_origem_id, created_at'
+            )
+            .eq('id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        rows = r_eval.data or []
+
+        if not rows:
+            return jsonify({
+                'success': False,
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliação não encontrada.'
+            }), 404
+
+        evaluation = rows[0]
+
+        return jsonify({
+            'success': True,
+            'evaluation': evaluation
+        }), 200
+
+    except Exception as e:
+        print('[api_get_evaluation_summary] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'evaluation_summary_failed',
+            'detail': str(e)
+        }), 500
+
 
 # ===================== Workflow de Avaliação de Desempenho =====================
 
