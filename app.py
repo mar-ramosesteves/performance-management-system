@@ -5841,6 +5841,56 @@ def api_workflow_employee_acknowledge(evaluation_id):
         }), 500
 
 
+@app.route('/api/evaluations/<int:evaluation_id>/workflow', methods=['GET', 'OPTIONS'])
+def api_get_evaluation_workflow(evaluation_id):
+    """
+    Consulta o workflow atual da avaliação e seus logs.
+    Usado pelo front-end para saber o status atual e o histórico.
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        # 1) Buscar workflow principal
+        r_workflow = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        workflow_rows = r_workflow.data or []
+        workflow = workflow_rows[0] if workflow_rows else None
+
+        # 2) Buscar logs do workflow
+        r_logs = (
+            supabase
+            .table('evaluation_workflow_logs')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .order('created_at', desc=False)
+            .execute()
+        )
+
+        logs = r_logs.data or []
+
+        return jsonify({
+            'success': True,
+            'evaluation_id': evaluation_id,
+            'workflow': workflow,
+            'logs': logs
+        }), 200
+
+    except Exception as e:
+        print('[api_get_evaluation_workflow] erro:', e)
+        return jsonify({
+            'error': 'workflow_get_failed',
+            'detail': str(e)
+        }), 500
+
+
 
 
 if __name__ == '__main__':
