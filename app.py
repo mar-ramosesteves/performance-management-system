@@ -5415,11 +5415,13 @@ def api_get_evaluation_summary(evaluation_id):
     """
     Consulta um resumo da avaliação.
     Usado pelo painel de workflow para exibir dados mesmo antes do workflow iniciar.
+    Inclui dados básicos do profissional avaliado.
     """
     if request.method == 'OPTIONS':
         return ('', 204)
 
     try:
+        # 1) Buscar avaliação
         r_eval = (
             supabase
             .table('evaluations')
@@ -5445,9 +5447,31 @@ def api_get_evaluation_summary(evaluation_id):
 
         evaluation = rows[0]
 
+        # 2) Buscar dados do profissional avaliado
+        employee = None
+        employee_id = evaluation.get('employee_id')
+
+        if employee_id:
+            r_emp = (
+                supabase
+                .table('employees')
+                .select(
+                    'id, nome, cargo, empresa, company_name, branch_name, department_name, '
+                    'manager_name, email, emailLider, employee_code, manager_code, '
+                    'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
+                )
+                .eq('id', employee_id)
+                .limit(1)
+                .execute()
+            )
+
+            emp_rows = r_emp.data or []
+            employee = emp_rows[0] if emp_rows else None
+
         return jsonify({
             'success': True,
-            'evaluation': evaluation
+            'evaluation': evaluation,
+            'employee': employee
         }), 200
 
     except Exception as e:
@@ -5457,7 +5481,6 @@ def api_get_evaluation_summary(evaluation_id):
             'error': 'evaluation_summary_failed',
             'detail': str(e)
         }), 500
-
 
 # ===================== Workflow de Avaliação de Desempenho =====================
 
