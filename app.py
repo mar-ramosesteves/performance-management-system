@@ -5982,9 +5982,13 @@ def api_list_workflow_evaluations():
     """
     Lista avaliações formais YE para o painel do comitê.
     Retorna avaliações enriquecidas com dados do profissional e status do workflow.
-    
-    Exemplo:
+    Respeita contexto: cliente, holding, empresa e filial.
+
+    Exemplos:
       /api/workflow/evaluations?round_code=YE2026
+      /api/workflow/evaluations?round_code=YE2026&holding_id=...
+      /api/workflow/evaluations?round_code=YE2026&empresa_id=...
+      /api/workflow/evaluations?round_code=YE2026&filial_id=...
     """
     if request.method == 'OPTIONS':
         return ('', 204)
@@ -5992,8 +5996,23 @@ def api_list_workflow_evaluations():
     try:
         round_code = (request.args.get('round_code') or 'YE2026').strip()
 
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+        nivel_contexto = (request.args.get('nivel') or request.args.get('contexto_nivel') or '').strip().upper()
+
+        print('[api_list_workflow_evaluations] contexto recebido:', {
+            'round_code': round_code,
+            'cliente_id': cliente_id,
+            'holding_id': holding_id,
+            'empresa_id': empresa_id,
+            'filial_id': filial_id,
+            'nivel_contexto': nivel_contexto
+        })
+
         # 1) Buscar avaliações da rodada
-        r_eval = (
+        q_eval = (
             supabase
             .table('evaluations')
             .select(
@@ -6002,6 +6021,21 @@ def api_list_workflow_evaluations():
                 'round_code, cliente_id, empresa_id, filial_id, created_at'
             )
             .eq('round_code', round_code)
+        )
+
+        if cliente_id:
+            q_eval = q_eval.eq('cliente_id', cliente_id)
+
+        # Filtro direto por empresa/filial quando vier no contexto.
+        # Holding será filtrada com base na tabela employees, porque evaluations não possui holding_id.
+        if empresa_id:
+            q_eval = q_eval.eq('empresa_id', empresa_id)
+
+        if filial_id:
+            q_eval = q_eval.eq('filial_id', filial_id)
+
+        r_eval = (
+            q_eval
             .order('id', desc=True)
             .execute()
         )
@@ -6012,6 +6046,13 @@ def api_list_workflow_evaluations():
             return jsonify({
                 'success': True,
                 'round_code': round_code,
+                'contexto': {
+                    'cliente_id': cliente_id,
+                    'holding_id': holding_id,
+                    'empresa_id': empresa_id,
+                    'filial_id': filial_id,
+                    'nivel': nivel_contexto
+                },
                 'managers': [],
                 'items': []
             }), 200
@@ -6032,7 +6073,7 @@ def api_list_workflow_evaluations():
         employees_by_id = {}
 
         if employee_ids:
-            r_emp = (
+            q_emp = (
                 supabase
                 .table('employees')
                 .select(
@@ -6041,8 +6082,21 @@ def api_list_workflow_evaluations():
                     'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
                 )
                 .in_('id', employee_ids)
-                .execute()
             )
+
+            if cliente_id:
+                q_emp = q_emp.eq('cliente_id', cliente_id)
+
+            if holding_id:
+                q_emp = q_emp.eq('holding_id', holding_id)
+
+            if empresa_id:
+                q_emp = q_emp.eq('empresa_id', empresa_id)
+
+            if filial_id:
+                q_emp = q_emp.eq('filial_id', filial_id)
+
+            r_emp = q_emp.execute()
 
             for emp in (r_emp.data or []):
                 employees_by_id[emp.get('id')] = emp
@@ -6063,13 +6117,18 @@ def api_list_workflow_evaluations():
                 workflows_by_evaluation_id[wf.get('evaluation_id')] = wf
 
         # 4) Montar itens enriquecidos
+        # Importante: só entra item cujo employee passou no filtro de contexto.
         items = []
 
         for ev in evaluations:
             employee_id = ev.get('employee_id')
             evaluation_id = ev.get('id')
 
-            emp = employees_by_id.get(employee_id) or {}
+            emp = employees_by_id.get(employee_id)
+
+            if not emp:
+                continue
+
             wf = workflows_by_evaluation_id.get(evaluation_id)
 
             manager_name = (
@@ -6089,6 +6148,11 @@ def api_list_workflow_evaluations():
                 'department_name': emp.get('department_name'),
                 'manager_name': manager_name,
                 'manager_email': emp.get('emailLider'),
+                'holding': emp.get('holding'),
+                'cliente_id': emp.get('cliente_id'),
+                'holding_id': emp.get('holding_id'),
+                'empresa_id': emp.get('empresa_id'),
+                'filial_id': emp.get('filial_id'),
                 'round_code': ev.get('round_code'),
                 'evaluation_year': ev.get('evaluation_year'),
                 'final_rating': ev.get('final_rating'),
@@ -6124,6 +6188,13 @@ def api_list_workflow_evaluations():
         return jsonify({
             'success': True,
             'round_code': round_code,
+            'contexto': {
+                'cliente_id': cliente_id,
+                'holding_id': holding_id,
+                'empresa_id': empresa_id,
+                'filial_id': filial_id,
+                'nivel': nivel_contexto
+            },
             'managers': managers,
             'items': items
         }), 200
@@ -6135,7 +6206,6 @@ def api_list_workflow_evaluations():
             'error': 'workflow_evaluations_list_failed',
             'detail': str(e)
         }), 500
-
 
 
 
