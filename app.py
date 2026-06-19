@@ -6430,6 +6430,208 @@ def api_list_workflow_evaluations():
         }), 500
 
 
+@app.route('/api/manager/workflow/evaluations', methods=['GET', 'OPTIONS'])
+def api_list_manager_workflow_evaluations():
+    """
+    Lista avaliações formais YE para a página do gestor.
+    O gestor é identificado por e-mail, nome ou código.
+    
+    Exemplos:
+      /api/manager/workflow/evaluations?round_code=YE2026&manager_email=god
+      /api/manager/workflow/evaluations?round_code=YE2026&manager_name=GOD
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        round_code = (request.args.get('round_code') or 'YE2026').strip()
+
+        manager_email = (request.args.get('manager_email') or '').strip()
+        manager_name = (request.args.get('manager_name') or '').strip()
+        manager_code = (request.args.get('manager_code') or '').strip()
+
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+
+        print('[api_list_manager_workflow_evaluations] filtros recebidos:', {
+            'round_code': round_code,
+            'manager_email': manager_email,
+            'manager_name': manager_name,
+            'manager_code': manager_code,
+            'cliente_id': cliente_id,
+            'holding_id': holding_id,
+            'empresa_id': empresa_id,
+            'filial_id': filial_id
+        })
+
+        # 1) Buscar profissionais do gestor
+        q_emp = (
+            supabase
+            .table('employees')
+            .select(
+                'id, nome, cargo, empresa, company_name, branch_name, department_name, '
+                'manager_name, email, emailLider, employee_code, manager_code, '
+                'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
+            )
+        )
+
+        if cliente_id:
+            q_emp = q_emp.eq('cliente_id', cliente_id)
+
+        if holding_id:
+            q_emp = q_emp.eq('holding_id', holding_id)
+
+        if empresa_id:
+            q_emp = q_emp.eq('empresa_id', empresa_id)
+
+        if filial_id:
+            q_emp = q_emp.eq('filial_id', filial_id)
+
+        # Filtro do gestor.
+        # Usamos OR quando possível para aceitar e-mail, nome ou código.
+        manager_filters = []
+
+        if manager_email:
+            manager_filters.append('emailLider.eq.' + manager_email)
+
+        if manager_name:
+            manager_filters.append('manager_name.eq.' + manager_name)
+
+        if manager_code:
+            manager_filters.append('manager_code.eq.' + manager_code)
+
+        if manager_filters:
+            q_emp = q_emp.or_(','.join(manager_filters))
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'gestor_nao_informado',
+                'message': 'Informe manager_email, manager_name ou manager_code para listar as avaliações do gestor.'
+            }), 400
+
+        r_emp = q_emp.execute()
+        employees = r_emp.data or []
+
+        if not employees:
+            return jsonify({
+                'success': True,
+                'round_code': round_code,
+                'manager': {
+                    'manager_email': manager_email,
+                    'manager_name': manager_name,
+                    'manager_code': manager_code
+                },
+                'items': []
+            }), 200
+
+        employees_by_id = {
+            emp.get('id'): emp
+            for emp in employees
+            if emp.get('id') is not None
+        }
+
+        employee_ids = list(employees_by_id.keys())
+
+        # 2) Buscar avaliações YE desses profissionais
+        r_eval = (
+            supabase
+            .table('evaluations')
+            .select(
+                'id, employee_id, evaluator_id, evaluation_year, evaluation_date, status, '
+                'final_rating, nine_box_position, performance_rating, potential_rating, '
+                'round_code, cliente_id, empresa_id, filial_id, created_at'
+            )
+            .eq('round_code', round_code)
+            .in_('employee_id', employee_ids)
+            .order('id', desc=True)
+            .execute()
+        )
+
+        evaluations = r_eval.data or []
+
+        if not evaluations:
+            return jsonify({
+                'success': True,
+                'round_code': round_code,
+                'manager': {
+                    'manager_email': manager_email,
+                    'manager_name': manager_name,
+                    'manager_code': manager_code
+                },
+                'items': []
+            }), 200
+
+        evaluation_ids = [
+            ev.get('id')
+            for ev in evaluations
+            if ev.get('id') is not None
+        ]
+
+        # 3) Buscar workflows
+        workflows_by_evaluation_id = {}
+
+        if evaluation_ids:
+            r_wf = (
+                supabase
+                .table('evaluation_workflows')
+                .select('*')
+                .in_('evaluation_id', evaluation_ids)
+                .execute()
+            )
+
+            for wf in (r_wf.data or []):
+                workflows_by_evaluation_id[wf.get('evaluation_id')] = wf
+
+        # 4) Montar retorno
+        items = []
+
+        for ev in evaluations:
+            emp = employees_by_id.get(ev.get('employee_id')) or {}
+            wf = workflows_by_evaluation_id.get(ev.get('id'))
+
+            items.append({
+                'evaluation_id': ev.get('id'),
+                'employee_id': ev.get('employee_id'),
+                'employee_name': emp.get('nome'),
+                'employee_email': emp.get('email'),
+                'cargo': emp.get('cargo'),
+                'company_name': emp.get('company_name') or emp.get('empresa'),
+                'branch_name': emp.get('branch_name'),
+                'department_name': emp.get('department_name'),
+                'manager_name': emp.get('manager_name'),
+                'manager_email': emp.get('emailLider'),
+                'round_code': ev.get('round_code'),
+                'evaluation_year': ev.get('evaluation_year'),
+                'final_rating': ev.get('final_rating'),
+                'nine_box_position': ev.get('nine_box_position'),
+                'performance_rating': ev.get('performance_rating'),
+                'potential_rating': ev.get('potential_rating'),
+                'workflow_status': wf.get('status_workflow') if wf else None,
+                'workflow': wf
+            })
+
+        return jsonify({
+            'success': True,
+            'round_code': round_code,
+            'manager': {
+                'manager_email': manager_email,
+                'manager_name': manager_name,
+                'manager_code': manager_code
+            },
+            'items': items
+        }), 200
+
+    except Exception as e:
+        print('[api_list_manager_workflow_evaluations] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'manager_workflow_evaluations_failed',
+            'detail': str(e)
+        }), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
