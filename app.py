@@ -5715,6 +5715,118 @@ def api_workflow_committee_approve(evaluation_id):
         }), 500
 
 
+@app.route('/api/evaluations/<int:evaluation_id>/workflow/committee-return', methods=['POST', 'OPTIONS'])
+def api_workflow_committee_return(evaluation_id):
+    """
+    Comitê devolve a avaliação ao gestor para ajustes.
+    O comentário é obrigatório, pois representa a justificativa da decisão do comitê.
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        payload = request.get_json(silent=True) or {}
+
+        action_by = (
+            payload.get('action_by')
+            or payload.get('user_email')
+            or payload.get('committee_user')
+            or 'comite'
+        )
+
+        comment = (
+            payload.get('comment')
+            or payload.get('committee_comment')
+            or ''
+        ).strip()
+
+        if not comment:
+            return jsonify({
+                'success': False,
+                'error': 'comentario_obrigatorio',
+                'message': 'Informe uma justificativa para devolver a avaliação ao gestor.'
+            }), 400
+
+        # Buscar workflow existente
+        r_wf = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        wf_rows = r_wf.data or []
+
+        if not wf_rows:
+            return jsonify({
+                'success': False,
+                'error': 'workflow_nao_encontrado',
+                'message': 'Workflow não encontrado para esta avaliação.'
+            }), 404
+
+        workflow = wf_rows[0]
+        workflow_id = workflow.get('id')
+        from_status = workflow.get('status_workflow')
+
+        if from_status != 'enviada_ao_comite':
+            return jsonify({
+                'success': False,
+                'error': 'status_invalido',
+                'message': 'A avaliação só pode ser devolvida ao gestor quando estiver enviada ao comitê.',
+                'status_atual': from_status
+            }), 400
+
+        now_iso = datetime.utcnow().isoformat()
+
+        update_payload = {
+            'status_workflow': 'devolvida_ao_gestor',
+            'committee_status': 'devolvida',
+            'committee_validated_at': now_iso,
+            'committee_validated_by': action_by,
+            'committee_comment': comment,
+            'updated_at': now_iso
+        }
+
+        r_update = (
+            supabase
+            .table('evaluation_workflows')
+            .update(update_payload)
+            .eq('id', workflow_id)
+            .execute()
+        )
+
+        updated_rows = r_update.data or []
+
+        # Registrar log
+        log_payload = {
+            'workflow_id': workflow_id,
+            'evaluation_id': evaluation_id,
+            'from_status': from_status,
+            'to_status': 'devolvida_ao_gestor',
+            'action_by': action_by,
+            'action_role': 'comite',
+            'action_comment': comment
+        }
+
+        supabase.table('evaluation_workflow_logs').insert(log_payload).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Avaliação devolvida ao gestor com justificativa do comitê.',
+            'workflow': updated_rows[0] if updated_rows else None
+        }), 200
+
+    except Exception as e:
+        print('[api_workflow_committee_return] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'committee_return_failed',
+            'detail': str(e)
+        }), 500
+
+
 @app.route('/api/evaluations/<int:evaluation_id>/workflow/manager-feedback', methods=['POST', 'OPTIONS'])
 def api_workflow_manager_feedback(evaluation_id):
     """
