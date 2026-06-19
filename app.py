@@ -5482,6 +5482,176 @@ def api_get_evaluation_summary(evaluation_id):
             'detail': str(e)
         }), 500
 
+
+@app.route('/api/evaluations/<int:evaluation_id>/readonly', methods=['GET', 'OPTIONS'])
+def api_get_evaluation_readonly(evaluation_id):
+    """
+    Consulta a avaliação completa em modo leitura.
+    Usado pela página de ciência do profissional para exibir critérios,
+    ratings e comentários do gestor sem permitir edição.
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        # 1) Buscar avaliação
+        r_eval = (
+            supabase
+            .table('evaluations')
+            .select(
+                'id, employee_id, evaluator_id, evaluation_year, evaluation_date, status, '
+                'final_rating, nine_box_position, performance_rating, potential_rating, '
+                'round_code, cliente_id, empresa_id, filial_id, modelo_avaliacao_id, '
+                'versao_modelo_id, ciclo_avaliacao_id, evaluation_origem_id, created_at'
+            )
+            .eq('id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        eval_rows = r_eval.data or []
+
+        if not eval_rows:
+            return jsonify({
+                'success': False,
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliação não encontrada.'
+            }), 404
+
+        evaluation = eval_rows[0]
+
+        # 2) Buscar profissional
+        employee = None
+        employee_id = evaluation.get('employee_id')
+
+        if employee_id:
+            r_emp = (
+                supabase
+                .table('employees')
+                .select(
+                    'id, nome, cargo, empresa, company_name, branch_name, department_name, '
+                    'manager_name, email, emailLider, employee_code, manager_code, '
+                    'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
+                )
+                .eq('id', employee_id)
+                .limit(1)
+                .execute()
+            )
+
+            emp_rows = r_emp.data or []
+            employee = emp_rows[0] if emp_rows else None
+
+        # 3) Buscar workflow
+        workflow = None
+
+        r_wf = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        wf_rows = r_wf.data or []
+        workflow = wf_rows[0] if wf_rows else None
+
+        # 4) Buscar respostas da avaliação
+        r_resp = (
+            supabase
+            .table('evaluation_responses')
+            .select(
+                'id, evaluation_id, criteria_id, rating, goal_id, manager_comment, '
+                'peso_usado, eixo_9box_usado, afirmativa_avaliacao_id'
+            )
+            .eq('evaluation_id', evaluation_id)
+            .order('id', desc=False)
+            .execute()
+        )
+
+        responses = r_resp.data or []
+
+        criteria_ids = [
+            r.get('criteria_id')
+            for r in responses
+            if r.get('criteria_id') is not None
+        ]
+
+        # 5) Buscar critérios/afirmações
+        criteria_by_id = {}
+
+        if criteria_ids:
+            r_criteria = (
+                supabase
+                .table('evaluation_criteria')
+                .select('id, dimension, type, name, description, weight')
+                .in_('id', criteria_ids)
+                .execute()
+            )
+
+            for c in (r_criteria.data or []):
+                criteria_by_id[c.get('id')] = c
+
+        # 6) Montar leitura completa
+        responses_readonly = []
+
+        rating_map = {
+            1: 'Excelente',
+            2: 'Superou',
+            3: 'Atendeu',
+            4: 'Não Atendeu',
+            5: 'Insuficiente'
+        }
+
+        for resp in responses:
+            criteria_id = resp.get('criteria_id')
+            crit = criteria_by_id.get(criteria_id) or {}
+
+            rating = resp.get('rating')
+
+            responses_readonly.append({
+                'response_id': resp.get('id'),
+                'criteria_id': criteria_id,
+                'dimension': crit.get('dimension') or '-',
+                'type': crit.get('type') or '-',
+                'name': crit.get('name') or '',
+                'description': crit.get('description') or '',
+                'weight': crit.get('weight'),
+                'rating': rating,
+                'rating_label': rating_map.get(rating, ''),
+                'manager_comment': resp.get('manager_comment') or '',
+                'peso_usado': resp.get('peso_usado'),
+                'eixo_9box_usado': resp.get('eixo_9box_usado')
+            })
+
+        # 7) Agrupar por dimensão para facilitar o front
+        dimensions = {}
+
+        for item in responses_readonly:
+            dim = item.get('dimension') or '-'
+
+            if dim not in dimensions:
+                dimensions[dim] = []
+
+            dimensions[dim].append(item)
+
+        return jsonify({
+            'success': True,
+            'evaluation': evaluation,
+            'employee': employee,
+            'workflow': workflow,
+            'responses_readonly': responses_readonly,
+            'dimensions': dimensions
+        }), 200
+
+    except Exception as e:
+        print('[api_get_evaluation_readonly] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'evaluation_readonly_failed',
+            'detail': str(e)
+        }), 500
+
 # ===================== Workflow de Avaliação de Desempenho =====================
 
 @app.route('/api/evaluations/<int:evaluation_id>/workflow/submit-manager', methods=['POST', 'OPTIONS'])
