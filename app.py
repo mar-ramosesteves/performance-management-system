@@ -6490,30 +6490,37 @@ def api_list_manager_workflow_evaluations():
             q_emp = q_emp.eq('filial_id', filial_id)
 
         # Filtro do gestor.
-        # Usamos OR quando possível para aceitar e-mail, nome ou código.
-        manager_filters = []
-
-        if manager_email:
-            manager_filters.append('emailLider.eq.' + manager_email)
-
-        if manager_name:
-            manager_filters.append('manager_name.eq.' + manager_name)
-
-        if manager_code:
-            manager_filters.append('manager_code.eq.' + manager_code)
-
-        if manager_filters:
-            q_emp = q_emp.or_(','.join(manager_filters))
-        else:
+        # Primeiro buscamos os profissionais do contexto e depois filtramos em Python,
+        # evitando uso de .or_(), que não está disponível neste cliente Supabase.
+        if not manager_email and not manager_name and not manager_code:
             return jsonify({
                 'success': False,
                 'error': 'gestor_nao_informado',
                 'message': 'Informe manager_email, manager_name ou manager_code para listar as avaliações do gestor.'
             }), 400
-
+        
         r_emp = q_emp.execute()
-        employees = r_emp.data or []
+        employees_raw = r_emp.data or []
+        
+        def norm_txt(value):
+            return str(value or '').strip().lower()
+        
+        manager_email_norm = norm_txt(manager_email)
+        manager_name_norm = norm_txt(manager_name)
+        manager_code_norm = norm_txt(manager_code)
+        
+        employees = []
+        
+        for emp in employees_raw:
+            match_email = manager_email_norm and norm_txt(emp.get('emailLider')) == manager_email_norm
+            match_name = manager_name_norm and norm_txt(emp.get('manager_name')) == manager_name_norm
+            match_code = manager_code_norm and norm_txt(emp.get('manager_code')) == manager_code_norm
+        
+            if match_email or match_name or match_code:
+                employees.append(emp)
+        
 
+        
         if not employees:
             return jsonify({
                 'success': True,
