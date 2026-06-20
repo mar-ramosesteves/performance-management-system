@@ -6604,6 +6604,7 @@ def api_list_workflow_evaluations():
         cliente_id = (request.args.get('cliente_id') or '').strip()
         holding_id = (request.args.get('holding_id') or '').strip()
         empresa_id = (request.args.get('empresa_id') or '').strip()
+        user_email = (request.args.get('user_email') or '').strip().lower()
         filial_id = (request.args.get('filial_id') or '').strip()
         nivel_contexto = (request.args.get('nivel') or request.args.get('contexto_nivel') or '').strip().upper()
 
@@ -6613,8 +6614,86 @@ def api_list_workflow_evaluations():
             'holding_id': holding_id,
             'empresa_id': empresa_id,
             'filial_id': filial_id,
+            'user_email': user_email,
             'nivel_contexto': nivel_contexto
         })
+
+
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe user_email para consultar avaliacoes do comite.'
+            }), 400
+
+
+        q_access = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'pode_ver_comite_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .execute()
+        )
+
+        access_rows_raw = q_access.data or []
+        acesso_comite_ok = False
+
+
+
+        for access_row in access_rows_raw:
+            row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+            if row_email != user_email:
+                continue
+
+            row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+            row_holding_id = str(access_row.get('holding_id') or '').strip()
+            row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+            row_filial_id = str(access_row.get('filial_id') or '').strip()
+
+            contexto_ok = True
+
+            if cliente_id and row_cliente_id and row_cliente_id != cliente_id:
+                contexto_ok = False
+
+            if holding_id and row_holding_id and row_holding_id != holding_id:
+                contexto_ok = False
+
+            if empresa_id and row_empresa_id and row_empresa_id != empresa_id:
+                contexto_ok = False
+
+            if filial_id and row_filial_id and row_filial_id != filial_id:
+                contexto_ok = False
+
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(access_row.get('pode_administrar'))
+            )
+
+            pode_comite = bool(access_row.get('pode_ver_comite_avaliacao'))
+            pode_admin = bool(access_row.get('pode_administrar'))
+
+            if (contexto_ok or is_admin_fallback) and (pode_comite or pode_admin):
+                acesso_comite_ok = True
+                break
+
+        if not acesso_comite_ok:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_comite_negado',
+                'message': 'Usuario sem permissao para consultar avaliacoes do comite.'
+            }), 403
+
+        
+
+
+        
 
         # 1) Buscar avaliações da rodada
         q_eval = (
