@@ -5744,13 +5744,19 @@ def api_get_portal_user_access():
                 'pode_ver_comite_avaliacao, pode_ver_gestor_avaliacao, '
                 'pode_ver_ciencia_avaliacao, status'
             )
-            .eq('wp_user_email', email)
             .eq('status', 'ativo')
-            .limit(1)
             .execute()
         )
 
-        rows = r_access.data or []
+        all_rows = r_access.data or []
+
+        rows = []
+
+        for row in all_rows:
+            row_email = str(row.get('wp_user_email') or '').strip().lower()
+
+            if row_email == email:
+                rows.append(row)
 
         if not rows:
             return jsonify({
