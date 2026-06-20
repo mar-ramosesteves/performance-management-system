@@ -5755,6 +5755,8 @@ def api_get_portal_user_access():
 
         all_rows = r_access.data or []
 
+        rows = []
+
         for row in all_rows:
             row_email = str(row.get('wp_user_email') or '').strip().lower()
 
