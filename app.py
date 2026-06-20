@@ -5624,6 +5624,45 @@ def api_get_evaluation_readonly(evaluation_id):
                 'eixo_9box_usado': resp.get('eixo_9box_usado')
             })
 
+
+
+        # 7) Buscar metas individuais da avaliação
+        goals_readonly = []
+
+        r_goals = (
+            supabase
+            .table('individual_goals')
+            .select(
+                'id, evaluation_id, employee_id, round_code, goal_name, goal_description, '
+                'weight, rating, rating_1_criteria, rating_2_criteria, rating_3_criteria, '
+                'rating_4_criteria, rating_5_criteria, goal_origem_id'
+            )
+            .eq('evaluation_id', evaluation_id)
+            .order('id', desc=False)
+            .execute()
+        )
+
+        goals = r_goals.data or []
+
+        for goal in goals:
+            goal_rating = goal.get('rating')
+
+            goals_readonly.append({
+                'goal_id': goal.get('id'),
+                'goal_name': goal.get('goal_name') or '',
+                'goal_description': goal.get('goal_description') or '',
+                'weight': goal.get('weight'),
+                'rating': goal_rating,
+                'rating_label': rating_map.get(goal_rating, ''),
+                'rating_1_criteria': goal.get('rating_1_criteria') or '',
+                'rating_2_criteria': goal.get('rating_2_criteria') or '',
+                'rating_3_criteria': goal.get('rating_3_criteria') or '',
+                'rating_4_criteria': goal.get('rating_4_criteria') or '',
+                'rating_5_criteria': goal.get('rating_5_criteria') or '',
+                'goal_origem_id': goal.get('goal_origem_id')
+            })
+
+        
         # 7) Agrupar por dimensão para facilitar o front
         dimensions = {}
 
@@ -5641,7 +5680,8 @@ def api_get_evaluation_readonly(evaluation_id):
             'employee': employee,
             'workflow': workflow,
             'responses_readonly': responses_readonly,
-            'dimensions': dimensions
+            'dimensions': dimensions,
+            'goals_readonly': goals_readonly
         }), 200
 
     except Exception as e:
