@@ -6832,6 +6832,7 @@ def api_list_manager_workflow_evaluations():
         manager_email = (request.args.get('manager_email') or '').strip()
         manager_name = (request.args.get('manager_name') or '').strip()
         manager_code = (request.args.get('manager_code') or '').strip()
+        user_email = (request.args.get('user_email') or '').strip().lower()
 
         cliente_id = (request.args.get('cliente_id') or '').strip()
         holding_id = (request.args.get('holding_id') or '').strip()
@@ -6875,12 +6876,94 @@ def api_list_manager_workflow_evaluations():
         # Filtro do gestor.
         # Primeiro buscamos os profissionais do contexto e depois filtramos em Python,
         # evitando uso de .or_(), que não está disponível neste cliente Supabase.
+
+        
         if not manager_email and not manager_name and not manager_code:
             return jsonify({
                 'success': False,
                 'error': 'gestor_nao_informado',
                 'message': 'Informe manager_email, manager_name ou manager_code para listar as avaliações do gestor.'
             }), 400
+
+
+        # Seguranca: se a pagina informar user_email,
+        # validar se o usuario logado pode consultar este gestor.
+        if user_email:
+            q_access = (
+                supabase
+                .table('usuarios_acessos')
+                .select(
+                    'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                    'manager_name, manager_code, pode_ver_gestor_avaliacao, pode_administrar, status'
+                )
+                .eq('status', 'ativo')
+                .execute()
+            )
+
+            access_rows_raw = q_access.data or []
+            access_rows = []
+
+            for access_row in access_rows_raw:
+                row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+                if row_email == user_email:
+                    access_rows.append(access_row)
+
+            acesso_gestor_ok = False
+
+            for access_row in access_rows:
+                access_cliente_id = str(access_row.get('cliente_id') or '').strip()
+                access_holding_id = str(access_row.get('holding_id') or '').strip()
+                access_empresa_id = str(access_row.get('empresa_id') or '').strip()
+                access_filial_id = str(access_row.get('filial_id') or '').strip()
+
+                access_manager_name = str(access_row.get('manager_name') or '').strip().lower()
+                access_manager_code = str(access_row.get('manager_code') or '').strip().lower()
+                access_wp_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+                pode_gestor = bool(access_row.get('pode_ver_gestor_avaliacao'))
+                pode_admin = bool(access_row.get('pode_administrar'))
+
+                contexto_ok = True
+
+                if cliente_id and access_cliente_id and access_cliente_id != cliente_id:
+                    contexto_ok = False
+
+                if holding_id and access_holding_id and access_holding_id != holding_id:
+                    contexto_ok = False
+
+                if empresa_id and access_empresa_id and access_empresa_id != empresa_id:
+                    contexto_ok = False
+
+                if filial_id and access_filial_id and access_filial_id != filial_id:
+                    contexto_ok = False
+
+                gestor_ok = False
+
+                if manager_email and access_wp_email and access_wp_email == manager_email.strip().lower():
+                    gestor_ok = True
+
+                if manager_name and access_manager_name and access_manager_name == manager_name.strip().lower():
+                    gestor_ok = True
+
+                if manager_code and access_manager_code and access_manager_code == manager_code.strip().lower():
+                    gestor_ok = True
+
+                if pode_admin and contexto_ok:
+                    acesso_gestor_ok = True
+                    break
+
+                if pode_gestor and contexto_ok and gestor_ok:
+                    acesso_gestor_ok = True
+                    break
+
+            if not acesso_gestor_ok:
+                return jsonify({
+                    'success': False,
+                    'error': 'acesso_gestor_negado',
+                    'message': 'Usuario sem permissao para consultar este gestor.'
+                }), 403
+        
         
         r_emp = q_emp.execute()
         employees_raw = r_emp.data or []
