@@ -5725,6 +5725,11 @@ def api_get_portal_user_access():
     try:
         email = (request.args.get('email') or '').strip().lower()
 
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+
         if not email:
             return jsonify({
                 'success': False,
@@ -5750,12 +5755,40 @@ def api_get_portal_user_access():
 
         all_rows = r_access.data or []
 
-        rows = []
-
         for row in all_rows:
             row_email = str(row.get('wp_user_email') or '').strip().lower()
 
-            if row_email == email:
+            if row_email != email:
+                continue
+
+            row_cliente_id = str(row.get('cliente_id') or '').strip()
+            row_holding_id = str(row.get('holding_id') or '').strip()
+            row_empresa_id = str(row.get('empresa_id') or '').strip()
+            row_filial_id = str(row.get('filial_id') or '').strip()
+
+            # Admin geral sem holding/empresa/filial pode aparecer como fallback.
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(row.get('pode_administrar'))
+            )
+
+            contexto_ok = True
+
+            if cliente_id and row_cliente_id and row_cliente_id != cliente_id:
+                contexto_ok = False
+
+            if holding_id and row_holding_id and row_holding_id != holding_id:
+                contexto_ok = False
+
+            if empresa_id and row_empresa_id and row_empresa_id != empresa_id:
+                contexto_ok = False
+
+            if filial_id and row_filial_id and row_filial_id != filial_id:
+                contexto_ok = False
+
+            if contexto_ok or is_admin_fallback:
                 rows.append(row)
 
         if not rows:
@@ -5765,6 +5798,25 @@ def api_get_portal_user_access():
                 'message': 'Nenhum acesso ativo encontrado para este e-mail.',
                 'email': email
             }), 404
+
+        def access_score(row):
+            score = 0
+
+            if holding_id and str(row.get('holding_id') or '').strip() == holding_id:
+                score += 10
+
+            if empresa_id and str(row.get('empresa_id') or '').strip() == empresa_id:
+                score += 5
+
+            if filial_id and str(row.get('filial_id') or '').strip() == filial_id:
+                score += 3
+
+            if row.get('pode_administrar'):
+                score += 1
+
+            return score
+
+        rows = sorted(rows, key=access_score, reverse=True)
 
         access = rows[0]
 
