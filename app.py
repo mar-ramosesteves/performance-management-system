@@ -7105,6 +7105,245 @@ def api_list_manager_workflow_evaluations():
         }), 500
 
 
+@app.route('/api/employee/workflow/evaluations', methods=['GET', 'OPTIONS'])
+def api_list_employee_workflow_evaluations():
+    """
+    Lista avaliacoes do profissional logado.
+    Usado pela pagina Minha Avaliacao / Ciencia.
+    Acesso validado por user_email na tabela usuarios_acessos.
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        user_email = (request.args.get('user_email') or '').strip().lower()
+        round_code = (request.args.get('round_code') or '').strip()
+
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe user_email para listar as avaliacoes do profissional.'
+            }), 400
+
+        # 1) Buscar acesso ativo do usuario
+        q_access = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'employee_id, pode_ver_ciencia_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .execute()
+        )
+
+        access_rows_raw = q_access.data or []
+        access_rows = []
+
+        for access_row in access_rows_raw:
+            row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+            if row_email != user_email:
+                continue
+
+            row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+            row_holding_id = str(access_row.get('holding_id') or '').strip()
+            row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+            row_filial_id = str(access_row.get('filial_id') or '').strip()
+
+            contexto_ok = True
+
+            if cliente_id and row_cliente_id and row_cliente_id != cliente_id:
+                contexto_ok = False
+
+            if holding_id and row_holding_id and row_holding_id != holding_id:
+                contexto_ok = False
+
+            if empresa_id and row_empresa_id and row_empresa_id != empresa_id:
+                contexto_ok = False
+
+            if filial_id and row_filial_id and row_filial_id != filial_id:
+                contexto_ok = False
+
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(access_row.get('pode_administrar'))
+            )
+
+            if contexto_ok or is_admin_fallback:
+                access_rows.append(access_row)
+
+        if not access_rows:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_nao_encontrado',
+                'message': 'Nenhum acesso ativo encontrado para este usuario neste contexto.'
+            }), 404
+
+        def access_score(row):
+            score = 0
+
+            if holding_id and str(row.get('holding_id') or '').strip() == holding_id:
+                score += 10
+
+            if empresa_id and str(row.get('empresa_id') or '').strip() == empresa_id:
+                score += 5
+
+            if filial_id and str(row.get('filial_id') or '').strip() == filial_id:
+                score += 3
+
+            if row.get('pode_administrar'):
+                score += 1
+
+            return score
+
+        access_rows = sorted(access_rows, key=access_score, reverse=True)
+        access = access_rows[0]
+
+        pode_ciencia = bool(access.get('pode_ver_ciencia_avaliacao'))
+        pode_admin = bool(access.get('pode_administrar'))
+        employee_id = access.get('employee_id')
+
+        if not pode_ciencia and not pode_admin:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_ciencia_negado',
+                'message': 'Usuario sem permissao para consultar avaliacoes como profissional.'
+            }), 403
+
+        if not employee_id and not pode_admin:
+            return jsonify({
+                'success': False,
+                'error': 'employee_id_nao_configurado',
+                'message': 'Acesso encontrado, mas sem employee_id configurado.'
+            }), 400
+
+        # 2) Buscar avaliacoes do profissional
+        q_eval = (
+            supabase
+            .table('evaluations')
+            .select(
+                'id, employee_id, evaluation_year, evaluation_date, status, final_rating, '
+                'nine_box_position, performance_rating, potential_rating, round_code, '
+                'cliente_id, empresa_id, filial_id, created_at'
+            )
+        )
+
+        if employee_id:
+            q_eval = q_eval.eq('employee_id', employee_id)
+
+        if round_code:
+            q_eval = q_eval.eq('round_code', round_code)
+
+        if cliente_id:
+            q_eval = q_eval.eq('cliente_id', cliente_id)
+
+        if empresa_id:
+            q_eval = q_eval.eq('empresa_id', empresa_id)
+
+        if filial_id:
+            q_eval = q_eval.eq('filial_id', filial_id)
+
+        r_eval = q_eval.order('id', desc=True).execute()
+        evaluations = r_eval.data or []
+
+        # 3) Se houver holding_id, filtrar via employees
+        employee_ids = list({
+            ev.get('employee_id')
+            for ev in evaluations
+            if ev.get('employee_id') is not None
+        })
+
+        employees_by_id = {}
+
+        if employee_ids:
+            q_emp = (
+                supabase
+                .table('employees')
+                .select(
+                    'id, nome, cargo, email, company_name, branch_name, department_name, '
+                    'manager_name, holding_id, empresa_id, filial_id'
+                )
+                .in_('id', employee_ids)
+            )
+
+            r_emp = q_emp.execute()
+
+            for emp in (r_emp.data or []):
+                employees_by_id[emp.get('id')] = emp
+
+        items = []
+
+        for ev in evaluations:
+            emp = employees_by_id.get(ev.get('employee_id')) or {}
+
+            if holding_id:
+                emp_holding_id = str(emp.get('holding_id') or '').strip()
+
+                if emp_holding_id and emp_holding_id != holding_id:
+                    continue
+
+            # Buscar workflow da avaliacao
+            workflow = None
+
+            r_wf = (
+                supabase
+                .table('evaluation_workflows')
+                .select('*')
+                .eq('evaluation_id', ev.get('id'))
+                .limit(1)
+                .execute()
+            )
+
+            wf_rows = r_wf.data or []
+            workflow = wf_rows[0] if wf_rows else None
+
+            items.append({
+                'evaluation_id': ev.get('id'),
+                'employee_id': ev.get('employee_id'),
+                'employee_name': emp.get('nome'),
+                'employee_email': emp.get('email'),
+                'cargo': emp.get('cargo'),
+                'company_name': emp.get('company_name'),
+                'branch_name': emp.get('branch_name'),
+                'department_name': emp.get('department_name'),
+                'manager_name': emp.get('manager_name'),
+                'evaluation_year': ev.get('evaluation_year'),
+                'evaluation_date': ev.get('evaluation_date'),
+                'round_code': ev.get('round_code'),
+                'final_rating': ev.get('final_rating'),
+                'nine_box_position': ev.get('nine_box_position'),
+                'performance_rating': ev.get('performance_rating'),
+                'potential_rating': ev.get('potential_rating'),
+                'workflow_status': workflow.get('status_workflow') if workflow else None,
+                'workflow': workflow
+            })
+
+        return jsonify({
+            'success': True,
+            'user_email': user_email,
+            'access': access,
+            'round_code': round_code,
+            'items': items
+        }), 200
+
+    except Exception as e:
+        print('[api_list_employee_workflow_evaluations] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'employee_workflow_evaluations_failed',
+            'detail': str(e)
+        }), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
