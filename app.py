@@ -6010,6 +6010,116 @@ def api_workflow_committee_approve(evaluation_id):
 
     try:
         payload = request.get_json(silent=True) or {}
+        user_email = str(payload.get('user_email') or '').strip().lower()
+
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe user_email para aprovar avaliacao no comite.'
+            }), 400
+
+
+        r_eval_contexto = (
+            supabase
+            .table('evaluations')
+            .select('id, employee_id, cliente_id, empresa_id, filial_id, round_code')
+            .eq('id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        eval_rows_contexto = r_eval_contexto.data or []
+
+        if not eval_rows_contexto:
+            return jsonify({
+                'success': False,
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliacao nao encontrada para validacao do comite.'
+            }), 404
+
+        eval_contexto = eval_rows_contexto[0]
+
+        r_employee_contexto = (
+            supabase
+            .table('employees')
+            .select('id, holding_id, empresa_id, filial_id')
+            .eq('id', eval_contexto.get('employee_id'))
+            .limit(1)
+            .execute()
+        )
+
+        employee_rows_contexto = r_employee_contexto.data or []
+        employee_contexto = employee_rows_contexto[0] if employee_rows_contexto else {}
+
+        eval_cliente_id = str(eval_contexto.get('cliente_id') or '').strip()
+        eval_holding_id = str(employee_contexto.get('holding_id') or '').strip()
+        eval_empresa_id = str(eval_contexto.get('empresa_id') or employee_contexto.get('empresa_id') or '').strip()
+        eval_filial_id = str(eval_contexto.get('filial_id') or employee_contexto.get('filial_id') or '').strip()
+
+
+        q_access_comite = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'pode_ver_comite_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .execute()
+        )
+
+        access_rows_comite = q_access_comite.data or []
+        acesso_approve_ok = False
+
+
+        for access_row in access_rows_comite:
+            row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+            if row_email != user_email:
+                continue
+
+            row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+            row_holding_id = str(access_row.get('holding_id') or '').strip()
+            row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+            row_filial_id = str(access_row.get('filial_id') or '').strip()
+
+            contexto_ok = True
+
+            if eval_cliente_id and row_cliente_id and row_cliente_id != eval_cliente_id:
+                contexto_ok = False
+
+            if eval_holding_id and row_holding_id and row_holding_id != eval_holding_id:
+                contexto_ok = False
+
+            if eval_empresa_id and row_empresa_id and row_empresa_id != eval_empresa_id:
+                contexto_ok = False
+
+            if eval_filial_id and row_filial_id and row_filial_id != eval_filial_id:
+                contexto_ok = False
+
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(access_row.get('pode_administrar'))
+            )
+
+            pode_comite = bool(access_row.get('pode_ver_comite_avaliacao'))
+            pode_admin = bool(access_row.get('pode_administrar'))
+
+            if (contexto_ok or is_admin_fallback) and (pode_comite or pode_admin):
+                acesso_approve_ok = True
+                break
+
+        if not acesso_approve_ok:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_comite_negado',
+                'message': 'Usuario sem permissao para aprovar avaliacao no comite.'
+            }), 403
+        
 
         action_by = (
             payload.get('action_by')
@@ -6109,6 +6219,117 @@ def api_workflow_committee_return(evaluation_id):
 
     try:
         payload = request.get_json(silent=True) or {}
+        user_email = str(payload.get('user_email') or '').strip().lower()
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe user_email para devolver avaliacao no comite.'
+            }), 400
+
+
+        r_eval_contexto = (
+            supabase
+            .table('evaluations')
+            .select('id, employee_id, cliente_id, empresa_id, filial_id, round_code')
+            .eq('id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        eval_rows_contexto = r_eval_contexto.data or []
+
+        if not eval_rows_contexto:
+            return jsonify({
+                'success': False,
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliacao nao encontrada para validacao do comite.'
+            }), 404
+
+        eval_contexto = eval_rows_contexto[0]
+
+
+        r_employee_contexto = (
+            supabase
+            .table('employees')
+            .select('id, holding_id, empresa_id, filial_id')
+            .eq('id', eval_contexto.get('employee_id'))
+            .limit(1)
+            .execute()
+        )
+
+        employee_rows_contexto = r_employee_contexto.data or []
+        employee_contexto = employee_rows_contexto[0] if employee_rows_contexto else {}
+
+        eval_cliente_id = str(eval_contexto.get('cliente_id') or '').strip()
+        eval_holding_id = str(employee_contexto.get('holding_id') or '').strip()
+        eval_empresa_id = str(eval_contexto.get('empresa_id') or employee_contexto.get('empresa_id') or '').strip()
+        eval_filial_id = str(eval_contexto.get('filial_id') or employee_contexto.get('filial_id') or '').strip()
+
+
+        q_access_comite = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'pode_ver_comite_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .execute()
+        )
+
+        access_rows_comite = q_access_comite.data or []
+        acesso_return_ok = False
+
+
+
+        for access_row in access_rows_comite:
+            row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+            if row_email != user_email:
+                continue
+
+            row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+            row_holding_id = str(access_row.get('holding_id') or '').strip()
+            row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+            row_filial_id = str(access_row.get('filial_id') or '').strip()
+
+            contexto_ok = True
+
+            if eval_cliente_id and row_cliente_id and row_cliente_id != eval_cliente_id:
+                contexto_ok = False
+
+            if eval_holding_id and row_holding_id and row_holding_id != eval_holding_id:
+                contexto_ok = False
+
+            if eval_empresa_id and row_empresa_id and row_empresa_id != eval_empresa_id:
+                contexto_ok = False
+
+            if eval_filial_id and row_filial_id and row_filial_id != eval_filial_id:
+                contexto_ok = False
+
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(access_row.get('pode_administrar'))
+            )
+
+            pode_comite = bool(access_row.get('pode_ver_comite_avaliacao'))
+            pode_admin = bool(access_row.get('pode_administrar'))
+
+            if (contexto_ok or is_admin_fallback) and (pode_comite or pode_admin):
+                acesso_return_ok = True
+                break
+
+        if not acesso_return_ok:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_comite_negado',
+                'message': 'Usuario sem permissao para devolver avaliacao no comite.'
+            }), 403
+        
 
         action_by = (
             payload.get('action_by')
