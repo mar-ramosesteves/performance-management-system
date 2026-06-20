@@ -5498,12 +5498,18 @@ def api_get_evaluation_readonly(evaluation_id):
         r_eval = (
             supabase
             .table('evaluations')
+
+
+            
             .select(
                 'id, employee_id, evaluator_id, evaluation_year, evaluation_date, status, '
                 'final_rating, nine_box_position, performance_rating, potential_rating, '
                 'round_code, cliente_id, empresa_id, filial_id, modelo_avaliacao_id, '
-                'versao_modelo_id, ciclo_avaliacao_id, evaluation_origem_id, created_at'
+                'versao_modelo_id, ciclo_avaliacao_id, evaluation_origem_id, created_at, '
+                'dimension_weights, dimension_averages, goals_average, metas_avg'
             )
+
+            
             .eq('id', evaluation_id)
             .limit(1)
             .execute()
@@ -5674,6 +5680,17 @@ def api_get_evaluation_readonly(evaluation_id):
 
             dimensions[dim].append(item)
 
+        calculation_summary = {
+            'dimension_weights': evaluation.get('dimension_weights'),
+            'dimension_averages': evaluation.get('dimension_averages'),
+            'goals_average': evaluation.get('goals_average'),
+            'metas_avg': evaluation.get('metas_avg'),
+            'final_rating': evaluation.get('final_rating'),
+            'performance_rating': evaluation.get('performance_rating'),
+            'potential_rating': evaluation.get('potential_rating'),
+            'nine_box_position': evaluation.get('nine_box_position')
+        }
+
         return jsonify({
             'success': True,
             'evaluation': evaluation,
@@ -5681,7 +5698,8 @@ def api_get_evaluation_readonly(evaluation_id):
             'workflow': workflow,
             'responses_readonly': responses_readonly,
             'dimensions': dimensions,
-            'goals_readonly': goals_readonly
+            'goals_readonly': goals_readonly,
+            'calculation_summary': calculation_summary
         }), 200
 
     except Exception as e:
