@@ -5710,6 +5710,101 @@ def api_get_evaluation_readonly(evaluation_id):
             'detail': str(e)
         }), 500
 
+
+@app.route('/api/portal/user-access', methods=['GET', 'OPTIONS'])
+def api_get_portal_user_access():
+    """
+    Consulta o acesso do usuario logado para montar o Portal LeaderTrack.
+    Recebe o e-mail do usuario WordPress pela querystring.
+    Exemplo:
+    /api/portal/user-access?email=mar.ramosesteves@gmail.com
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        email = (request.args.get('email') or '').strip().lower()
+
+        if not email:
+            return jsonify({
+                'success': False,
+                'error': 'email_obrigatorio',
+                'message': 'Informe o e-mail do usuario.'
+            }), 400
+
+        r_access = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, user_id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'employee_id, manager_code, manager_name, '
+                'pode_ver_desempenho, pode_ver_ninebox, pode_ver_metas, pode_ver_remuneracao, '
+                'pode_ver_ppl, pode_ver_leadertrack, pode_ver_indice_lideranca, '
+                'pode_ver_leadertrack_executivo, pode_administrar, '
+                'pode_ver_comite_avaliacao, pode_ver_gestor_avaliacao, '
+                'pode_ver_ciencia_avaliacao, status'
+            )
+            .eq('wp_user_email', email)
+            .eq('status', 'ativo')
+            .limit(1)
+            .execute()
+        )
+
+        rows = r_access.data or []
+
+        if not rows:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_nao_encontrado',
+                'message': 'Nenhum acesso ativo encontrado para este e-mail.',
+                'email': email
+            }), 404
+
+        access = rows[0]
+
+        portal_cards = []
+
+        if access.get('pode_ver_comite_avaliacao') or access.get('pode_administrar'):
+            portal_cards.append({
+                'key': 'comite_avaliacao',
+                'title': 'Comite de Avaliacao',
+                'description': 'Aprovar, devolver e acompanhar avaliacoes do ciclo.',
+                'url': '/comite-de-avaliacao-de-desempenho/'
+            })
+
+        if access.get('pode_ver_gestor_avaliacao') or access.get('pode_administrar'):
+            portal_cards.append({
+                'key': 'gestor_avaliacao',
+                'title': 'Minhas Avaliacoes como Gestor',
+                'description': 'Acompanhar sua equipe, enviar ao comite e registrar feedback.',
+                'url': '/minhas-avaliacoes-de-desempenho-gestor/'
+            })
+
+        if access.get('pode_ver_ciencia_avaliacao') or access.get('pode_administrar'):
+            portal_cards.append({
+                'key': 'ciencia_avaliacao',
+                'title': 'Minha Avaliacao',
+                'description': 'Consultar a avaliacao completa e registrar ciencia.',
+                'url': '/ciencia-da-avaliacao-de-desempenho/'
+            })
+
+        return jsonify({
+            'success': True,
+            'email': email,
+            'access': access,
+            'portal_cards': portal_cards
+        }), 200
+
+    except Exception as e:
+        print('[api_get_portal_user_access] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'portal_user_access_failed',
+            'detail': str(e)
+        }), 500
+
+
+
 # ===================== Workflow de Avaliação de Desempenho =====================
 
 @app.route('/api/evaluations/<int:evaluation_id>/workflow/submit-manager', methods=['POST', 'OPTIONS'])
