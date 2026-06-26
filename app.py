@@ -6000,10 +6000,10 @@ def api_workflow_submit_manager(evaluation_id):
 @app.route('/api/evaluations/<int:evaluation_id>/workflow/committee-approve', methods=['POST', 'OPTIONS'])
 def api_workflow_committee_approve(evaluation_id):
     """
-    Comitê valida/aprova a avaliação de desempenho.
+    Comitê valida a avaliação de desempenho e envia para a etapa de calibração.
 
     Status gerado:
-      aprovada_pelo_comite
+      em_calibracao_no_comite
     """
     if request.method == 'OPTIONS':
         return ('', 204)
@@ -6157,10 +6157,18 @@ def api_workflow_committee_approve(evaluation_id):
         workflow_id = prev_workflow.get('id')
         from_status = prev_workflow.get('status_workflow')
 
+        if from_status != 'enviada_ao_comite':
+            return jsonify({
+                'success': False,
+                'error': 'status_invalido',
+                'message': 'A aprovação inicial do comitê só pode ocorrer quando a avaliação estiver enviada ao comitê.',
+                'status_atual': from_status
+            }), 400
+
         # 2) Atualizar workflow
         update_row = {
-            'status_workflow': 'aprovada_pelo_comite',
-            'committee_status': 'aprovada',
+            'status_workflow': 'em_calibracao_no_comite',
+            'committee_status': 'em_calibracao',
             'committee_validated_at': datetime.now(timezone.utc).isoformat(),
             'committee_validated_by': str(action_by),
             'committee_comment': str(action_comment),
@@ -6186,7 +6194,7 @@ def api_workflow_committee_approve(evaluation_id):
             'workflow_id': workflow_id,
             'evaluation_id': evaluation_id,
             'from_status': from_status,
-            'to_status': 'aprovada_pelo_comite',
+            'to_status': 'em_calibracao_no_comite',
             'action_by': str(action_by),
             'action_role': 'comite',
             'action_comment': str(action_comment)
@@ -6196,7 +6204,7 @@ def api_workflow_committee_approve(evaluation_id):
 
         return jsonify({
             'success': True,
-            'message': 'Avaliação aprovada pelo comitê com sucesso.',
+            'message': 'Avaliação aprovada na análise inicial e enviada para calibração do comitê.',
             'workflow': workflow
         }), 200
 
@@ -6374,11 +6382,11 @@ def api_workflow_committee_return(evaluation_id):
         workflow_id = workflow.get('id')
         from_status = workflow.get('status_workflow')
 
-        if from_status != 'enviada_ao_comite':
+        if from_status not in ['enviada_ao_comite', 'em_calibracao_no_comite']:
             return jsonify({
                 'success': False,
                 'error': 'status_invalido',
-                'message': 'A avaliação só pode ser devolvida ao gestor quando estiver enviada ao comitê.',
+                'message': 'A avaliação só pode ser devolvida ao gestor quando estiver em análise ou calibração no comitê.',
                 'status_atual': from_status
             }), 400
 
@@ -6427,6 +6435,219 @@ def api_workflow_committee_return(evaluation_id):
         return jsonify({
             'success': False,
             'error': 'committee_return_failed',
+            'detail': str(e)
+        }), 500
+
+
+@app.route('/api/evaluations/<int:evaluation_id>/workflow/committee-finish-calibration', methods=['POST', 'OPTIONS'])
+def api_workflow_committee_finish_calibration(evaluation_id):
+    """
+    Comitê conclui a calibração e libera a avaliação para o gestor registrar o feedback.
+
+    Status gerado:
+      aprovada_pelo_comite
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        payload = request.get_json(silent=True) or {}
+        user_email = str(payload.get('user_email') or '').strip().lower()
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe user_email para concluir a calibração da avaliação.'
+            }), 400
+
+        r_eval_contexto = (
+            supabase
+            .table('evaluations')
+            .select('id, employee_id, cliente_id, empresa_id, filial_id, round_code')
+            .eq('id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        eval_rows_contexto = r_eval_contexto.data or []
+
+        if not eval_rows_contexto:
+            return jsonify({
+                'success': False,
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliacao nao encontrada para concluir a calibracao.'
+            }), 404
+
+        eval_contexto = eval_rows_contexto[0]
+
+        r_employee_contexto = (
+            supabase
+            .table('employees')
+            .select('id, holding_id, empresa_id, filial_id')
+            .eq('id', eval_contexto.get('employee_id'))
+            .limit(1)
+            .execute()
+        )
+
+        employee_rows_contexto = r_employee_contexto.data or []
+        employee_contexto = employee_rows_contexto[0] if employee_rows_contexto else {}
+
+        eval_cliente_id = str(eval_contexto.get('cliente_id') or '').strip()
+        eval_holding_id = str(employee_contexto.get('holding_id') or '').strip()
+        eval_empresa_id = str(eval_contexto.get('empresa_id') or employee_contexto.get('empresa_id') or '').strip()
+        eval_filial_id = str(eval_contexto.get('filial_id') or employee_contexto.get('filial_id') or '').strip()
+
+        q_access_comite = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'pode_ver_comite_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .execute()
+        )
+
+        access_rows_comite = q_access_comite.data or []
+        acesso_calibracao_ok = False
+
+        for access_row in access_rows_comite:
+            row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+            if row_email != user_email:
+                continue
+
+            row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+            row_holding_id = str(access_row.get('holding_id') or '').strip()
+            row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+            row_filial_id = str(access_row.get('filial_id') or '').strip()
+
+            contexto_ok = True
+
+            if eval_cliente_id and row_cliente_id and row_cliente_id != eval_cliente_id:
+                contexto_ok = False
+
+            if eval_holding_id and row_holding_id and row_holding_id != eval_holding_id:
+                contexto_ok = False
+
+            if eval_empresa_id and row_empresa_id and row_empresa_id != eval_empresa_id:
+                contexto_ok = False
+
+            if eval_filial_id and row_filial_id and row_filial_id != eval_filial_id:
+                contexto_ok = False
+
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(access_row.get('pode_administrar'))
+            )
+
+            pode_comite = bool(access_row.get('pode_ver_comite_avaliacao'))
+            pode_admin = bool(access_row.get('pode_administrar'))
+
+            if (contexto_ok or is_admin_fallback) and (pode_comite or pode_admin):
+                acesso_calibracao_ok = True
+                break
+
+        if not acesso_calibracao_ok:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_comite_negado',
+                'message': 'Usuario sem permissao para concluir a calibracao no comite.'
+            }), 403
+
+        action_by = (
+            payload.get('action_by')
+            or payload.get('user_email')
+            or payload.get('committee_user')
+            or 'comite'
+        )
+
+        action_comment = (
+            payload.get('comment')
+            or payload.get('action_comment')
+            or payload.get('committee_comment')
+            or ''
+        )
+
+        r_prev = (
+            supabase
+            .table('evaluation_workflows')
+            .select('*')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
+
+        prev_rows = r_prev.data or []
+
+        if not prev_rows:
+            return jsonify({
+                'success': False,
+                'error': 'workflow_nao_encontrado',
+                'message': 'Workflow não encontrado. A avaliação precisa passar pela análise inicial antes da calibração.'
+            }), 404
+
+        prev_workflow = prev_rows[0]
+        workflow_id = prev_workflow.get('id')
+        from_status = prev_workflow.get('status_workflow')
+
+        if from_status != 'em_calibracao_no_comite':
+            return jsonify({
+                'success': False,
+                'error': 'status_invalido',
+                'message': 'A calibração só pode ser concluída quando a avaliação estiver na etapa de calibração do comitê.',
+                'status_atual': from_status
+            }), 400
+
+        update_row = {
+            'status_workflow': 'aprovada_pelo_comite',
+            'committee_status': 'calibrada',
+            'committee_validated_at': datetime.now(timezone.utc).isoformat(),
+            'committee_validated_by': str(action_by),
+            'committee_comment': str(action_comment),
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }
+
+        r_update = (
+            supabase
+            .table('evaluation_workflows')
+            .update(update_row)
+            .eq('evaluation_id', evaluation_id)
+            .execute()
+        )
+
+        workflow_data = r_update.data or []
+        workflow = workflow_data[0] if workflow_data else {
+            **prev_workflow,
+            **update_row
+        }
+
+        log_row = {
+            'workflow_id': workflow_id,
+            'evaluation_id': evaluation_id,
+            'from_status': from_status,
+            'to_status': 'aprovada_pelo_comite',
+            'action_by': str(action_by),
+            'action_role': 'comite',
+            'action_comment': str(action_comment)
+        }
+
+        supabase.table('evaluation_workflow_logs').insert(log_row).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Calibração concluída. A avaliação foi liberada para feedback do gestor.',
+            'workflow': workflow
+        }), 200
+
+    except Exception as e:
+        print('[api_workflow_committee_finish_calibration] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'workflow_committee_finish_calibration_failed',
             'detail': str(e)
         }), 500
 
@@ -6591,6 +6812,14 @@ def api_workflow_manager_feedback(evaluation_id):
         workflow_id = prev_workflow.get('id')
         from_status = prev_workflow.get('status_workflow')
 
+        if from_status != 'aprovada_pelo_comite':
+            return jsonify({
+                'success': False,
+                'error': 'status_invalido',
+                'message': 'O feedback do gestor só pode ser registrado depois que o comitê concluir a calibração.',
+                'status_atual': from_status
+            }), 400
+
         # 2) Atualizar workflow
         update_row = {
             'status_workflow': 'feedback_realizado',
@@ -6702,6 +6931,14 @@ def api_workflow_employee_acknowledge(evaluation_id):
         prev_workflow = prev_rows[0]
         workflow_id = prev_workflow.get('id')
         from_status = prev_workflow.get('status_workflow')
+
+        if from_status != 'feedback_realizado':
+            return jsonify({
+                'success': False,
+                'error': 'status_invalido',
+                'message': 'A ciência do profissional só pode ser registrada depois que o gestor informar o feedback.',
+                'status_atual': from_status
+            }), 400
 
         # 2) Atualizar workflow
         update_row = {
@@ -7109,6 +7346,357 @@ def api_list_workflow_evaluations():
         return jsonify({
             'success': False,
             'error': 'workflow_evaluations_list_failed',
+            'detail': str(e)
+        }), 500
+
+
+@app.route('/api/workflow/calibration-overview', methods=['GET', 'OPTIONS'])
+def api_workflow_calibration_overview():
+    """
+    Retorna uma visao comparativa para a etapa de calibracao do comite.
+    A ideia e alimentar filtros, cards e graficos na tela de calibracao.
+
+    Filtros opcionais:
+      - round_code
+      - cliente_id
+      - holding_id
+      - empresa_id
+      - filial_id
+      - manager_name
+      - department_name
+      - workflow_status
+      - employee_name
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        round_code = (request.args.get('round_code') or 'YE2026').strip()
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip()
+        empresa_id = (request.args.get('empresa_id') or '').strip()
+        filial_id = (request.args.get('filial_id') or '').strip()
+        user_email = (request.args.get('user_email') or '').strip().lower()
+        manager_name_filter = (request.args.get('manager_name') or '').strip().lower()
+        department_name_filter = (request.args.get('department_name') or '').strip().lower()
+        workflow_status_filter = (request.args.get('workflow_status') or '').strip().lower()
+        employee_name_filter = (request.args.get('employee_name') or '').strip().lower()
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe user_email para consultar a calibracao do comite.'
+            }), 400
+
+        q_access = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
+                'pode_ver_comite_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .execute()
+        )
+
+        access_rows_raw = q_access.data or []
+        acesso_comite_ok = False
+
+        for access_row in access_rows_raw:
+            row_email = str(access_row.get('wp_user_email') or '').strip().lower()
+
+            if row_email != user_email:
+                continue
+
+            row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+            row_holding_id = str(access_row.get('holding_id') or '').strip()
+            row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+            row_filial_id = str(access_row.get('filial_id') or '').strip()
+
+            contexto_ok = True
+
+            if cliente_id and row_cliente_id and row_cliente_id != cliente_id:
+                contexto_ok = False
+
+            if holding_id and row_holding_id and row_holding_id != holding_id:
+                contexto_ok = False
+
+            if empresa_id and row_empresa_id and row_empresa_id != empresa_id:
+                contexto_ok = False
+
+            if filial_id and row_filial_id and row_filial_id != filial_id:
+                contexto_ok = False
+
+            is_admin_fallback = (
+                not row_holding_id
+                and not row_empresa_id
+                and not row_filial_id
+                and bool(access_row.get('pode_administrar'))
+            )
+
+            pode_comite = bool(access_row.get('pode_ver_comite_avaliacao'))
+            pode_admin = bool(access_row.get('pode_administrar'))
+
+            if (contexto_ok or is_admin_fallback) and (pode_comite or pode_admin):
+                acesso_comite_ok = True
+                break
+
+        if not acesso_comite_ok:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_comite_negado',
+                'message': 'Usuario sem permissao para consultar a calibracao do comite.'
+            }), 403
+
+        q_eval = (
+            supabase
+            .table('evaluations')
+            .select(
+                'id, employee_id, evaluator_id, evaluation_year, evaluation_date, status, '
+                'final_rating, nine_box_position, performance_rating, potential_rating, '
+                'round_code, cliente_id, empresa_id, filial_id, created_at'
+            )
+            .eq('round_code', round_code)
+        )
+
+        if cliente_id:
+            q_eval = q_eval.eq('cliente_id', cliente_id)
+
+        if empresa_id:
+            q_eval = q_eval.eq('empresa_id', empresa_id)
+
+        if filial_id:
+            q_eval = q_eval.eq('filial_id', filial_id)
+
+        r_eval = q_eval.order('id', desc=True).execute()
+        evaluations = r_eval.data or []
+
+        if not evaluations:
+            return jsonify({
+                'success': True,
+                'round_code': round_code,
+                'filters': {
+                    'manager_name': manager_name_filter,
+                    'department_name': department_name_filter,
+                    'workflow_status': workflow_status_filter,
+                    'employee_name': employee_name_filter
+                },
+                'summary': {
+                    'total_avaliacoes': 0,
+                    'rating_medio_geral': None,
+                    'status_counts': [],
+                    'ratings_distribution': [],
+                    'media_por_gestor': [],
+                    'media_por_area': [],
+                    'media_por_empresa': []
+                },
+                'items': []
+            }), 200
+
+        employee_ids = [
+            ev.get('employee_id')
+            for ev in evaluations
+            if ev.get('employee_id') is not None
+        ]
+
+        evaluation_ids = [
+            ev.get('id')
+            for ev in evaluations
+            if ev.get('id') is not None
+        ]
+
+        employees_by_id = {}
+
+        if employee_ids:
+            q_emp = (
+                supabase
+                .table('employees')
+                .select(
+                    'id, nome, cargo, empresa, company_name, branch_name, department_name, '
+                    'manager_name, email, emailLider, employee_code, manager_code, '
+                    'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
+                )
+                .in_('id', employee_ids)
+            )
+
+            if cliente_id:
+                q_emp = q_emp.eq('cliente_id', cliente_id)
+
+            if holding_id:
+                q_emp = q_emp.eq('holding_id', holding_id)
+
+            if empresa_id:
+                q_emp = q_emp.eq('empresa_id', empresa_id)
+
+            if filial_id:
+                q_emp = q_emp.eq('filial_id', filial_id)
+
+            r_emp = q_emp.execute()
+
+            for emp in (r_emp.data or []):
+                employees_by_id[emp.get('id')] = emp
+
+        workflows_by_evaluation_id = {}
+
+        if evaluation_ids:
+            r_workflows = (
+                supabase
+                .table('evaluation_workflows')
+                .select('*')
+                .in_('evaluation_id', evaluation_ids)
+                .execute()
+            )
+
+            for wf in (r_workflows.data or []):
+                workflows_by_evaluation_id[wf.get('evaluation_id')] = wf
+
+        items = []
+
+        for ev in evaluations:
+            employee_id = ev.get('employee_id')
+            evaluation_id = ev.get('id')
+            emp = employees_by_id.get(employee_id)
+
+            if not emp:
+                continue
+
+            wf = workflows_by_evaluation_id.get(evaluation_id)
+            manager_name = str(emp.get('manager_name') or emp.get('emailLider') or 'Sem gestor identificado').strip()
+            department_name = str(emp.get('department_name') or '').strip()
+            employee_name = str(emp.get('nome') or '').strip()
+            workflow_status = str(wf.get('status_workflow') if wf else 'sem_workflow' or '').strip()
+
+            if manager_name_filter and manager_name.lower() != manager_name_filter:
+                continue
+
+            if department_name_filter and department_name.lower() != department_name_filter:
+                continue
+
+            if workflow_status_filter and workflow_status.lower() != workflow_status_filter:
+                continue
+
+            if employee_name_filter and employee_name_filter not in employee_name.lower():
+                continue
+
+            item = {
+                'evaluation_id': evaluation_id,
+                'employee_id': employee_id,
+                'employee_name': employee_name,
+                'employee_email': emp.get('email'),
+                'cargo': emp.get('cargo'),
+                'company_name': emp.get('company_name') or emp.get('empresa'),
+                'branch_name': emp.get('branch_name'),
+                'department_name': department_name,
+                'manager_name': manager_name,
+                'manager_email': emp.get('emailLider'),
+                'holding': emp.get('holding'),
+                'cliente_id': emp.get('cliente_id'),
+                'holding_id': emp.get('holding_id'),
+                'empresa_id': emp.get('empresa_id'),
+                'filial_id': emp.get('filial_id'),
+                'round_code': ev.get('round_code'),
+                'evaluation_year': ev.get('evaluation_year'),
+                'final_rating': ev.get('final_rating'),
+                'nine_box_position': ev.get('nine_box_position'),
+                'performance_rating': ev.get('performance_rating'),
+                'potential_rating': ev.get('potential_rating'),
+                'workflow_status': workflow_status,
+                'workflow': wf
+            }
+
+            items.append(item)
+
+        def _append_group_avg(bucket, key, rating_value):
+            if key not in bucket:
+                bucket[key] = {
+                    'total': 0,
+                    'rated_total': 0,
+                    'sum': 0.0
+                }
+
+            bucket[key]['total'] += 1
+
+            if rating_value is not None:
+                bucket[key]['rated_total'] += 1
+                bucket[key]['sum'] += float(rating_value)
+
+        status_counts_map = {}
+        ratings_distribution_map = {}
+        manager_avg_map = {}
+        department_avg_map = {}
+        company_avg_map = {}
+        rating_values = []
+
+        for item in items:
+            status_key = item.get('workflow_status') or 'sem_workflow'
+            status_counts_map[status_key] = status_counts_map.get(status_key, 0) + 1
+
+            rating_value = item.get('final_rating')
+            rating_bucket = str(rating_value) if rating_value is not None else 'sem_rating'
+            ratings_distribution_map[rating_bucket] = ratings_distribution_map.get(rating_bucket, 0) + 1
+
+            if rating_value is not None:
+                rating_values.append(float(rating_value))
+
+            _append_group_avg(manager_avg_map, item.get('manager_name') or 'Sem gestor identificado', rating_value)
+            _append_group_avg(department_avg_map, item.get('department_name') or 'Sem area informada', rating_value)
+            _append_group_avg(company_avg_map, item.get('company_name') or 'Sem empresa informada', rating_value)
+
+        def _format_avg_list(source_map, key_name):
+            rows = []
+
+            for key, meta in source_map.items():
+                total = int(meta.get('total') or 0)
+                rated_total = int(meta.get('rated_total') or 0)
+                avg = round(meta.get('sum', 0.0) / rated_total, 2) if rated_total else None
+                rows.append({
+                    key_name: key,
+                    'total_avaliacoes': total,
+                    'avaliacoes_com_rating': rated_total,
+                    'rating_medio': avg
+                })
+
+            return sorted(rows, key=lambda x: ((x.get('rating_medio') is None), -(x.get('rating_medio') or 0), x.get(key_name) or ''))
+
+        rating_medio_geral = round(sum(rating_values) / len(rating_values), 2) if rating_values else None
+
+        return jsonify({
+            'success': True,
+            'round_code': round_code,
+            'filters': {
+                'cliente_id': cliente_id,
+                'holding_id': holding_id,
+                'empresa_id': empresa_id,
+                'filial_id': filial_id,
+                'manager_name': manager_name_filter,
+                'department_name': department_name_filter,
+                'workflow_status': workflow_status_filter,
+                'employee_name': employee_name_filter
+            },
+            'summary': {
+                'total_avaliacoes': len(items),
+                'rating_medio_geral': rating_medio_geral,
+                'status_counts': [
+                    {'workflow_status': k, 'total': v}
+                    for k, v in sorted(status_counts_map.items(), key=lambda x: x[0])
+                ],
+                'ratings_distribution': [
+                    {'rating': k, 'total': v}
+                    for k, v in sorted(ratings_distribution_map.items(), key=lambda x: x[0])
+                ],
+                'media_por_gestor': _format_avg_list(manager_avg_map, 'manager_name'),
+                'media_por_area': _format_avg_list(department_avg_map, 'department_name'),
+                'media_por_empresa': _format_avg_list(company_avg_map, 'company_name')
+            },
+            'items': items
+        }), 200
+
+    except Exception as e:
+        print('[api_workflow_calibration_overview] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'workflow_calibration_overview_failed',
             'detail': str(e)
         }), 500
 
