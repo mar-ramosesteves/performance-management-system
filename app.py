@@ -7055,7 +7055,7 @@ def _get_workflow_context_employees(cliente_id='', holding_id='', empresa_id='',
         )
     )
 
-    if cliente_id:
+    if cliente_id and not (holding_id or empresa_id or filial_id):
         q_emp = q_emp.eq('cliente_id', cliente_id)
 
     if holding_id:
