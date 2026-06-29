@@ -7085,6 +7085,83 @@ def _get_workflow_nivel_contexto():
     ).strip().lower()
 
 
+def _get_evaluations_from_workflows(round_code, context_employees_by_id=None):
+    q_workflows = (
+        supabase
+        .table('evaluation_workflows')
+        .select('evaluation_id, employee_id, round_code')
+        .eq('round_code', round_code)
+    )
+
+    workflow_rows = q_workflows.execute().data or []
+    allowed_employee_ids = set((context_employees_by_id or {}).keys())
+
+    if allowed_employee_ids:
+        workflow_rows = [
+            row for row in workflow_rows
+            if row.get('employee_id') in allowed_employee_ids
+        ]
+
+    evaluation_ids = [
+        row.get('evaluation_id')
+        for row in workflow_rows
+        if row.get('evaluation_id') is not None
+    ]
+
+    if not evaluation_ids:
+        return []
+
+    evaluations_by_id = {}
+
+    r_eval = (
+        supabase
+        .table('evaluations')
+        .select(
+            'id, employee_id, evaluator_id, evaluation_year, evaluation_date, status, '
+            'final_rating, nine_box_position, performance_rating, potential_rating, '
+            'round_code, cliente_id, empresa_id, filial_id, created_at'
+        )
+        .in_('id', evaluation_ids)
+        .execute()
+    )
+
+    for ev in (r_eval.data or []):
+        evaluations_by_id[ev.get('id')] = ev
+
+    fallback_rows = []
+    for wf in workflow_rows:
+        evaluation_id = wf.get('evaluation_id')
+        ev = evaluations_by_id.get(evaluation_id)
+
+        if ev:
+            fallback_rows.append(ev)
+            continue
+
+        fallback_rows.append({
+            'id': evaluation_id,
+            'employee_id': wf.get('employee_id'),
+            'round_code': wf.get('round_code') or round_code,
+            'evaluator_id': None,
+            'evaluation_year': None,
+            'evaluation_date': None,
+            'status': None,
+            'final_rating': None,
+            'nine_box_position': None,
+            'performance_rating': None,
+            'potential_rating': None,
+            'cliente_id': None,
+            'empresa_id': None,
+            'filial_id': None,
+            'created_at': None
+        })
+
+    return sorted(
+        fallback_rows,
+        key=lambda row: row.get('id') or 0,
+        reverse=True
+    )
+
+
 @app.route('/api/workflow/evaluations', methods=['GET', 'OPTIONS'])
 def api_list_workflow_evaluations():
     """
@@ -7255,6 +7332,12 @@ def api_list_workflow_evaluations():
         )
 
         evaluations = r_eval.data or []
+
+        if not evaluations:
+            evaluations = _get_evaluations_from_workflows(
+                round_code,
+                context_employees_by_id=context_employees_by_id
+            )
 
         if not evaluations:
             return jsonify({
@@ -7581,6 +7664,12 @@ def api_workflow_calibration_overview():
 
         r_eval = q_eval.order('id', desc=True).execute()
         evaluations = r_eval.data or []
+
+        if not evaluations:
+            evaluations = _get_evaluations_from_workflows(
+                round_code,
+                context_employees_by_id=context_employees_by_id
+            )
 
         if not evaluations:
             return jsonify({
