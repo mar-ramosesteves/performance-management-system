@@ -7162,6 +7162,63 @@ def _get_evaluations_from_workflows(round_code, context_employees_by_id=None):
     )
 
 
+def _get_workflow_rating_context_map(
+    round_code,
+    cliente_id='',
+    holding_id='',
+    empresa_id='',
+    filial_id=''
+):
+    q_rating = (
+        supabase
+        .table('v_desempenho_contexto')
+        .select(
+            'evaluation_id,employee_id,'
+            'final_rating,performance_rating,potential_rating,nine_box_position,'
+            'round_code,ciclo_codigo'
+        )
+    )
+
+    if round_code:
+        q_rating = q_rating.eq('round_code', round_code)
+
+    if cliente_id and not (holding_id or empresa_id or filial_id):
+        q_rating = q_rating.eq('cliente_id', cliente_id)
+
+    if holding_id:
+        q_rating = q_rating.eq('holding_id', holding_id)
+
+    if empresa_id:
+        q_rating = q_rating.eq('empresa_id', empresa_id)
+
+    if filial_id:
+        q_rating = q_rating.eq('filial_id', filial_id)
+
+    rows = q_rating.execute().data or []
+
+    by_evaluation_id = {}
+    by_employee_id = {}
+
+    for row in rows:
+        evaluation_id = row.get('evaluation_id')
+        employee_id = row.get('employee_id')
+
+        if evaluation_id is not None:
+            by_evaluation_id[evaluation_id] = row
+
+        if employee_id is not None:
+            by_employee_id[employee_id] = row
+
+    return by_evaluation_id, by_employee_id
+
+
+def _coalesce_value(*values):
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 @app.route('/api/workflow/evaluations', methods=['GET', 'OPTIONS'])
 def api_list_workflow_evaluations():
     """
@@ -7413,6 +7470,14 @@ def api_list_workflow_evaluations():
             for wf in (r_workflows.data or []):
                 workflows_by_evaluation_id[wf.get('evaluation_id')] = wf
 
+        ratings_by_evaluation_id, ratings_by_employee_id = _get_workflow_rating_context_map(
+            round_code,
+            cliente_id=cliente_id,
+            holding_id=holding_id,
+            empresa_id=empresa_id,
+            filial_id=filial_id
+        )
+
         # 4) Montar itens enriquecidos
         # Importante: só entra item cujo employee passou no filtro de contexto.
         items = []
@@ -7427,6 +7492,11 @@ def api_list_workflow_evaluations():
                 continue
 
             wf = workflows_by_evaluation_id.get(evaluation_id)
+            rating_ctx = (
+                ratings_by_evaluation_id.get(evaluation_id)
+                or ratings_by_employee_id.get(employee_id)
+                or {}
+            )
 
             manager_name = (
                 emp.get('manager_name')
@@ -7452,10 +7522,10 @@ def api_list_workflow_evaluations():
                 'filial_id': emp.get('filial_id'),
                 'round_code': ev.get('round_code'),
                 'evaluation_year': ev.get('evaluation_year'),
-                'final_rating': ev.get('final_rating'),
-                'nine_box_position': ev.get('nine_box_position'),
-                'performance_rating': ev.get('performance_rating'),
-                'potential_rating': ev.get('potential_rating'),
+                'final_rating': _coalesce_value(ev.get('final_rating'), rating_ctx.get('final_rating')),
+                'nine_box_position': _coalesce_value(ev.get('nine_box_position'), rating_ctx.get('nine_box_position')),
+                'performance_rating': _coalesce_value(ev.get('performance_rating'), rating_ctx.get('performance_rating')),
+                'potential_rating': _coalesce_value(ev.get('potential_rating'), rating_ctx.get('potential_rating')),
                 'workflow_status': wf.get('status_workflow') if wf else None,
                 'workflow': wf
             }
@@ -7750,6 +7820,14 @@ def api_workflow_calibration_overview():
             for wf in (r_workflows.data or []):
                 workflows_by_evaluation_id[wf.get('evaluation_id')] = wf
 
+        ratings_by_evaluation_id, ratings_by_employee_id = _get_workflow_rating_context_map(
+            round_code,
+            cliente_id=cliente_id,
+            holding_id=holding_id,
+            empresa_id=empresa_id,
+            filial_id=filial_id
+        )
+
         items = []
 
         for ev in evaluations:
@@ -7761,6 +7839,11 @@ def api_workflow_calibration_overview():
                 continue
 
             wf = workflows_by_evaluation_id.get(evaluation_id)
+            rating_ctx = (
+                ratings_by_evaluation_id.get(evaluation_id)
+                or ratings_by_employee_id.get(employee_id)
+                or {}
+            )
             manager_name = str(emp.get('manager_name') or emp.get('emailLider') or 'Sem gestor identificado').strip()
             department_name = str(emp.get('department_name') or '').strip()
             employee_name = str(emp.get('nome') or '').strip()
@@ -7796,10 +7879,10 @@ def api_workflow_calibration_overview():
                 'filial_id': emp.get('filial_id'),
                 'round_code': ev.get('round_code'),
                 'evaluation_year': ev.get('evaluation_year'),
-                'final_rating': ev.get('final_rating'),
-                'nine_box_position': ev.get('nine_box_position'),
-                'performance_rating': ev.get('performance_rating'),
-                'potential_rating': ev.get('potential_rating'),
+                'final_rating': _coalesce_value(ev.get('final_rating'), rating_ctx.get('final_rating')),
+                'nine_box_position': _coalesce_value(ev.get('nine_box_position'), rating_ctx.get('nine_box_position')),
+                'performance_rating': _coalesce_value(ev.get('performance_rating'), rating_ctx.get('performance_rating')),
+                'potential_rating': _coalesce_value(ev.get('potential_rating'), rating_ctx.get('potential_rating')),
                 'workflow_status': workflow_status,
                 'workflow': wf
             }
