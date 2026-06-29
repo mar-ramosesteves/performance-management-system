@@ -5439,6 +5439,77 @@ def api_get_evaluation_summary(evaluation_id):
         rows = r_eval.data or []
 
         if not rows:
+            r_workflow = (
+                supabase
+                .table('evaluation_workflows')
+                .select('evaluation_id, employee_id, round_code')
+                .eq('evaluation_id', evaluation_id)
+                .limit(1)
+                .execute()
+            )
+
+            workflow_rows = r_workflow.data or []
+            if workflow_rows:
+                workflow_row = workflow_rows[0]
+                employee_id = workflow_row.get('employee_id')
+                round_code = workflow_row.get('round_code')
+                employee = None
+
+                if employee_id:
+                    r_emp = (
+                        supabase
+                        .table('employees')
+                        .select(
+                            'id, nome, cargo, empresa, company_name, branch_name, department_name, '
+                            'manager_name, email, emailLider, employee_code, manager_code, '
+                            'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
+                        )
+                        .eq('id', employee_id)
+                        .limit(1)
+                        .execute()
+                    )
+
+                    emp_rows = r_emp.data or []
+                    employee = emp_rows[0] if emp_rows else None
+
+                rating_ctx = {}
+                if round_code:
+                    ratings_by_evaluation_id, ratings_by_employee_id = _get_workflow_rating_context_map(round_code)
+                    rating_ctx = (
+                        ratings_by_evaluation_id.get(evaluation_id)
+                        or ratings_by_employee_id.get(employee_id)
+                        or {}
+                    )
+
+                evaluation = {
+                    'id': evaluation_id,
+                    'employee_id': employee_id,
+                    'evaluator_id': None,
+                    'evaluation_year': None,
+                    'evaluation_date': None,
+                    'status': None,
+                    'final_rating': rating_ctx.get('final_rating'),
+                    'nine_box_position': rating_ctx.get('nine_box_position'),
+                    'performance_rating': rating_ctx.get('performance_rating'),
+                    'potential_rating': rating_ctx.get('potential_rating'),
+                    'round_code': round_code,
+                    'cliente_id': employee.get('cliente_id') if employee else None,
+                    'empresa_id': employee.get('empresa_id') if employee else None,
+                    'filial_id': employee.get('filial_id') if employee else None,
+                    'modelo_avaliacao_id': None,
+                    'versao_modelo_id': None,
+                    'ciclo_avaliacao_id': None,
+                    'evaluation_origem_id': None,
+                    'created_at': None
+                }
+
+                return jsonify({
+                    'success': True,
+                    'evaluation': evaluation,
+                    'employee': employee
+                }), 200
+
+        if not rows:
             return jsonify({
                 'success': False,
                 'error': 'avaliacao_nao_encontrada',
