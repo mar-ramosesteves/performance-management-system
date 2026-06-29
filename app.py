@@ -7040,6 +7040,51 @@ def api_get_evaluation_workflow(evaluation_id):
         }), 500
 
 
+def _get_workflow_context_employees(cliente_id='', holding_id='', empresa_id='', filial_id=''):
+    """
+    Busca profissionais dentro do contexto recebido pelo WordPress.
+    Isso deixa o filtro de holding explicito antes de montar as listas do comite.
+    """
+    q_emp = (
+        supabase
+        .table('employees')
+        .select(
+            'id, nome, cargo, empresa, company_name, branch_name, department_name, '
+            'manager_name, email, emailLider, employee_code, manager_code, '
+            'holding, business_line, nivel, cliente_id, holding_id, empresa_id, filial_id'
+        )
+    )
+
+    if cliente_id:
+        q_emp = q_emp.eq('cliente_id', cliente_id)
+
+    if holding_id:
+        q_emp = q_emp.eq('holding_id', holding_id)
+
+    if empresa_id:
+        q_emp = q_emp.eq('empresa_id', empresa_id)
+
+    if filial_id:
+        q_emp = q_emp.eq('filial_id', filial_id)
+
+    rows = q_emp.execute().data or []
+
+    return {
+        row.get('id'): row
+        for row in rows
+        if row.get('id') is not None
+    }
+
+
+def _get_workflow_nivel_contexto():
+    return (
+        request.args.get('nivel_contexto')
+        or request.args.get('nivel')
+        or request.args.get('contexto_nivel')
+        or ''
+    ).strip().lower()
+
+
 @app.route('/api/workflow/evaluations', methods=['GET', 'OPTIONS'])
 def api_list_workflow_evaluations():
     """
@@ -7064,7 +7109,7 @@ def api_list_workflow_evaluations():
         empresa_id = (request.args.get('empresa_id') or '').strip()
         user_email = (request.args.get('user_email') or '').strip().lower()
         filial_id = (request.args.get('filial_id') or '').strip()
-        nivel_contexto = (request.args.get('nivel') or request.args.get('contexto_nivel') or '').strip().upper()
+        nivel_contexto = _get_workflow_nivel_contexto()
 
         print('[api_list_workflow_evaluations] contexto recebido:', {
             'round_code': round_code,
@@ -7153,6 +7198,30 @@ def api_list_workflow_evaluations():
 
         
 
+        context_employees_by_id = {}
+        if cliente_id or holding_id or empresa_id or filial_id:
+            context_employees_by_id = _get_workflow_context_employees(
+                cliente_id=cliente_id,
+                holding_id=holding_id,
+                empresa_id=empresa_id,
+                filial_id=filial_id
+            )
+
+            if not context_employees_by_id:
+                return jsonify({
+                    'success': True,
+                    'round_code': round_code,
+                    'contexto': {
+                        'cliente_id': cliente_id,
+                        'holding_id': holding_id,
+                        'empresa_id': empresa_id,
+                        'filial_id': filial_id,
+                        'nivel': nivel_contexto
+                    },
+                    'managers': [],
+                    'items': []
+                }), 200
+
         # 1) Buscar avaliações da rodada
         q_eval = (
             supabase
@@ -7167,6 +7236,9 @@ def api_list_workflow_evaluations():
 
         if cliente_id:
             q_eval = q_eval.eq('cliente_id', cliente_id)
+
+        if context_employees_by_id:
+            q_eval = q_eval.in_('employee_id', list(context_employees_by_id.keys()))
 
         # Filtro direto por empresa/filial quando vier no contexto.
         # Holding será filtrada com base na tabela employees, porque evaluations não possui holding_id.
@@ -7212,9 +7284,9 @@ def api_list_workflow_evaluations():
         ]
 
         # 2) Buscar profissionais avaliados
-        employees_by_id = {}
+        employees_by_id = dict(context_employees_by_id)
 
-        if employee_ids:
+        if employee_ids and not employees_by_id:
             q_emp = (
                 supabase
                 .table('employees')
@@ -7449,6 +7521,41 @@ def api_workflow_calibration_overview():
                 'message': 'Usuario sem permissao para consultar a calibracao do comite.'
             }), 403
 
+        context_employees_by_id = {}
+        if cliente_id or holding_id or empresa_id or filial_id:
+            context_employees_by_id = _get_workflow_context_employees(
+                cliente_id=cliente_id,
+                holding_id=holding_id,
+                empresa_id=empresa_id,
+                filial_id=filial_id
+            )
+
+            if not context_employees_by_id:
+                return jsonify({
+                    'success': True,
+                    'round_code': round_code,
+                    'filters': {
+                        'cliente_id': cliente_id,
+                        'holding_id': holding_id,
+                        'empresa_id': empresa_id,
+                        'filial_id': filial_id,
+                        'manager_name': manager_name_filter,
+                        'department_name': department_name_filter,
+                        'workflow_status': workflow_status_filter,
+                        'employee_name': employee_name_filter
+                    },
+                    'summary': {
+                        'total_avaliacoes': 0,
+                        'rating_medio_geral': None,
+                        'status_counts': [],
+                        'ratings_distribution': [],
+                        'media_por_gestor': [],
+                        'media_por_area': [],
+                        'media_por_empresa': []
+                    },
+                    'items': []
+                }), 200
+
         q_eval = (
             supabase
             .table('evaluations')
@@ -7462,6 +7569,9 @@ def api_workflow_calibration_overview():
 
         if cliente_id:
             q_eval = q_eval.eq('cliente_id', cliente_id)
+
+        if context_employees_by_id:
+            q_eval = q_eval.in_('employee_id', list(context_employees_by_id.keys()))
 
         if empresa_id:
             q_eval = q_eval.eq('empresa_id', empresa_id)
@@ -7506,9 +7616,9 @@ def api_workflow_calibration_overview():
             if ev.get('id') is not None
         ]
 
-        employees_by_id = {}
+        employees_by_id = dict(context_employees_by_id)
 
-        if employee_ids:
+        if employee_ids and not employees_by_id:
             q_emp = (
                 supabase
                 .table('employees')
