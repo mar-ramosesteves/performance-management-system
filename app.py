@@ -5891,7 +5891,35 @@ def api_get_portal_user_access():
 
         rows = sorted(rows, key=access_score, reverse=True)
 
-        access = rows[0]
+        access = dict(rows[0])
+        manager_identity = _resolve_operational_manager_identity(
+            rows,
+            cliente_id=cliente_id,
+            holding_id=holding_id,
+            empresa_id=empresa_id,
+            filial_id=filial_id
+        )
+
+        if manager_identity:
+            access['workflow_manager_name'] = manager_identity.get('manager_name')
+            access['workflow_manager_email'] = manager_identity.get('manager_email')
+            access['workflow_manager_code'] = manager_identity.get('manager_code')
+            access['workflow_manager_source'] = manager_identity.get('source')
+
+            if (
+                (not str(access.get('manager_name') or '').strip())
+                or _is_top_hierarchy_marker(access.get('manager_name'))
+            ) and manager_identity.get('manager_name'):
+                access['manager_name'] = manager_identity.get('manager_name')
+
+            if (
+                (not str(access.get('manager_code') or '').strip())
+                or _is_top_hierarchy_marker(access.get('manager_code'))
+            ) and manager_identity.get('manager_code'):
+                access['manager_code'] = manager_identity.get('manager_code')
+
+            if manager_identity.get('manager_email'):
+                access['manager_email'] = manager_identity.get('manager_email')
 
         portal_cards = []
 
@@ -5933,6 +5961,126 @@ def api_get_portal_user_access():
             'error': 'portal_user_access_failed',
             'detail': str(e)
         }), 500
+
+
+def _is_top_hierarchy_marker(value):
+    return str(value or '').strip().upper() == 'GOD'
+
+
+def _resolve_operational_manager_identity(access_rows, cliente_id='', holding_id='', empresa_id='', filial_id=''):
+    """
+    Resolve a identidade operacional do gestor.
+
+    Importante:
+    - usuarios_acessos.manager_name / manager_code representam para quem o usuario responde
+      e podem trazer marcadores como GOD.
+    - para o workflow do gestor, precisamos da identidade do proprio gestor
+      (nome / email / codigo do colaborador), para localizar sua equipe.
+    """
+    access_rows = access_rows or []
+
+    if not access_rows:
+        return {}
+
+    def _score_access_row(row):
+        score = 0
+
+        if row.get('pode_ver_gestor_avaliacao'):
+            score += 20
+
+        if row.get('employee_id') is not None:
+            score += 5
+
+        if holding_id and str(row.get('holding_id') or '').strip() == holding_id:
+            score += 10
+
+        if empresa_id and str(row.get('empresa_id') or '').strip() == empresa_id:
+            score += 5
+
+        if filial_id and str(row.get('filial_id') or '').strip() == filial_id:
+            score += 3
+
+        if row.get('pode_administrar'):
+            score += 1
+
+        return score
+
+    sorted_rows = sorted(access_rows, key=_score_access_row, reverse=True)
+
+    employee_ids = []
+    seen_ids = set()
+
+    for row in sorted_rows:
+        employee_id = row.get('employee_id')
+
+        if employee_id is None:
+            continue
+
+        employee_id_str = str(employee_id).strip()
+
+        if not employee_id_str or employee_id_str in seen_ids:
+            continue
+
+        seen_ids.add(employee_id_str)
+        employee_ids.append(employee_id)
+
+    employees_by_id = {}
+
+    if employee_ids:
+        try:
+            r_emp = (
+                supabase
+                .table('employees')
+                .select('id, nome, email, employee_code, cliente_id, holding_id, empresa_id, filial_id')
+                .in_('id', employee_ids)
+                .execute()
+            )
+
+            employees_by_id = {
+                emp.get('id'): emp
+                for emp in (r_emp.data or [])
+                if emp.get('id') is not None
+            }
+        except Exception as e:
+            print('[resolve_operational_manager_identity] erro ao buscar employees:', e)
+
+    for row in sorted_rows:
+        emp = employees_by_id.get(row.get('employee_id')) or {}
+
+        manager_name = str(emp.get('nome') or '').strip()
+        manager_email = str(emp.get('email') or '').strip().lower()
+        manager_code = str(emp.get('employee_code') or '').strip()
+
+        if manager_name or manager_email or manager_code:
+            return {
+                'manager_name': manager_name or None,
+                'manager_email': manager_email or None,
+                'manager_code': manager_code or None,
+                'source': 'employee'
+            }
+
+    # Fallback defensivo: usa os campos do acesso somente quando nao sao marcadores de topo.
+    for row in sorted_rows:
+        manager_name = str(row.get('manager_name') or '').strip()
+        manager_code = str(row.get('manager_code') or '').strip()
+
+        if manager_name and not _is_top_hierarchy_marker(manager_name):
+            return {
+                'manager_name': manager_name,
+                'manager_email': None,
+                'manager_code': manager_code or None,
+                'source': 'access'
+            }
+
+        if manager_code and not _is_top_hierarchy_marker(manager_code):
+            return {
+                'manager_name': None,
+                'manager_email': None,
+                'manager_code': manager_code,
+                'source': 'access'
+            }
+
+    return {}
 
 
 
@@ -8135,7 +8283,8 @@ def api_list_manager_workflow_evaluations():
                 .table('usuarios_acessos')
                 .select(
                     'id, wp_user_email, perfil, cliente_id, holding_id, empresa_id, filial_id, '
-                    'manager_name, manager_code, pode_ver_gestor_avaliacao, pode_administrar, status'
+                    'employee_id, manager_name, manager_code, '
+                    'pode_ver_gestor_avaliacao, pode_administrar, status'
                 )
                 .eq('status', 'ativo')
                 .execute()
@@ -8149,6 +8298,27 @@ def api_list_manager_workflow_evaluations():
 
                 if row_email == user_email:
                     access_rows.append(access_row)
+
+            operational_manager = _resolve_operational_manager_identity(
+                access_rows,
+                cliente_id=cliente_id,
+                holding_id=holding_id,
+                empresa_id=empresa_id,
+                filial_id=filial_id
+            )
+
+            requested_is_top_marker = (
+                _is_top_hierarchy_marker(manager_name)
+                or _is_top_hierarchy_marker(manager_code)
+            )
+
+            if operational_manager and (
+                requested_is_top_marker
+                or (not manager_email and not manager_name and not manager_code)
+            ):
+                manager_email = str(operational_manager.get('manager_email') or '').strip()
+                manager_name = str(operational_manager.get('manager_name') or '').strip()
+                manager_code = str(operational_manager.get('manager_code') or '').strip()
 
             acesso_gestor_ok = False
 
@@ -8180,6 +8350,7 @@ def api_list_manager_workflow_evaluations():
                     contexto_ok = False
 
                 gestor_ok = False
+                gestor_operacional_ok = False
 
                 if manager_email and access_wp_email and access_wp_email == manager_email.strip().lower():
                     gestor_ok = True
@@ -8190,11 +8361,25 @@ def api_list_manager_workflow_evaluations():
                 if manager_code and access_manager_code and access_manager_code == manager_code.strip().lower():
                     gestor_ok = True
 
+                if operational_manager:
+                    op_manager_email = str(operational_manager.get('manager_email') or '').strip().lower()
+                    op_manager_name = str(operational_manager.get('manager_name') or '').strip().lower()
+                    op_manager_code = str(operational_manager.get('manager_code') or '').strip().lower()
+
+                    if manager_email and op_manager_email and op_manager_email == manager_email.strip().lower():
+                        gestor_operacional_ok = True
+
+                    if manager_name and op_manager_name and op_manager_name == manager_name.strip().lower():
+                        gestor_operacional_ok = True
+
+                    if manager_code and op_manager_code and op_manager_code == manager_code.strip().lower():
+                        gestor_operacional_ok = True
+
                 if pode_admin and contexto_ok:
                     acesso_gestor_ok = True
                     break
 
-                if pode_gestor and contexto_ok and gestor_ok:
+                if pode_gestor and contexto_ok and (gestor_ok or gestor_operacional_ok):
                     acesso_gestor_ok = True
                     break
 
