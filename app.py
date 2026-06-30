@@ -6144,15 +6144,16 @@ def _resolve_operational_manager_identity(access_rows, cliente_id='', holding_id
 # ===================== Workflow de Avaliação de Desempenho =====================
 
 def _is_demo_workflow_test_request():
-    referer = str(request.headers.get('Referer') or '').strip().lower()
     origin = str(request.headers.get('Origin') or '').strip().lower()
     trusted_origin = 'gestor.thehrkey.tech' in origin
-    trusted_test_referer = '/teste/' in referer
 
-    # O reset continua seguro porque remove apenas registros marcados como demo.
-    # Aqui aceitamos tambem chamadas do mesmo dominio quando o navegador nao enviar
-    # o referer completo do /teste/.
-    return trusted_origin and (trusted_test_referer or not referer)
+    # O reset continua seguro porque:
+    # 1) exige usuario com permissao de comite/admin no contexto esperado
+    # 2) remove apenas registros marcados como demo
+    # 3) recria somente o kit fake controlado
+    # Por isso, aqui validamos o dominio de origem em vez de depender do Referer,
+    # que pode vir vazio ou truncado em alguns cenarios do navegador.
+    return trusted_origin
 
 
 def _demo_workflow_status_sequence(final_status):
