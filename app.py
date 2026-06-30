@@ -6146,7 +6146,13 @@ def _resolve_operational_manager_identity(access_rows, cliente_id='', holding_id
 def _is_demo_workflow_test_request():
     referer = str(request.headers.get('Referer') or '').strip().lower()
     origin = str(request.headers.get('Origin') or '').strip().lower()
-    return '/teste/' in referer and 'gestor.thehrkey.tech' in origin
+    trusted_origin = 'gestor.thehrkey.tech' in origin
+    trusted_test_referer = '/teste/' in referer
+
+    # O reset continua seguro porque remove apenas registros marcados como demo.
+    # Aqui aceitamos tambem chamadas do mesmo dominio quando o navegador nao enviar
+    # o referer completo do /teste/.
+    return trusted_origin and (trusted_test_referer or not referer)
 
 
 def _demo_workflow_status_sequence(final_status):
