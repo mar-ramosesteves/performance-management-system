@@ -17,6 +17,10 @@ import psycopg2
 
 
 DEMO_WORKFLOW_MARKER = 'HRK_DEMO_WORKFLOW_RESET_V1'
+DEMO_WORKFLOW_MARKERS = {
+    'HRK_DEMO_WORKFLOW_RESET_V1',
+    'FAKE_CODEX_CAL_20260629',
+}
 DEMO_WORKFLOW_RESET_CONFIRM = 'RESET KIT DEMO'
 DEMO_WORKFLOW_CLIENTE_ID = 'e40505a2-354b-4e0a-8c55-115488407920'
 DEMO_WORKFLOW_HOLDING_ID = '41c11f1d-2508-4b0d-ade0-8dda7efb8c2d'
@@ -6156,6 +6160,19 @@ def _is_demo_workflow_test_request():
     return trusted_origin
 
 
+def _workflow_include_demo_rows():
+    value = str(request.args.get('include_demo') or '').strip().lower()
+    return value in {'1', 'true', 'sim', 'yes'}
+
+
+def _is_demo_workflow_row(workflow_row):
+    if not workflow_row:
+        return False
+
+    marker = str(workflow_row.get('committee_comment') or '').strip()
+    return marker in DEMO_WORKFLOW_MARKERS
+
+
 def _demo_workflow_status_sequence(final_status):
     sequence_map = {
         'enviada_ao_comite': ['enviada_ao_comite'],
@@ -7870,6 +7887,7 @@ def api_list_workflow_evaluations():
         user_email = (request.args.get('user_email') or '').strip().lower()
         filial_id = (request.args.get('filial_id') or '').strip()
         nivel_contexto = _get_workflow_nivel_contexto()
+        include_demo_rows = _workflow_include_demo_rows()
 
         print('[api_list_workflow_evaluations] contexto recebido:', {
             'round_code': round_code,
@@ -8118,6 +8136,10 @@ def api_list_workflow_evaluations():
                 continue
 
             wf = workflows_by_evaluation_id.get(evaluation_id)
+
+            if _is_demo_workflow_row(wf) and not include_demo_rows:
+                continue
+
             rating_ctx = (
                 ratings_by_evaluation_id.get(evaluation_id)
                 or ratings_by_employee_id.get(employee_id)
@@ -8227,6 +8249,7 @@ def api_workflow_calibration_overview():
         holding_id = (request.args.get('holding_id') or '').strip()
         empresa_id = (request.args.get('empresa_id') or '').strip()
         filial_id = (request.args.get('filial_id') or '').strip()
+        include_demo_rows = _workflow_include_demo_rows()
         user_email = (request.args.get('user_email') or '').strip().lower()
         manager_name_filter = (request.args.get('manager_name') or '').strip().lower()
         department_name_filter = (request.args.get('department_name') or '').strip().lower()
@@ -8465,6 +8488,10 @@ def api_workflow_calibration_overview():
                 continue
 
             wf = workflows_by_evaluation_id.get(evaluation_id)
+
+            if _is_demo_workflow_row(wf) and not include_demo_rows:
+                continue
+
             rating_ctx = (
                 ratings_by_evaluation_id.get(evaluation_id)
                 or ratings_by_employee_id.get(employee_id)
@@ -8634,6 +8661,7 @@ def api_list_manager_workflow_evaluations():
         holding_id = (request.args.get('holding_id') or '').strip()
         empresa_id = (request.args.get('empresa_id') or '').strip()
         filial_id = (request.args.get('filial_id') or '').strip()
+        include_demo_rows = _workflow_include_demo_rows()
 
         print('[api_list_manager_workflow_evaluations] filtros recebidos:', {
             'round_code': round_code,
@@ -8897,6 +8925,9 @@ def api_list_manager_workflow_evaluations():
             emp = employees_by_id.get(ev.get('employee_id')) or {}
             wf = workflows_by_evaluation_id.get(ev.get('id'))
 
+            if _is_demo_workflow_row(wf) and not include_demo_rows:
+                continue
+
             items.append({
                 'evaluation_id': ev.get('id'),
                 'employee_id': ev.get('employee_id'),
@@ -8956,6 +8987,7 @@ def api_list_employee_workflow_evaluations():
         holding_id = (request.args.get('holding_id') or '').strip()
         empresa_id = (request.args.get('empresa_id') or '').strip()
         filial_id = (request.args.get('filial_id') or '').strip()
+        include_demo_rows = _workflow_include_demo_rows()
 
         if not user_email:
             return jsonify({
@@ -9138,6 +9170,9 @@ def api_list_employee_workflow_evaluations():
 
             wf_rows = r_wf.data or []
             workflow = wf_rows[0] if wf_rows else None
+
+            if _is_demo_workflow_row(workflow) and not include_demo_rows:
+                continue
 
             items.append({
                 'evaluation_id': ev.get('id'),
