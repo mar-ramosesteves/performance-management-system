@@ -16,6 +16,63 @@ from flask import make_response
 import psycopg2
 
 
+DEMO_WORKFLOW_MARKER = 'HRK_DEMO_WORKFLOW_RESET_V1'
+DEMO_WORKFLOW_RESET_CONFIRM = 'RESET KIT DEMO'
+DEMO_WORKFLOW_CLIENTE_ID = 'e40505a2-354b-4e0a-8c55-115488407920'
+DEMO_WORKFLOW_HOLDING_ID = '41c11f1d-2508-4b0d-ade0-8dda7efb8c2d'
+LEGACY_DEMO_WORKFLOW_EVALUATION_IDS = [254, 255, 256, 257, 258, 259, 260]
+DEMO_WORKFLOW_EMPLOYEE_CASES = [
+    {
+        'employee_id': 203,
+        'final_rating': 4.60,
+        'nine_box_position': 8,
+        'performance_rating': 8.40,
+        'potential_rating': 8.80,
+        'workflow_status': 'em_calibracao_no_comite'
+    },
+    {
+        'employee_id': 131,
+        'final_rating': 3.80,
+        'nine_box_position': 6,
+        'performance_rating': 6.20,
+        'potential_rating': 6.60,
+        'workflow_status': 'enviada_ao_comite'
+    },
+    {
+        'employee_id': 160,
+        'final_rating': 4.20,
+        'nine_box_position': 7,
+        'performance_rating': 7.80,
+        'potential_rating': 5.90,
+        'workflow_status': 'aprovada_pelo_comite'
+    },
+    {
+        'employee_id': 170,
+        'final_rating': 2.40,
+        'nine_box_position': 3,
+        'performance_rating': 4.10,
+        'potential_rating': 8.10,
+        'workflow_status': 'feedback_realizado'
+    },
+    {
+        'employee_id': 257,
+        'final_rating': 3.10,
+        'nine_box_position': 5,
+        'performance_rating': 5.80,
+        'potential_rating': 5.20,
+        'workflow_status': 'devolvida_ao_gestor'
+    },
+    {
+        'employee_id': 186,
+        'final_rating': 2.55,
+        'nine_box_position': 5,
+        'performance_rating': 6.10,
+        'potential_rating': 5.00,
+        'workflow_status': 'ciencia_do_profissional'
+    }
+]
+
+
 # ===== Helpers de acesso do Gestor =====
 def current_manager_code():
     """
@@ -6085,6 +6142,349 @@ def _resolve_operational_manager_identity(access_rows, cliente_id='', holding_id
 
 
 # ===================== Workflow de Avaliação de Desempenho =====================
+
+def _is_demo_workflow_test_request():
+    referer = str(request.headers.get('Referer') or '').strip().lower()
+    origin = str(request.headers.get('Origin') or '').strip().lower()
+    return '/teste/' in referer and 'gestor.thehrkey.tech' in origin
+
+
+def _demo_workflow_status_sequence(final_status):
+    sequence_map = {
+        'enviada_ao_comite': ['enviada_ao_comite'],
+        'em_calibracao_no_comite': ['enviada_ao_comite', 'em_calibracao_no_comite'],
+        'aprovada_pelo_comite': ['enviada_ao_comite', 'em_calibracao_no_comite', 'aprovada_pelo_comite'],
+        'devolvida_ao_gestor': ['enviada_ao_comite', 'em_calibracao_no_comite', 'devolvida_ao_gestor'],
+        'feedback_realizado': ['enviada_ao_comite', 'em_calibracao_no_comite', 'aprovada_pelo_comite', 'feedback_realizado'],
+        'ciencia_do_profissional': ['enviada_ao_comite', 'em_calibracao_no_comite', 'aprovada_pelo_comite', 'feedback_realizado', 'ciencia_do_profissional']
+    }
+    return sequence_map.get(final_status, ['enviada_ao_comite'])
+
+
+def _build_demo_workflow_row(case_data, employee_row, evaluation_row, actor_email):
+    now_iso = datetime.now(timezone.utc).isoformat()
+    sequence = _demo_workflow_status_sequence(case_data.get('workflow_status'))
+    final_status = sequence[-1]
+
+    workflow_row = {
+        'evaluation_id': evaluation_row.get('id'),
+        'employee_id': employee_row.get('id'),
+        'manager_name': employee_row.get('manager_name') or '',
+        'round_code': evaluation_row.get('round_code'),
+        'status_workflow': final_status,
+        'submitted_by_manager_at': now_iso,
+        'submitted_by_manager_by': actor_email,
+        'committee_status': None,
+        'committee_validated_at': None,
+        'committee_validated_by': None,
+        'committee_comment': DEMO_WORKFLOW_MARKER,
+        'feedback_done_at': None,
+        'feedback_done_by': None,
+        'feedback_comment': None,
+        'employee_acknowledged_at': None,
+        'employee_acknowledgement_status': None,
+        'employee_comment': None,
+        'updated_at': now_iso
+    }
+
+    if 'em_calibracao_no_comite' in sequence:
+        workflow_row['committee_status'] = 'em_calibracao'
+        workflow_row['committee_validated_at'] = now_iso
+        workflow_row['committee_validated_by'] = actor_email
+
+    if 'aprovada_pelo_comite' in sequence:
+        workflow_row['committee_status'] = 'calibrado'
+        workflow_row['committee_validated_at'] = now_iso
+        workflow_row['committee_validated_by'] = actor_email
+
+    if final_status == 'devolvida_ao_gestor':
+        workflow_row['committee_status'] = 'devolvida'
+
+    if 'feedback_realizado' in sequence:
+        workflow_row['feedback_done_at'] = now_iso
+        workflow_row['feedback_done_by'] = actor_email
+        workflow_row['feedback_comment'] = 'Kit demo: feedback registrado automaticamente.'
+
+    if 'ciencia_do_profissional' in sequence:
+        workflow_row['employee_acknowledged_at'] = now_iso
+        workflow_row['employee_acknowledgement_status'] = 'de_acordo'
+        workflow_row['employee_comment'] = 'Kit demo: ciencia registrada automaticamente.'
+
+    return workflow_row
+
+
+def _build_demo_log_rows(workflow_row, actor_email):
+    sequence = _demo_workflow_status_sequence(workflow_row.get('status_workflow'))
+    logs = []
+    previous_status = None
+
+    for status in sequence:
+        action_role = 'gestor'
+        action_comment = 'Kit demo do workflow recriado automaticamente.'
+
+        if status in ['em_calibracao_no_comite', 'aprovada_pelo_comite', 'devolvida_ao_gestor']:
+            action_role = 'comite'
+
+        if status == 'feedback_realizado':
+            action_role = 'gestor'
+            action_comment = 'Kit demo: feedback registrado automaticamente.'
+
+        if status == 'ciencia_do_profissional':
+            action_role = 'profissional'
+            action_comment = 'Kit demo: ciencia registrada automaticamente.'
+
+        logs.append({
+            'workflow_id': workflow_row.get('id'),
+            'evaluation_id': workflow_row.get('evaluation_id'),
+            'from_status': previous_status,
+            'to_status': status,
+            'action_by': actor_email,
+            'action_role': action_role,
+            'action_comment': action_comment
+        })
+        previous_status = status
+
+    return logs
+
+
+@app.route('/api/workflow/demo/reset', methods=['POST', 'OPTIONS'])
+def api_reset_workflow_demo_kit():
+    """
+    Recria um kit fixo de avaliacoes demo para o workflow.
+
+    Salvaguardas:
+    - so funciona a partir do /teste/
+    - exige confirmacao explicita
+    - so remove registros de demo marcados pelo kit atual
+    - tambem aceita limpar o conjunto legado de IDs fake conhecidos
+    """
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        if not _is_demo_workflow_test_request():
+            return jsonify({
+                'success': False,
+                'error': 'demo_reset_bloqueado',
+                'message': 'O reset do kit demo so pode ser executado a partir do ambiente de teste.'
+            }), 403
+
+        payload = request.get_json(silent=True) or {}
+        user_email = str(payload.get('user_email') or '').strip().lower()
+        confirm_text = str(payload.get('confirm_text') or '').strip()
+
+        if not user_email:
+            return jsonify({
+                'success': False,
+                'error': 'user_email_obrigatorio',
+                'message': 'Informe o e-mail do usuario para resetar o kit demo.'
+            }), 400
+
+        if confirm_text != DEMO_WORKFLOW_RESET_CONFIRM:
+            return jsonify({
+                'success': False,
+                'error': 'confirmacao_invalida',
+                'message': 'Confirme digitando exatamente RESET KIT DEMO.'
+            }), 400
+
+        q_access = (
+            supabase
+            .table('usuarios_acessos')
+            .select(
+                'id, wp_user_email, cliente_id, holding_id, empresa_id, filial_id, '
+                'pode_ver_comite_avaliacao, pode_administrar, status'
+            )
+            .eq('status', 'ativo')
+            .eq('wp_user_email', user_email)
+            .execute()
+        )
+
+        access_rows = q_access.data or []
+        acesso_ok = False
+
+        for row in access_rows:
+            row_cliente_id = str(row.get('cliente_id') or '').strip()
+            row_holding_id = str(row.get('holding_id') or '').strip()
+            row_empresa_id = str(row.get('empresa_id') or '').strip()
+            row_filial_id = str(row.get('filial_id') or '').strip()
+
+            is_expected_scope = (
+                row_cliente_id == DEMO_WORKFLOW_CLIENTE_ID and
+                (not row_holding_id or row_holding_id == DEMO_WORKFLOW_HOLDING_ID) and
+                not row_empresa_id and
+                not row_filial_id
+            )
+
+            if is_expected_scope and (row.get('pode_ver_comite_avaliacao') or row.get('pode_administrar')):
+                acesso_ok = True
+                break
+
+        if not acesso_ok:
+            return jsonify({
+                'success': False,
+                'error': 'acesso_demo_negado',
+                'message': 'Seu usuario nao tem permissao de comite no contexto de teste para resetar o kit demo.'
+            }), 403
+
+        employee_ids = [case['employee_id'] for case in DEMO_WORKFLOW_EMPLOYEE_CASES]
+
+        q_existing_evals = (
+            supabase
+            .table('evaluations')
+            .select('id, employee_id, round_code, dimension_weights, dimension_averages')
+            .eq('round_code', 'YE2026')
+            .in_('employee_id', employee_ids)
+            .execute()
+        )
+
+        existing_demo_evaluation_ids = []
+
+        for row in (q_existing_evals.data or []):
+            dimension_weights = row.get('dimension_weights') or {}
+            dimension_averages = row.get('dimension_averages') or {}
+
+            if (
+                dimension_weights.get('demo_marker') == DEMO_WORKFLOW_MARKER
+                or dimension_averages.get('demo_marker') == DEMO_WORKFLOW_MARKER
+                or row.get('id') in LEGACY_DEMO_WORKFLOW_EVALUATION_IDS
+            ):
+                existing_demo_evaluation_ids.append(row.get('id'))
+
+        existing_demo_evaluation_ids = sorted(set(
+            [evaluation_id for evaluation_id in existing_demo_evaluation_ids if evaluation_id is not None]
+        ))
+
+        if existing_demo_evaluation_ids:
+            try:
+                supabase.table('evaluation_workflow_logs').delete().in_('evaluation_id', existing_demo_evaluation_ids).execute()
+            except Exception as e:
+                print('[api_reset_workflow_demo_kit] aviso ao limpar logs:', e)
+
+            try:
+                supabase.table('evaluation_workflows').delete().in_('evaluation_id', existing_demo_evaluation_ids).execute()
+            except Exception as e:
+                print('[api_reset_workflow_demo_kit] aviso ao limpar workflows:', e)
+
+            try:
+                supabase.table('evaluations').delete().in_('id', existing_demo_evaluation_ids).execute()
+            except Exception as e:
+                print('[api_reset_workflow_demo_kit] aviso ao limpar evaluations:', e)
+
+        q_employees = (
+            supabase
+            .table('employees')
+            .select(
+                'id, nome, cargo, email, manager_name, company_name, branch_name, department_name, '
+                'cliente_id, holding_id, empresa_id, filial_id'
+            )
+            .in_('id', employee_ids)
+            .execute()
+        )
+
+        employees_by_id = {
+            row.get('id'): row
+            for row in (q_employees.data or [])
+            if row.get('id') is not None
+        }
+
+        missing_employee_ids = [
+            employee_id for employee_id in employee_ids
+            if employee_id not in employees_by_id
+        ]
+
+        if missing_employee_ids:
+            return jsonify({
+                'success': False,
+                'error': 'demo_employees_nao_encontrados',
+                'message': 'Alguns profissionais do kit demo nao foram encontrados.',
+                'employee_ids': missing_employee_ids
+            }), 400
+
+        created_items = []
+        actor_email = user_email
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        for case_data in DEMO_WORKFLOW_EMPLOYEE_CASES:
+            employee_row = employees_by_id.get(case_data['employee_id'])
+
+            evaluation_insert = {
+                'employee_id': employee_row.get('id'),
+                'evaluator_id': 1,
+                'evaluation_year': 2026,
+                'evaluation_date': datetime.now(timezone.utc).date().isoformat(),
+                'status': 'draft',
+                'final_rating': case_data.get('final_rating'),
+                'nine_box_position': case_data.get('nine_box_position'),
+                'performance_rating': case_data.get('performance_rating'),
+                'potential_rating': case_data.get('potential_rating'),
+                'dimension_weights': {
+                    'demo_marker': DEMO_WORKFLOW_MARKER,
+                    'demo_type': 'workflow_kit',
+                    'demo_reset_at': now_iso
+                },
+                'dimension_averages': {
+                    'demo_marker': DEMO_WORKFLOW_MARKER,
+                    'employee_name': employee_row.get('nome')
+                },
+                'round_code': 'YE2026',
+                'cliente_id': employee_row.get('cliente_id') or DEMO_WORKFLOW_CLIENTE_ID,
+                'empresa_id': employee_row.get('empresa_id'),
+                'filial_id': employee_row.get('filial_id')
+            }
+
+            r_eval = (
+                supabase
+                .table('evaluations')
+                .insert(evaluation_insert)
+                .execute()
+            )
+
+            evaluation_rows = r_eval.data or []
+            evaluation_row = evaluation_rows[0] if evaluation_rows else None
+
+            if not evaluation_row:
+                raise ValueError(f'Falha ao criar avaliacao demo para employee_id={employee_row.get("id")}')
+
+            workflow_insert = _build_demo_workflow_row(case_data, employee_row, evaluation_row, actor_email)
+
+            r_workflow = (
+                supabase
+                .table('evaluation_workflows')
+                .insert(workflow_insert)
+                .execute()
+            )
+
+            workflow_rows = r_workflow.data or []
+            workflow_row = workflow_rows[0] if workflow_rows else workflow_insert
+
+            log_rows = _build_demo_log_rows(workflow_row, actor_email)
+            if log_rows:
+                supabase.table('evaluation_workflow_logs').insert(log_rows).execute()
+
+            created_items.append({
+                'evaluation_id': evaluation_row.get('id'),
+                'employee_id': employee_row.get('id'),
+                'employee_name': employee_row.get('nome'),
+                'manager_name': employee_row.get('manager_name'),
+                'workflow_status': workflow_row.get('status_workflow')
+            })
+
+        return jsonify({
+            'success': True,
+            'message': 'Kit demo do workflow recriado com sucesso no ambiente de teste.',
+            'deleted_evaluation_ids': existing_demo_evaluation_ids,
+            'created_items': created_items,
+            'marker': DEMO_WORKFLOW_MARKER
+        }), 200
+
+    except Exception as e:
+        print('[api_reset_workflow_demo_kit] erro:', e)
+        return jsonify({
+            'success': False,
+            'error': 'workflow_demo_reset_failed',
+            'detail': str(e)
+        }), 500
+
 
 @app.route('/api/evaluations/<int:evaluation_id>/workflow/submit-manager', methods=['POST', 'OPTIONS'])
 def api_workflow_submit_manager(evaluation_id):
