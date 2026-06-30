@@ -6162,7 +6162,11 @@ def _is_demo_workflow_test_request():
 
 def _workflow_include_demo_rows():
     value = str(request.args.get('include_demo') or '').strip().lower()
-    return value in {'1', 'true', 'sim', 'yes'}
+    if value in {'1', 'true', 'sim', 'yes'}:
+        return True
+
+    referer = str(request.headers.get('Referer') or '').strip().lower()
+    return '/teste/' in referer
 
 
 def _is_demo_workflow_row(workflow_row):
