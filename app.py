@@ -7517,6 +7517,134 @@ def api_workflow_manager_feedback(evaluation_id):
         }), 500
 
 
+def _validate_employee_acknowledgement_access(evaluation_id, actor_email):
+    """
+    Valida se o e-mail informado pode registrar ciencia da avaliacao.
+    Regra: deve ser o profissional vinculado a avaliacao ou admin autorizado.
+    """
+    actor_email = str(actor_email or '').strip().lower()
+
+    if not actor_email:
+        return False, jsonify({
+            'success': False,
+            'error': 'user_email_obrigatorio',
+            'message': 'Informe user_email ou employee_email para registrar a ciencia do profissional.'
+        }), 400, None
+
+    r_eval = (
+        supabase
+        .table('evaluations')
+        .select('id, employee_id, cliente_id, empresa_id, filial_id, round_code')
+        .eq('id', evaluation_id)
+        .limit(1)
+        .execute()
+    )
+
+    eval_rows = r_eval.data or []
+
+    if not eval_rows:
+        return False, jsonify({
+            'success': False,
+            'error': 'avaliacao_nao_encontrada',
+            'message': 'Avaliacao nao encontrada para registrar ciencia.'
+        }), 404, None
+
+    evaluation = eval_rows[0]
+    employee_id = evaluation.get('employee_id')
+
+    if not employee_id:
+        return False, jsonify({
+            'success': False,
+            'error': 'employee_id_nao_configurado',
+            'message': 'A avaliacao nao possui profissional vinculado.'
+        }), 400, None
+
+    r_employee = (
+        supabase
+        .table('employees')
+        .select('id, nome, email, cliente_id, holding_id, empresa_id, filial_id')
+        .eq('id', employee_id)
+        .limit(1)
+        .execute()
+    )
+
+    employee_rows = r_employee.data or []
+    employee = employee_rows[0] if employee_rows else {}
+
+    eval_cliente_id = str(evaluation.get('cliente_id') or employee.get('cliente_id') or '').strip()
+    eval_holding_id = str(employee.get('holding_id') or '').strip()
+    eval_empresa_id = str(evaluation.get('empresa_id') or employee.get('empresa_id') or '').strip()
+    eval_filial_id = str(evaluation.get('filial_id') or employee.get('filial_id') or '').strip()
+    employee_email = str(employee.get('email') or '').strip().lower()
+
+    q_access = (
+        supabase
+        .table('usuarios_acessos')
+        .select(
+            'id, wp_user_email, perfil, employee_id, cliente_id, holding_id, empresa_id, filial_id, '
+            'pode_ver_ciencia_avaliacao, pode_administrar, status'
+        )
+        .eq('status', 'ativo')
+        .eq('wp_user_email', actor_email)
+        .execute()
+    )
+
+    access_rows = q_access.data or []
+
+    for access_row in access_rows:
+        row_cliente_id = str(access_row.get('cliente_id') or '').strip()
+        row_holding_id = str(access_row.get('holding_id') or '').strip()
+        row_empresa_id = str(access_row.get('empresa_id') or '').strip()
+        row_filial_id = str(access_row.get('filial_id') or '').strip()
+        row_employee_id = str(access_row.get('employee_id') or '').strip()
+
+        contexto_ok = True
+
+        if eval_cliente_id and row_cliente_id and row_cliente_id != eval_cliente_id:
+            contexto_ok = False
+
+        if eval_holding_id and row_holding_id and row_holding_id != eval_holding_id:
+            contexto_ok = False
+
+        if eval_empresa_id and row_empresa_id and row_empresa_id != eval_empresa_id:
+            contexto_ok = False
+
+        if eval_filial_id and row_filial_id and row_filial_id != eval_filial_id:
+            contexto_ok = False
+
+        pode_ciencia = bool(access_row.get('pode_ver_ciencia_avaliacao'))
+        pode_admin = bool(access_row.get('pode_administrar'))
+
+        employee_match = (
+            (row_employee_id and row_employee_id == str(employee_id))
+            or (employee_email and actor_email == employee_email)
+        )
+
+        is_admin_fallback = (
+            not row_holding_id
+            and not row_empresa_id
+            and not row_filial_id
+            and pode_admin
+        )
+
+        if (
+            (pode_ciencia and employee_match and contexto_ok)
+            or (pode_admin and contexto_ok)
+            or is_admin_fallback
+        ):
+            return True, None, None, {
+                'evaluation': evaluation,
+                'employee': employee,
+                'access': access_row
+            }
+
+    return False, jsonify({
+        'success': False,
+        'error': 'acesso_ciencia_negado',
+        'message': 'Usuario sem permissao para registrar ciencia nesta avaliacao.'
+    }), 403, None
+
+
 @app.route('/api/evaluations/<int:evaluation_id>/workflow/employee-acknowledge', methods=['POST', 'OPTIONS'])
 def api_workflow_employee_acknowledge(evaluation_id):
     """
@@ -7536,6 +7664,24 @@ def api_workflow_employee_acknowledge(evaluation_id):
     try:
         payload = request.get_json(silent=True) or {}
 
+        actor_email = (
+            payload.get('user_email')
+            or payload.get('employee_email')
+            or payload.get('wp_user_email')
+            or ''
+        )
+
+        if not actor_email and '@' in str(payload.get('action_by') or ''):
+            actor_email = payload.get('action_by')
+
+        access_ok, error_response, error_status, access_context = _validate_employee_acknowledgement_access(
+            evaluation_id,
+            actor_email
+        )
+
+        if not access_ok:
+            return error_response, error_status
+
         acknowledgement_status = (
             payload.get('acknowledgement_status')
             or payload.get('employee_acknowledgement_status')
@@ -7545,6 +7691,7 @@ def api_workflow_employee_acknowledge(evaluation_id):
 
         action_by = (
             payload.get('action_by')
+            or actor_email
             or payload.get('employee_email')
             or payload.get('employee_name')
             or 'profissional'
