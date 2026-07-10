@@ -5483,6 +5483,20 @@ def api_get_evaluation_summary(evaluation_id):
 
     try:
         # 1) Buscar avaliação
+        actor_email = (
+            request.args.get('user_email')
+            or request.args.get('wp_user_email')
+            or request.args.get('email')
+            or ''
+        )
+        access_ok, error_response, error_status, access_context = _validate_evaluation_workflow_read_access(
+            evaluation_id,
+            actor_email
+        )
+
+        if not access_ok:
+            return error_response, error_status
+
         r_eval = (
             supabase
             .table('evaluations')
@@ -7671,13 +7685,36 @@ def _validate_evaluation_workflow_read_access(evaluation_id, actor_email):
     eval_rows = r_eval.data or []
 
     if not eval_rows:
-        return False, jsonify({
-            'success': False,
-            'error': 'avaliacao_nao_encontrada',
-            'message': 'Avaliacao nao encontrada para consultar workflow.'
-        }), 404, None
+        r_workflow = (
+            supabase
+            .table('evaluation_workflows')
+            .select('evaluation_id, employee_id, round_code')
+            .eq('evaluation_id', evaluation_id)
+            .limit(1)
+            .execute()
+        )
 
-    evaluation = eval_rows[0]
+        workflow_rows = r_workflow.data or []
+
+        if not workflow_rows:
+            return False, jsonify({
+                'success': False,
+                'error': 'avaliacao_nao_encontrada',
+                'message': 'Avaliacao nao encontrada para consultar workflow.'
+            }), 404, None
+
+        workflow_row = workflow_rows[0]
+        evaluation = {
+            'id': evaluation_id,
+            'employee_id': workflow_row.get('employee_id'),
+            'cliente_id': None,
+            'empresa_id': None,
+            'filial_id': None,
+            'round_code': workflow_row.get('round_code')
+        }
+    else:
+        evaluation = eval_rows[0]
+
     employee_id = evaluation.get('employee_id')
     employee = {}
 
