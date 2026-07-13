@@ -552,18 +552,41 @@ window.addEventListener('load', function () {
     function normalizeDimensionWeights(w) {
       const out = { INSTITUCIONAL: 0, FUNCIONAL: 0, INDIVIDUAL: 0, METAS: 0 };
       if (!w || typeof w !== 'object') return out;
+
+      if (Array.isArray(w)) {
+        w.forEach(row => {
+          const key = String(row.dimension || row.name || '').toUpperCase().trim();
+          const num = Number(row.weight);
+          if (!Number.isNaN(num)) {
+            if (key === 'INSTITUCIONAL') out.INSTITUCIONAL = num;
+            if (key === 'FUNCIONAL')     out.FUNCIONAL     = num;
+            if (key === 'INDIVIDUAL')    out.INDIVIDUAL    = num;
+            if (key === 'METAS')         out.METAS         = num;
+          }
+        });
+        return out;
+      }
+
       const src = (w.dimension_weights && typeof w.dimension_weights === 'object') ? w.dimension_weights : w;
       for (const [k, v] of Object.entries(src)) {
         const key = String(k).toUpperCase().trim();
         const num = Number(v);
         if (!Number.isNaN(num)) {
-          if (key === 'INSTITUCIONAL') out.INSTITUCIONAL = num;
-          if (key === 'FUNCIONAL')     out.FUNCIONAL     = num;
-          if (key === 'INDIVIDUAL')    out.INDIVIDUAL    = num;
-          if (key === 'METAS')         out.METAS         = num;
+          if (key === 'INSTITUCIONAL' || key === 'INSTITUTIONAL') out.INSTITUCIONAL = num;
+          if (key === 'FUNCIONAL' || key === 'FUNCTIONAL')        out.FUNCIONAL     = num;
+          if (key === 'INDIVIDUAL')                              out.INDIVIDUAL    = num;
+          if (key === 'METAS' || key === 'GOALS')                out.METAS         = num;
         }
       }
       return out;
+    }
+
+    function hasCompleteDimensionWeights(weights) {
+      if (!weights || typeof weights !== 'object') return false;
+      const w = normalizeDimensionWeights(weights);
+      const values = [w.INSTITUCIONAL, w.FUNCIONAL, w.INDIVIDUAL, w.METAS];
+      const total = values.reduce((sum, value) => sum + (Number(value) || 0), 0);
+      return values.every(value => Number.isFinite(Number(value))) && Math.abs(total - 100) < 0.01;
     }
 
     // ===== Cabeçalho do avaliado =====
@@ -1787,16 +1810,30 @@ window.addEventListener('load', function () {
     }
     async function loadCentralDimensionWeights(){
       try{
-        const r = await fetch('/api/dimension-weights');
+        const emp = window.currentEmployee || currentEmployee || {};
+        const activeModel = window.activeEvaluationModel || {};
+        const qs = new URLSearchParams();
+        const clienteId = activeModel.cliente_id || emp.cliente_id || '';
+        const holdingId = activeModel.holding_id || emp.holding_id || '';
+        const empresaId = activeModel.empresa_id || emp.empresa_id || '';
+        const filialId = activeModel.filial_id || emp.filial_id || '';
+        const contextoNome = emp.company_name || emp.empresa || emp.contexto_nome || '';
+
+        if (clienteId) qs.set('cliente_id', clienteId);
+        if (holdingId) qs.set('holding_id', holdingId);
+        if (empresaId) qs.set('empresa_id', empresaId);
+        if (filialId) qs.set('filial_id', filialId);
+        if (contextoNome) qs.set('contexto_nome', contextoNome);
+        if (empresaId) qs.set('nivel_contexto', 'empresa');
+        else if (holdingId) qs.set('nivel_contexto', 'holding');
+        else if (clienteId) qs.set('nivel_contexto', 'cliente');
+
+        const url = '/api/dimension-weights' + (qs.toString() ? '?' + qs.toString() : '');
+        const r = await fetch(url);
         if(!r.ok) return;
-        const rows = await r.json();
-        const map = {INSTITUCIONAL:null,FUNCIONAL:null,INDIVIDUAL:null,METAS:null};
-        rows.forEach(row=>{
-          const k = String(row.dimension || row.name || '').toUpperCase().trim();
-          const v = Number(row.weight);
-          if(!Number.isNaN(v) && map.hasOwnProperty(k)) map[k] = v;
-        });
-        const complete = Object.values(map).every(v=>typeof v==='number' && v!=null);
+        const payload = await r.json();
+        const map = normalizeDimensionWeights(payload);
+        const complete = hasCompleteDimensionWeights(map);
         const total    = Object.values(map).reduce((s,v)=> s + (Number(v)||0), 0);
         if (complete){
           const lock = Math.abs(total - 100) < 0.01;
@@ -2097,23 +2134,15 @@ window.addEventListener('load', function () {
         markRatings();
 
           
-        // 6) Pesos por dimensão (usa o que veio salvo)
-        const norm = (typeof window.normalizeDimensionWeights === 'function')
-          ? window.normalizeDimensionWeights(weights || ev?.dimension_weights || {})
-          : (weights || ev?.dimension_weights || {INSTITUCIONAL:0,FUNCIONAL:0,INDIVIDUAL:0,METAS:0});
-    
-        dimensionWeights = norm; // ✅ CORREÇÃO: Atualizar dimensionWeights global
-        
-        const wi = document.getElementById('weight-institucional');
-        const wf = document.getElementById('weight-funcional');
-        const wn = document.getElementById('weight-individual');
-        const wm = document.getElementById('weight-metas');
-        if (wi) wi.value = norm.INSTITUCIONAL ?? 0;
-        if (wf) wf.value = norm.FUNCIONAL ?? 0;
-        if (wn) wn.value = norm.INDIVIDUAL ?? 0;
-        if (wm) wm.value = norm.METAS ?? 0;
-        
-        if (typeof window.updateDimensionWeights === 'function') window.updateDimensionWeights();
+        // 6) Pesos por dimensão: usa o salvo apenas quando é numérico e completo.
+        const sourceWeights = weights || ev?.dimension_weights || {};
+        const norm = normalizeDimensionWeights(sourceWeights);
+
+        if (hasCompleteDimensionWeights(norm)) {
+          applyDimensionWeightsToInputs(norm, true);
+        } else {
+          await loadCentralDimensionWeights();
+        }
         // ✅ Bloquear campos se for gestor
 
 
