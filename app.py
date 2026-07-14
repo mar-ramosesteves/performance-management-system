@@ -2161,6 +2161,9 @@ def _resolve_contract_model(cliente_id, contract_track, modelo_avaliacao_id=None
 def get_evaluation_contract_model_weights():
     try:
         cliente_id = (request.args.get('cliente_id') or '').strip()
+        holding_id = (request.args.get('holding_id') or '').strip() or None
+        empresa_id = (request.args.get('empresa_id') or '').strip() or None
+        filial_id = (request.args.get('filial_id') or '').strip() or None
         contract_track = (request.args.get('contract_track') or 'PJ').upper().strip()
         modelo_avaliacao_id = (request.args.get('modelo_avaliacao_id') or '').strip() or None
         versao_modelo_id = (request.args.get('versao_modelo_id') or '').strip() or None
@@ -2178,14 +2181,30 @@ def get_evaluation_contract_model_weights():
         if not modelo_avaliacao_id or not versao_modelo_id:
             return jsonify({'error': 'CONTRACT_MODEL_NOT_FOUND', 'message': 'Modelo por contrato nao encontrado.'}), 404
 
-        weights_response = (
-            supabase.table('dimension_weights_modelos')
+        weights_query = (
+            supabase.table('evaluation_contract_model_weights')
             .select('dimension,weight')
             .eq('cliente_id', cliente_id)
-            .eq('modelo_avaliacao_id', modelo_avaliacao_id)
-            .eq('versao_modelo_id', versao_modelo_id)
-            .execute()
+            .eq('contract_track', contract_track)
+            .eq('active', True)
         )
+
+        if holding_id:
+            weights_query = weights_query.eq('holding_id', holding_id)
+        else:
+            weights_query = weights_query.is_('holding_id', 'null')
+
+        if empresa_id:
+            weights_query = weights_query.eq('empresa_id', empresa_id)
+        else:
+            weights_query = weights_query.is_('empresa_id', 'null')
+
+        if filial_id:
+            weights_query = weights_query.eq('filial_id', filial_id)
+        else:
+            weights_query = weights_query.is_('filial_id', 'null')
+
+        weights_response = weights_query.execute()
 
         rows = weights_response.data or []
         weights = {
@@ -2201,6 +2220,9 @@ def get_evaluation_contract_model_weights():
 
         return jsonify({
             'cliente_id': cliente_id,
+            'holding_id': holding_id,
+            'empresa_id': empresa_id,
+            'filial_id': filial_id,
             'contract_track': contract_track,
             'modelo_avaliacao_id': modelo_avaliacao_id,
             'versao_modelo_id': versao_modelo_id,
@@ -2220,6 +2242,9 @@ def update_evaluation_contract_model_weights():
     try:
         data = request.get_json() or {}
         cliente_id = (data.get('cliente_id') or '').strip()
+        holding_id = (data.get('holding_id') or '').strip() or None
+        empresa_id = (data.get('empresa_id') or '').strip() or None
+        filial_id = (data.get('filial_id') or '').strip() or None
         contract_track = (data.get('contract_track') or 'PJ').upper().strip()
         modelo_avaliacao_id = (data.get('modelo_avaliacao_id') or '').strip() or None
         versao_modelo_id = (data.get('versao_modelo_id') or '').strip() or None
@@ -2252,18 +2277,38 @@ def update_evaluation_contract_model_weights():
         if not modelo_avaliacao_id or not versao_modelo_id:
             return jsonify({'error': 'CONTRACT_MODEL_NOT_FOUND', 'message': 'Modelo por contrato nao encontrado.'}), 404
 
-        (
-            supabase.table('dimension_weights_modelos')
-            .delete()
+        update_query = (
+            supabase.table('evaluation_contract_model_weights')
+            .update({'active': False})
             .eq('cliente_id', cliente_id)
-            .eq('modelo_avaliacao_id', modelo_avaliacao_id)
-            .eq('versao_modelo_id', versao_modelo_id)
-            .execute()
+            .eq('contract_track', contract_track)
+            .eq('active', True)
         )
+
+        if holding_id:
+            update_query = update_query.eq('holding_id', holding_id)
+        else:
+            update_query = update_query.is_('holding_id', 'null')
+
+        if empresa_id:
+            update_query = update_query.eq('empresa_id', empresa_id)
+        else:
+            update_query = update_query.is_('empresa_id', 'null')
+
+        if filial_id:
+            update_query = update_query.eq('filial_id', filial_id)
+        else:
+            update_query = update_query.is_('filial_id', 'null')
+
+        update_query.execute()
 
         rows = [
             {
                 'cliente_id': cliente_id,
+                'holding_id': holding_id,
+                'empresa_id': empresa_id,
+                'filial_id': filial_id,
+                'contract_track': contract_track,
                 'modelo_avaliacao_id': modelo_avaliacao_id,
                 'versao_modelo_id': versao_modelo_id,
                 'dimension': dimension,
@@ -2273,11 +2318,14 @@ def update_evaluation_contract_model_weights():
         ]
 
         if rows:
-            supabase.table('dimension_weights_modelos').insert(rows).execute()
+            supabase.table('evaluation_contract_model_weights').insert(rows).execute()
 
         return jsonify({
             'ok': True,
             'cliente_id': cliente_id,
+            'holding_id': holding_id,
+            'empresa_id': empresa_id,
+            'filial_id': filial_id,
             'contract_track': contract_track,
             'modelo_avaliacao_id': modelo_avaliacao_id,
             'versao_modelo_id': versao_modelo_id,
