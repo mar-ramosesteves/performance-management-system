@@ -797,17 +797,20 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
             'FUNCIONAL': [],
             'INDIVIDUAL': []
         }
+        all_criteria_ratings = []
 
         for criteria_id, rating in responses.items():
             cid = int(criteria_id)
             if cid in criteria:
-                dimension = criteria[cid]['dimension']
+                dimension = str(criteria[cid].get('dimension') or '').strip().upper()
+                if dimension and dimension not in dimension_ratings:
+                    dimension_ratings[dimension] = []
                 dimension_ratings[dimension].append(float(rating))
+                all_criteria_ratings.append(float(rating))
 
         institucional_avg = sum(dimension_ratings['INSTITUCIONAL']) / len(dimension_ratings['INSTITUCIONAL']) if dimension_ratings['INSTITUCIONAL'] else 0
         funcional_avg     = sum(dimension_ratings['FUNCIONAL'])     / len(dimension_ratings['FUNCIONAL'])     if dimension_ratings['FUNCIONAL']     else 0
         individual_avg    = sum(dimension_ratings['INDIVIDUAL'])    / len(dimension_ratings['INDIVIDUAL'])    if dimension_ratings['INDIVIDUAL']    else 0
-
         # ===================== MÉDIA DE METAS (AGORA PONDERADA PELO PESO) =====================
         # Se as metas tiverem "weight", usamos média ponderada.
         # Se não tiver peso válido, caímos para a média simples (comportamento antigo).
@@ -852,12 +855,25 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
             'INDIVIDUAL':    float(dimension_weights.get('INDIVIDUAL', 25)),
             'METAS':         float(dimension_weights.get('METAS', 25)),
         }
-        final_rating = (
-            institucional_avg * (w['INSTITUCIONAL']/100.0) +
-            funcional_avg     * (w['FUNCIONAL']/100.0) +
-            individual_avg    * (w['INDIVIDUAL']/100.0) +
-            metas_avg         * (w['METAS']/100.0)
+
+        
+                has_legacy_dimensions = any(
+            dimension_ratings.get(dim)
+            for dim in ['INSTITUCIONAL', 'FUNCIONAL', 'INDIVIDUAL']
         )
+
+        if has_legacy_dimensions:
+            final_rating = (
+                institucional_avg * (w['INSTITUCIONAL']/100.0) +
+                funcional_avg     * (w['FUNCIONAL']/100.0) +
+                individual_avg    * (w['INDIVIDUAL']/100.0) +
+                metas_avg         * (w['METAS']/100.0)
+            )
+        else:
+            # Modelos novos, como PJ/Socio, podem ter dimensoes proprias.
+            # Nesses casos a nota final usa a media das afirmativas respondidas,
+            # enquanto o 9Box continua usando os eixos DESEMPENHO/POTENCIAL.
+            final_rating = sum(all_criteria_ratings) / len(all_criteria_ratings) if all_criteria_ratings else 0
 
         # Desempenho/Potencial baseados em type do critério
         perf_list, pot_list = [], []
