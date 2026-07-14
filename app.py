@@ -855,8 +855,6 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
             'INDIVIDUAL':    float(dimension_weights.get('INDIVIDUAL', 25)),
             'METAS':         float(dimension_weights.get('METAS', 25)),
         }
-
-        
         has_legacy_dimensions = any(
             dimension_ratings.get(dim)
             for dim in ['INSTITUCIONAL', 'FUNCIONAL', 'INDIVIDUAL']
@@ -871,9 +869,31 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
             )
         else:
             # Modelos novos, como PJ/Socio, podem ter dimensoes proprias.
-            # Nesses casos a nota final usa a media das afirmativas respondidas,
-            # enquanto o 9Box continua usando os eixos DESEMPENHO/POTENCIAL.
-            final_rating = sum(all_criteria_ratings) / len(all_criteria_ratings) if all_criteria_ratings else 0
+            # Se o frontend enviou pesos por dimensao, usamos media ponderada.
+            # Se nao houver pesos validos, mantemos fallback seguro: media simples.
+            dynamic_weighted_sum = 0.0
+            dynamic_weight_total = 0.0
+
+            for dimension, ratings in dimension_ratings.items():
+                if not ratings or dimension in ['INSTITUCIONAL', 'FUNCIONAL', 'INDIVIDUAL']:
+                    continue
+
+                try:
+                    dimension_weight = float(dimension_weights.get(dimension, 0) or 0)
+                except (TypeError, ValueError):
+                    dimension_weight = 0.0
+
+                if dimension_weight <= 0:
+                    continue
+
+                dimension_avg = sum(ratings) / len(ratings)
+                dynamic_weighted_sum += dimension_avg * dimension_weight
+                dynamic_weight_total += dimension_weight
+
+            if dynamic_weight_total > 0:
+                final_rating = dynamic_weighted_sum / dynamic_weight_total
+            else:
+                final_rating = sum(all_criteria_ratings) / len(all_criteria_ratings) if all_criteria_ratings else 0
 
         # Desempenho/Potencial baseados em type do critério
         perf_list, pot_list = [], []
