@@ -413,13 +413,15 @@ window.addEventListener('load', function () {
 
                     <!-- Dimension Weights -->
                     <div class="dimension-weights">
-                        <h3>Dimension Weights</h3>
+                        <h3>Pesos das Dimensoes</h3>
                     
-                        <div style="margin:0 0 12px;padding:10px 12px;border:1px solid #fbbf24;background:#fffbeb;border-radius:10px;color:#92400e;font-size:13px;">
+                        <div id="dimension-weights-help" style="margin:0 0 12px;padding:10px 12px;border:1px solid #fbbf24;background:#fffbeb;border-radius:10px;color:#92400e;font-size:13px;">
                             Os pesos das dimensões são definidos pela área de RH e ficam bloqueados para alteração durante a avaliação.
                         </div>
                     
-                        <div class="weight-inputs">
+                        <div id="dynamic-weight-inputs" class="weight-inputs" style="display:none;"></div>
+
+                        <div class="weight-inputs" id="legacy-weight-inputs">
                             <div class="weight-item">
                                 <label>INSTITUCIONAL:</label>
                                 <input type="number" id="weight-institucional" min="0" max="100" value="" readonly disabled>
@@ -587,6 +589,97 @@ window.addEventListener('load', function () {
       const values = [w.INSTITUCIONAL, w.FUNCIONAL, w.INDIVIDUAL, w.METAS];
       const total = values.reduce((sum, value) => sum + (Number(value) || 0), 0);
       return values.every(value => Number.isFinite(Number(value))) && Math.abs(total - 100) < 0.01;
+    }
+
+    function slugDimensionKey(key) {
+      return String(key || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    function isContractEvaluationModel(model) {
+      const name = String(model?.modelo_nome || '').toLowerCase();
+      return name.includes('modelo pj - avaliacao por contrato') ||
+             name.includes('modelo socio - avaliacao por contrato');
+    }
+
+    function defaultContractDimensionWeights(model, dimensions) {
+      const name = String(model?.modelo_nome || '').toLowerCase();
+      const keys = Object.keys(dimensions || {});
+
+      if (name.includes('modelo pj - avaliacao por contrato')) {
+        return {
+          'ENTREGAS CONTRATADAS': 50,
+          'ESCOPO E AUTONOMIA': 25,
+          'RESULTADO PARA O NEGOCIO': 25
+        };
+      }
+
+      if (name.includes('modelo socio - avaliacao por contrato')) {
+        return {
+          'GOVERNANCA E DECISAO': 35,
+          'RESULTADO ESTRATEGICO': 35,
+          'RESPONSABILIDADE SOCIETARIA': 30
+        };
+      }
+
+      const equal = keys.length ? (100 / keys.length) : 0;
+      return keys.reduce((acc, key) => {
+        acc[key] = Number(equal.toFixed(2));
+        return acc;
+      }, {});
+    }
+
+    function configureDimensionWeightsForActiveModel(criteria) {
+      const model = window.activeEvaluationModel || {};
+      const contractModel = isContractEvaluationModel(model);
+      const legacyBox = document.getElementById('legacy-weight-inputs');
+      const dynamicBox = document.getElementById('dynamic-weight-inputs');
+      const help = document.getElementById('dimension-weights-help');
+
+      if (!dynamicBox || !legacyBox) return;
+
+      if (!contractModel) {
+        dynamicBox.style.display = 'none';
+        dynamicBox.innerHTML = '';
+        legacyBox.style.display = '';
+        if (help) {
+          help.textContent = 'Os pesos das dimensoes sao definidos pela area de RH e ficam bloqueados para alteracao durante a avaliacao.';
+        }
+        updateDimensionWeights();
+        return;
+      }
+
+      const dimensions = {};
+      (criteria || []).forEach(c => {
+        const dim = String(c.dimension || '').toUpperCase().trim();
+        if (dim) dimensions[dim] = true;
+      });
+
+      const weights = defaultContractDimensionWeights(model, dimensions);
+      dimensionWeights = weights;
+      legacyBox.style.display = 'none';
+      dynamicBox.style.display = '';
+      dynamicBox.innerHTML = Object.entries(weights).map(([dimension, weight]) => {
+        const slug = slugDimensionKey(dimension);
+        return `
+          <div class="weight-item">
+            <label>${dimension}:</label>
+            <input type="number" class="dimension-weight-input" data-dimension-weight="${dimension}" min="0" max="100" value="${weight}" readonly disabled>
+            <span>%</span>
+            <span class="dimension-average" id="avg-dynamic-${slug}">Media: -</span>
+          </div>
+        `;
+      }).join('');
+
+      if (help) {
+        help.textContent = 'Modelo por contrato: os pesos abaixo pertencem as dimensoes deste modelo. O 9Box continua usando os eixos Desempenho e Potencial.';
+      }
+
+      updateDimensionWeights();
     }
 
     // ===== Cabeçalho do avaliado =====
@@ -934,6 +1027,7 @@ window.addEventListener('load', function () {
         window.activeEvaluationModel = data.model || null;
     
         const criteria = Array.isArray(data.criteria) ? data.criteria : [];
+        configureDimensionWeightsForActiveModel(criteria);
         const container = qs('#evaluation-criteria');
     
         container.innerHTML = '';
@@ -1278,6 +1372,29 @@ window.addEventListener('load', function () {
 
         
     function updateDimensionWeights() {
+      const dynamicInputs = qsa('#dynamic-weight-inputs .dimension-weight-input');
+      if (dynamicInputs.length) {
+        const nextWeights = {};
+        let total = 0;
+
+        dynamicInputs.forEach(input => {
+          const dimension = String(input.dataset.dimensionWeight || '').toUpperCase().trim();
+          const value = toNumber(input.value);
+          if (dimension) {
+            nextWeights[dimension] = value;
+            total += value;
+          }
+        });
+
+        const span = qs('#total-weight');
+        span.textContent = total.toFixed(2);
+        const wrapper = span.closest('.total-weight');
+        if (Math.abs(total - 100) < 0.01) wrapper.classList.remove('invalid');
+        else wrapper.classList.add('invalid');
+        dimensionWeights = nextWeights;
+        return;
+      }
+
       const wInst = toNumber(qs('#weight-institucional').value);
       const wFunc = toNumber(qs('#weight-funcional').value);
       const wInd  = toNumber(qs('#weight-individual').value);
@@ -1341,6 +1458,42 @@ window.addEventListener('load', function () {
 
         
     function calculateFinalRating() {
+      if (isContractEvaluationModel(window.activeEvaluationModel || {})) {
+        const w = dimensionWeights || {};
+        let weightedSum = 0;
+        let totalWeight = 0;
+
+        Object.entries(w).forEach(([dimension, weight]) => {
+          const avg = calculateDimensionAverage(dimension);
+          const numericWeight = Number(weight) || 0;
+          if (numericWeight > 0) {
+            weightedSum += avg * (numericWeight / 100);
+            totalWeight += numericWeight;
+          }
+
+          const avgEl = document.getElementById('avg-dynamic-' + slugDimensionKey(dimension));
+          if (avgEl) avgEl.textContent = `Media: ${round(avg) || '-'}`;
+        });
+
+        const final = totalWeight > 0 ? weightedSum * (100 / totalWeight) : 0;
+        const finalRounded = round(final || 0);
+
+        const finalEl = qs('#final-rating');
+        if (finalEl) finalEl.textContent = finalRounded ? finalRounded : '-';
+
+        const headerRatingEl = document.getElementById('employee-rating');
+        if (headerRatingEl) headerRatingEl.textContent = finalRounded ? finalRounded : '-';
+
+        console.log('[calculateFinalRating:contract]', {
+          weights: w,
+          totalWeight,
+          finalRaw: final,
+          finalRounded,
+        });
+
+        return finalRounded;
+      }
+
       const institucionalAvg = calculateDimensionAverage('INSTITUCIONAL');
       const funcionalAvg     = calculateDimensionAverage('FUNCIONAL');
       const individualAvg    = calculateDimensionAverage('INDIVIDUAL');
@@ -1457,7 +1610,7 @@ window.addEventListener('load', function () {
       }
     
       const w = dimensionWeights || { INSTITUCIONAL:0, FUNCIONAL:0, INDIVIDUAL:0, METAS:0 };
-      const dimensionTotal = (Number(w.INSTITUCIONAL)||0)+(Number(w.FUNCIONAL)||0)+(Number(w.INDIVIDUAL)||0)+(Number(w.METAS)||0);
+      const dimensionTotal = Object.values(w).reduce((sum, value) => sum + (Number(value) || 0), 0);
       if (Math.abs(dimensionTotal - 100) > 0.01) { 
         // Reabilitar botão antes de sair
         if (btnSalvar) {
@@ -1468,12 +1621,12 @@ window.addEventListener('load', function () {
         return; 
       }
     
-      const dimAvgs = {
-        INSTITUCIONAL: calculateDimensionAverage('INSTITUCIONAL'),
-        FUNCIONAL:     calculateDimensionAverage('FUNCIONAL'),
-        INDIVIDUAL:    calculateDimensionAverage('INDIVIDUAL'),
-        METAS:         metasAvg || 0
-      };
+      const dimAvgs = {};
+      Object.keys(w).forEach(dimension => {
+        dimAvgs[dimension] = dimension === 'METAS'
+          ? (metasAvg || 0)
+          : calculateDimensionAverage(dimension);
+      });
       const finalRatingRaw = calculateFinalRating();
       const finalRating = (Number.isFinite(finalRatingRaw) && finalRatingRaw > 0) ? finalRatingRaw : 1;
     
@@ -1547,18 +1700,8 @@ window.addEventListener('load', function () {
         goals_average: metasAvg || 0,
         goals_json: JSON.stringify(goals),
     
-        dimension_weights: {
-          INSTITUCIONAL: Number(w.INSTITUCIONAL)||0,
-          FUNCIONAL:     Number(w.FUNCIONAL)||0,
-          INDIVIDUAL:    Number(w.INDIVIDUAL)||0,
-          METAS:         Number(w.METAS)||0
-        },
-        dimension_averages: {
-          INSTITUCIONAL: Number(dimAvgs.INSTITUCIONAL)||0,
-          FUNCIONAL:     Number(dimAvgs.FUNCIONAL)||0,
-          INDIVIDUAL:    Number(dimAvgs.INDIVIDUAL)||0,
-          METAS:         Number(dimAvgs.METAS)||0
-        },
+        dimension_weights: w,
+        dimension_averages: dimAvgs,
         dimension_weights_json: JSON.stringify(w),
         dimension_averages_json: JSON.stringify(dimAvgs),
     
