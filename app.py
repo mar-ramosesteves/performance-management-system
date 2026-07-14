@@ -857,7 +857,7 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
         }
 
         
-                has_legacy_dimensions = any(
+        has_legacy_dimensions = any(
             dimension_ratings.get(dim)
             for dim in ['INSTITUCIONAL', 'FUNCIONAL', 'INDIVIDUAL']
         )
