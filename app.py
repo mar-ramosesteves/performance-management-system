@@ -874,8 +874,17 @@ def calculate_evaluation_scores(evaluation_id, responses, goals_data, dimension_
             dynamic_weighted_sum = 0.0
             dynamic_weight_total = 0.0
 
+            try:
+                metas_weight = float(dimension_weights.get('METAS', 0) or 0)
+            except (TypeError, ValueError):
+                metas_weight = 0.0
+
+            if metas_weight > 0:
+                dynamic_weighted_sum += metas_avg * metas_weight
+                dynamic_weight_total += metas_weight
+
             for dimension, ratings in dimension_ratings.items():
-                if not ratings or dimension in ['INSTITUCIONAL', 'FUNCIONAL', 'INDIVIDUAL']:
+                if not ratings or dimension in ['INSTITUCIONAL', 'FUNCIONAL', 'INDIVIDUAL', 'METAS']:
                     continue
 
                 try:
@@ -2079,6 +2088,200 @@ def update_dimension_weights():
             'message': 'Pesos do contexto atualizados com sucesso.',
             'total': total,
             'items': rows
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+CONTRACT_MODEL_NAMES = {
+    'PJ': 'Modelo PJ - Avaliacao por Contrato',
+    'SOCIO': 'Modelo Socio - Avaliacao por Contrato'
+}
+
+CONTRACT_MODEL_DEFAULT_WEIGHTS = {
+    'PJ': {
+        'ENTREGAS CONTRATADAS': 15,
+        'ESCOPO E AUTONOMIA': 15,
+        'RESULTADO PARA O NEGOCIO': 15,
+        'METAS': 55
+    },
+    'SOCIO': {
+        'GOVERNANCA E DECISAO': 15,
+        'RESULTADO ESTRATEGICO': 15,
+        'RESPONSABILIDADE SOCIETARIA': 15,
+        'METAS': 55
+    }
+}
+
+
+def _resolve_contract_model(cliente_id, contract_track, modelo_avaliacao_id=None, versao_modelo_id=None):
+    track = str(contract_track or 'PJ').upper().strip()
+    model_id = modelo_avaliacao_id
+    version_id = versao_modelo_id
+
+    if not model_id:
+        model_name = CONTRACT_MODEL_NAMES.get(track)
+        if not model_name:
+            return None, None, track
+
+        model_response = (
+            supabase.table('modelos_avaliacao')
+            .select('id')
+            .eq('cliente_id', cliente_id)
+            .eq('nome', model_name)
+            .eq('status', 'ativo')
+            .limit(1)
+            .execute()
+        )
+        models = model_response.data or []
+        if not models:
+            return None, None, track
+        model_id = models[0].get('id')
+
+    if not version_id:
+        version_response = (
+            supabase.table('versoes_modelo_avaliacao')
+            .select('id')
+            .eq('modelo_avaliacao_id', model_id)
+            .eq('status', 'ativo')
+            .order('numero_versao', desc=True)
+            .limit(1)
+            .execute()
+        )
+        versions = version_response.data or []
+        if not versions:
+            return model_id, None, track
+        version_id = versions[0].get('id')
+
+    return model_id, version_id, track
+
+
+@app.route('/api/evaluation-contract-model-weights', methods=['GET'])
+def get_evaluation_contract_model_weights():
+    try:
+        cliente_id = (request.args.get('cliente_id') or '').strip()
+        contract_track = (request.args.get('contract_track') or 'PJ').upper().strip()
+        modelo_avaliacao_id = (request.args.get('modelo_avaliacao_id') or '').strip() or None
+        versao_modelo_id = (request.args.get('versao_modelo_id') or '').strip() or None
+
+        if not cliente_id:
+            return jsonify({'error': 'CLIENTE_REQUIRED', 'message': 'cliente_id e obrigatorio.'}), 400
+
+        modelo_avaliacao_id, versao_modelo_id, contract_track = _resolve_contract_model(
+            cliente_id,
+            contract_track,
+            modelo_avaliacao_id,
+            versao_modelo_id
+        )
+
+        if not modelo_avaliacao_id or not versao_modelo_id:
+            return jsonify({'error': 'CONTRACT_MODEL_NOT_FOUND', 'message': 'Modelo por contrato nao encontrado.'}), 404
+
+        weights_response = (
+            supabase.table('dimension_weights_modelos')
+            .select('dimension,weight')
+            .eq('cliente_id', cliente_id)
+            .eq('modelo_avaliacao_id', modelo_avaliacao_id)
+            .eq('versao_modelo_id', versao_modelo_id)
+            .execute()
+        )
+
+        rows = weights_response.data or []
+        weights = {
+            str(row.get('dimension') or '').upper().strip(): row.get('weight')
+            for row in rows
+            if row.get('dimension')
+        }
+
+        source = 'saved'
+        if not weights:
+            weights = CONTRACT_MODEL_DEFAULT_WEIGHTS.get(contract_track, {}).copy()
+            source = 'default'
+
+        return jsonify({
+            'cliente_id': cliente_id,
+            'contract_track': contract_track,
+            'modelo_avaliacao_id': modelo_avaliacao_id,
+            'versao_modelo_id': versao_modelo_id,
+            'weights': weights,
+            'source': source
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/evaluation-contract-model-weights', methods=['PUT', 'OPTIONS'])
+def update_evaluation_contract_model_weights():
+    if request.method == 'OPTIONS':
+        return jsonify({'ok': True}), 200
+
+    try:
+        data = request.get_json() or {}
+        cliente_id = (data.get('cliente_id') or '').strip()
+        contract_track = (data.get('contract_track') or 'PJ').upper().strip()
+        modelo_avaliacao_id = (data.get('modelo_avaliacao_id') or '').strip() or None
+        versao_modelo_id = (data.get('versao_modelo_id') or '').strip() or None
+        weights = data.get('weights') or {}
+
+        if not cliente_id:
+            return jsonify({'error': 'CLIENTE_REQUIRED', 'message': 'cliente_id e obrigatorio.'}), 400
+
+        normalized_weights = {}
+        for dimension, value in weights.items():
+            dim = str(dimension or '').upper().strip()
+            if not dim:
+                continue
+            normalized_weights[dim] = float(value or 0)
+
+        total = sum(normalized_weights.values())
+        if round(total, 2) != 100:
+            return jsonify({
+                'error': 'INVALID_TOTAL',
+                'message': f'A soma dos pesos deve ser 100%. Soma atual: {total:.2f}%.'
+            }), 400
+
+        modelo_avaliacao_id, versao_modelo_id, contract_track = _resolve_contract_model(
+            cliente_id,
+            contract_track,
+            modelo_avaliacao_id,
+            versao_modelo_id
+        )
+
+        if not modelo_avaliacao_id or not versao_modelo_id:
+            return jsonify({'error': 'CONTRACT_MODEL_NOT_FOUND', 'message': 'Modelo por contrato nao encontrado.'}), 404
+
+        (
+            supabase.table('dimension_weights_modelos')
+            .delete()
+            .eq('cliente_id', cliente_id)
+            .eq('modelo_avaliacao_id', modelo_avaliacao_id)
+            .eq('versao_modelo_id', versao_modelo_id)
+            .execute()
+        )
+
+        rows = [
+            {
+                'cliente_id': cliente_id,
+                'modelo_avaliacao_id': modelo_avaliacao_id,
+                'versao_modelo_id': versao_modelo_id,
+                'dimension': dimension,
+                'weight': weight
+            }
+            for dimension, weight in normalized_weights.items()
+        ]
+
+        if rows:
+            supabase.table('dimension_weights_modelos').insert(rows).execute()
+
+        return jsonify({
+            'ok': True,
+            'cliente_id': cliente_id,
+            'contract_track': contract_track,
+            'modelo_avaliacao_id': modelo_avaliacao_id,
+            'versao_modelo_id': versao_modelo_id,
+            'weights': normalized_weights
         }), 200
 
     except Exception as e:

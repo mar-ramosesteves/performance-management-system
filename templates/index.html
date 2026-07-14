@@ -612,17 +612,19 @@ window.addEventListener('load', function () {
 
       if (name.includes('modelo pj - avaliacao por contrato')) {
         return {
-          'ENTREGAS CONTRATADAS': 50,
-          'ESCOPO E AUTONOMIA': 25,
-          'RESULTADO PARA O NEGOCIO': 25
+          'ENTREGAS CONTRATADAS': 15,
+          'ESCOPO E AUTONOMIA': 15,
+          'RESULTADO PARA O NEGOCIO': 15,
+          'METAS': 55
         };
       }
 
       if (name.includes('modelo socio - avaliacao por contrato')) {
         return {
-          'GOVERNANCA E DECISAO': 35,
-          'RESULTADO ESTRATEGICO': 35,
-          'RESPONSABILIDADE SOCIETARIA': 30
+          'GOVERNANCA E DECISAO': 15,
+          'RESULTADO ESTRATEGICO': 15,
+          'RESPONSABILIDADE SOCIETARIA': 15,
+          'METAS': 55
         };
       }
 
@@ -631,6 +633,52 @@ window.addEventListener('load', function () {
         acc[key] = Number(equal.toFixed(2));
         return acc;
       }, {});
+    }
+
+    function getContractTrackFromModel(model) {
+      const name = String(model?.modelo_nome || '').toLowerCase();
+      if (name.includes('modelo socio - avaliacao por contrato')) return 'SOCIO';
+      return 'PJ';
+    }
+
+    function normalizeContractWeights(weights) {
+      const out = {};
+      Object.entries(weights || {}).forEach(([key, value]) => {
+        const dimension = String(key || '').toUpperCase().trim();
+        const weight = Number(value);
+        if (dimension && Number.isFinite(weight)) out[dimension] = weight;
+      });
+      return out;
+    }
+
+    function renderContractDimensionWeights(weights) {
+      const legacyBox = document.getElementById('legacy-weight-inputs');
+      const dynamicBox = document.getElementById('dynamic-weight-inputs');
+      const help = document.getElementById('dimension-weights-help');
+
+      if (!dynamicBox || !legacyBox) return;
+
+      dimensionWeights = normalizeContractWeights(weights);
+      legacyBox.style.display = 'none';
+      dynamicBox.style.display = '';
+      dynamicBox.innerHTML = Object.entries(dimensionWeights).map(([dimension, weight]) => {
+        const slug = slugDimensionKey(dimension);
+        return `
+          <div class="weight-item">
+            <label>${dimension}:</label>
+            <input type="number" class="dimension-weight-input" data-dimension-weight="${dimension}" min="0" max="100" value="${weight}" readonly disabled>
+            <span>%</span>
+            <span class="dimension-average" id="avg-dynamic-${slug}">Media: -</span>
+          </div>
+        `;
+      }).join('');
+
+      if (help) {
+        help.textContent = 'Modelo por contrato: os pesos abaixo pertencem as dimensoes deste modelo. O 9Box continua usando os eixos Desempenho e Potencial.';
+      }
+
+      updateDimensionWeights();
+      calculateFinalRating();
     }
 
     function configureDimensionWeightsForActiveModel(criteria) {
@@ -659,27 +707,23 @@ window.addEventListener('load', function () {
         if (dim) dimensions[dim] = true;
       });
 
-      const weights = defaultContractDimensionWeights(model, dimensions);
-      dimensionWeights = weights;
-      legacyBox.style.display = 'none';
-      dynamicBox.style.display = '';
-      dynamicBox.innerHTML = Object.entries(weights).map(([dimension, weight]) => {
-        const slug = slugDimensionKey(dimension);
-        return `
-          <div class="weight-item">
-            <label>${dimension}:</label>
-            <input type="number" class="dimension-weight-input" data-dimension-weight="${dimension}" min="0" max="100" value="${weight}" readonly disabled>
-            <span>%</span>
-            <span class="dimension-average" id="avg-dynamic-${slug}">Media: -</span>
-          </div>
-        `;
-      }).join('');
+      const defaultWeights = defaultContractDimensionWeights(model, dimensions);
+      renderContractDimensionWeights(defaultWeights);
 
-      if (help) {
-        help.textContent = 'Modelo por contrato: os pesos abaixo pertencem as dimensoes deste modelo. O 9Box continua usando os eixos Desempenho e Potencial.';
+      const params = new URLSearchParams();
+      params.set('contract_track', getContractTrackFromModel(model));
+      if (model.cliente_id) params.set('cliente_id', model.cliente_id);
+      if (model.modelo_avaliacao_id) params.set('modelo_avaliacao_id', model.modelo_avaliacao_id);
+      if (model.versao_modelo_id) params.set('versao_modelo_id', model.versao_modelo_id);
+
+      if (model.cliente_id) {
+        fetch('/api/evaluation-contract-model-weights?' + params.toString())
+          .then(r => r.ok ? r.json() : null)
+          .then(payload => {
+            if (payload && payload.weights) renderContractDimensionWeights(payload.weights);
+          })
+          .catch(e => console.warn('[contract weights] usando pesos padrao:', e));
       }
-
-      updateDimensionWeights();
     }
 
     // ===== Cabeçalho do avaliado =====
@@ -1464,7 +1508,9 @@ window.addEventListener('load', function () {
         let totalWeight = 0;
 
         Object.entries(w).forEach(([dimension, weight]) => {
-          const avg = calculateDimensionAverage(dimension);
+          const avg = dimension === 'METAS'
+            ? calculateGoalsAverage()
+            : calculateDimensionAverage(dimension);
           const numericWeight = Number(weight) || 0;
           if (numericWeight > 0) {
             weightedSum += avg * (numericWeight / 100);
