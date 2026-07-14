@@ -2108,7 +2108,10 @@ def _get_best_contract_policy(ctx):
         .execute()
     )
 
-    rows = [row for row in (r.data or []) if _contract_row_matches_context(row, ctx)]
+    all_rows = r.data or []
+    rows = [row for row in all_rows if _contract_row_matches_context(row, ctx)]
+    if not rows and not any(_clean_contract_context_value(ctx.get(k)) for k in ['holding_id', 'empresa_id', 'filial_id']) and len(all_rows) == 1:
+        rows = all_rows
     rows.sort(key=lambda row: (_contract_context_specificity(row), int(row.get('id') or 0)), reverse=True)
     return rows[0] if rows else None
 
@@ -2126,7 +2129,10 @@ def _get_best_inss_reference(ctx):
         .execute()
     )
 
-    rows = [row for row in (r.data or []) if _contract_row_matches_context(row, ctx)]
+    all_rows = r.data or []
+    rows = [row for row in all_rows if _contract_row_matches_context(row, ctx)]
+    if not rows and not any(_clean_contract_context_value(ctx.get(k)) for k in ['holding_id', 'empresa_id', 'filial_id']) and len(all_rows) == 1:
+        rows = all_rows
     rows.sort(key=lambda row: (_contract_context_specificity(row), int(row.get('id') or 0)), reverse=True)
     return rows[0] if rows else None
 
