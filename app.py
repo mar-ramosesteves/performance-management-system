@@ -2048,6 +2048,225 @@ def update_dimension_weights():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+# ===================== Evaluation Contract Policy =====================
+def _clean_contract_context_value(value):
+    value = str(value or '').strip()
+    return value or None
+
+
+def _contract_policy_context_from_args():
+    return {
+        'cliente_id': _clean_contract_context_value(request.args.get('cliente_id')),
+        'holding_id': _clean_contract_context_value(request.args.get('holding_id')),
+        'empresa_id': _clean_contract_context_value(request.args.get('empresa_id')),
+        'filial_id': _clean_contract_context_value(request.args.get('filial_id')),
+    }
+
+
+def _contract_policy_context_from_payload(data):
+    return {
+        'cliente_id': _clean_contract_context_value(data.get('cliente_id')),
+        'holding_id': _clean_contract_context_value(data.get('holding_id')),
+        'empresa_id': _clean_contract_context_value(data.get('empresa_id')),
+        'filial_id': _clean_contract_context_value(data.get('filial_id')),
+    }
+
+
+def _contract_row_matches_context(row, ctx):
+    for key in ['holding_id', 'empresa_id', 'filial_id']:
+        row_value = _clean_contract_context_value(row.get(key))
+        ctx_value = _clean_contract_context_value(ctx.get(key))
+        if row_value and row_value != ctx_value:
+            return False
+    return True
+
+
+def _contract_context_specificity(row):
+    return sum(1 for key in ['holding_id', 'empresa_id', 'filial_id'] if _clean_contract_context_value(row.get(key)))
+
+
+def _apply_exact_contract_context_filter(query, ctx):
+    for key in ['holding_id', 'empresa_id', 'filial_id']:
+        value = _clean_contract_context_value(ctx.get(key))
+        if value:
+            query = query.eq(key, value)
+        else:
+            query = query.is_(key, 'null')
+    return query
+
+
+def _get_best_contract_policy(ctx):
+    if not ctx.get('cliente_id'):
+        return None
+
+    r = (
+        supabase.table('evaluation_contract_policies')
+        .select('*')
+        .eq('cliente_id', ctx['cliente_id'])
+        .eq('active', True)
+        .execute()
+    )
+
+    rows = [row for row in (r.data or []) if _contract_row_matches_context(row, ctx)]
+    rows.sort(key=lambda row: (_contract_context_specificity(row), int(row.get('id') or 0)), reverse=True)
+    return rows[0] if rows else None
+
+
+def _get_best_inss_reference(ctx):
+    if not ctx.get('cliente_id'):
+        return None
+
+    r = (
+        supabase.table('evaluation_reference_values')
+        .select('*')
+        .eq('cliente_id', ctx['cliente_id'])
+        .eq('reference_key', 'INSS_TETO')
+        .eq('active', True)
+        .execute()
+    )
+
+    rows = [row for row in (r.data or []) if _contract_row_matches_context(row, ctx)]
+    rows.sort(key=lambda row: (_contract_context_specificity(row), int(row.get('id') or 0)), reverse=True)
+    return rows[0] if rows else None
+
+
+@app.route('/api/evaluation-contract-policy', methods=['GET'])
+def get_evaluation_contract_policy():
+    try:
+        ctx = _contract_policy_context_from_args()
+        if not ctx.get('cliente_id'):
+            return jsonify({
+                'policy_mode': 'unificada',
+                'pj_min_salary_multiple': 0,
+                'inss_teto': None,
+                'notes': '',
+                'source': 'default'
+            }), 200
+
+        policy = _get_best_contract_policy(ctx) or {}
+        ref = _get_best_inss_reference(ctx) or {}
+
+        return jsonify({
+            'id': policy.get('id'),
+            'cliente_id': ctx.get('cliente_id'),
+            'holding_id': policy.get('holding_id'),
+            'empresa_id': policy.get('empresa_id'),
+            'filial_id': policy.get('filial_id'),
+            'policy_mode': policy.get('policy_mode') or 'unificada',
+            'pj_min_salary_multiple': policy.get('pj_min_salary_multiple') or 0,
+            'inss_teto': ref.get('reference_value'),
+            'notes': policy.get('notes') or '',
+            'active': bool(policy.get('active')) if policy else False,
+            'source': 'policy' if policy else 'default'
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/evaluation-contract-policy', methods=['PUT', 'OPTIONS'])
+def put_evaluation_contract_policy():
+    if request.method == 'OPTIONS':
+        return ('', 204)
+
+    try:
+        data = request.get_json() or {}
+
+        ok, err, status = _require_rh_code(data)
+        if not ok:
+            return jsonify(err), status
+
+        ctx = _contract_policy_context_from_payload(data)
+        if not ctx.get('cliente_id'):
+            return jsonify({
+                'error': 'CONTEXT_REQUIRED',
+                'message': 'cliente_id obrigatorio para salvar a configuracao contratual.'
+            }), 400
+
+        policy_mode = str(data.get('policy_mode') or 'unificada').strip()
+        if policy_mode not in ['unificada', 'separada_por_contrato', 'separada_com_excecao']:
+            return jsonify({
+                'error': 'INVALID_POLICY_MODE',
+                'message': 'Modo invalido. Use unificada, separada_por_contrato ou separada_com_excecao.'
+            }), 400
+
+        try:
+            pj_min_salary_multiple = float(data.get('pj_min_salary_multiple') or 0)
+        except Exception:
+            return jsonify({
+                'error': 'INVALID_PJ_MULTIPLE',
+                'message': 'Multiplo minimo de PJ deve ser numerico.'
+            }), 400
+
+        notes = str(data.get('notes') or '').strip()
+
+        deactivate = (
+            supabase.table('evaluation_contract_policies')
+            .update({'active': False, 'updated_at': datetime.now(timezone.utc).isoformat()})
+            .eq('cliente_id', ctx['cliente_id'])
+            .eq('active', True)
+        )
+        deactivate = _apply_exact_contract_context_filter(deactivate, ctx)
+        deactivate.execute()
+
+        payload = {
+            'cliente_id': ctx['cliente_id'],
+            'holding_id': ctx.get('holding_id'),
+            'empresa_id': ctx.get('empresa_id'),
+            'filial_id': ctx.get('filial_id'),
+            'policy_mode': policy_mode,
+            'pj_min_salary_multiple': pj_min_salary_multiple,
+            'pj_min_income_reference': 'INSS_TETO' if pj_min_salary_multiple else None,
+            'active': True,
+            'effective_from': date.today().isoformat(),
+            'notes': notes,
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }
+
+        inserted = supabase.table('evaluation_contract_policies').insert(payload).execute()
+
+        inss_teto = data.get('inss_teto')
+        if inss_teto not in [None, '']:
+            try:
+                inss_value = float(inss_teto)
+            except Exception:
+                return jsonify({
+                    'error': 'INVALID_INSS_TETO',
+                    'message': 'Teto INSS deve ser numerico.'
+                }), 400
+
+            deactivate_ref = (
+                supabase.table('evaluation_reference_values')
+                .update({'active': False})
+                .eq('cliente_id', ctx['cliente_id'])
+                .eq('reference_key', 'INSS_TETO')
+                .eq('active', True)
+            )
+            deactivate_ref = _apply_exact_contract_context_filter(deactivate_ref, ctx)
+            deactivate_ref.execute()
+
+            supabase.table('evaluation_reference_values').insert({
+                'cliente_id': ctx['cliente_id'],
+                'holding_id': ctx.get('holding_id'),
+                'empresa_id': ctx.get('empresa_id'),
+                'filial_id': ctx.get('filial_id'),
+                'reference_key': 'INSS_TETO',
+                'reference_value': inss_value,
+                'reference_unit': 'BRL',
+                'active': True,
+                'effective_from': date.today().isoformat(),
+                'notes': 'Atualizado pelo painel de desempenho.'
+            }).execute()
+
+        return jsonify({
+            'message': 'Configuracao contratual salva com sucesso.',
+            'policy': (inserted.data or [payload])[0]
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # ===================== Período atual (controlado pelo banco) =====================
 def get_current_period():
     """
