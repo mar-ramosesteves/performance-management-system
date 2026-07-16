@@ -381,20 +381,94 @@ def _extract_competence_context_from_body(body: dict) -> dict:
 
 def _remove_context_fields_from_employee_payload(data: dict):
     """
-    Remove campos que servem só para controle de contexto.
-    Eles não devem ser gravados diretamente na tabela employees.
+    Remove apenas campos auxiliares que nao existem em employees.
+    Os IDs cliente_id/holding_id/empresa_id/filial_id pertencem a employees
+    e precisam ser gravados para conectar os modulos do sistema.
     """
     for k in [
         "nivel_contexto",
-        "cliente_id",
-        "holding_id",
-        "empresa_id",
-        "filial_id",
         "contexto_nome",
         "admin_code"
     ]:
         data.pop(k, None)
 
+
+def _hydrate_employee_context_from_existing(data: dict):
+    """
+    Completa empresa_id/holding_id/cliente_id em cadastros novos usando
+    profissionais existentes da mesma empresa dentro do mesmo contexto.
+    Isso cobre cadastros feitos em nivel holding, quando a tela seleciona a
+    empresa textual, mas o contexto nao possui empresa_id unico.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    cliente_id = str(data.get("cliente_id") or "").strip()
+    holding_id = str(data.get("holding_id") or "").strip()
+    empresa_nome = str(data.get("empresa") or data.get("company_name") or "").strip().upper()
+
+    if not cliente_id or not empresa_nome:
+        return data
+
+    if data.get("empresa_id"):
+        return data
+
+    try:
+        q = (
+            supabase.table("employees")
+            .select("cliente_id,holding_id,empresa_id,filial_id,holding,company_name,empresa")
+            .eq("cliente_id", cliente_id)
+            .limit(500)
+        )
+        if holding_id:
+            q = q.eq("holding_id", holding_id)
+
+        rows = (q.execute().data or [])
+        matches = []
+        for row in rows:
+            row_empresa = str(row.get("empresa") or row.get("company_name") or "").strip().upper()
+            if row_empresa == empresa_nome and row.get("empresa_id"):
+                matches.append(row)
+
+        if not matches:
+            return data
+
+        best = matches[0]
+        data["cliente_id"] = data.get("cliente_id") or best.get("cliente_id")
+        data["holding_id"] = data.get("holding_id") or best.get("holding_id")
+        data["empresa_id"] = data.get("empresa_id") or best.get("empresa_id")
+        if not data.get("filial_id") and best.get("filial_id"):
+            data["filial_id"] = best.get("filial_id")
+    except Exception as e:
+        print("[hydrate_employee_context] erro:", e)
+
+    return data
+
+
+def _ensure_employee_code(employee_id: int, created_row: dict):
+    if not employee_id or not isinstance(created_row, dict):
+        return created_row
+
+    if str(created_row.get("employee_code") or "").strip():
+        return created_row
+
+    generated_code = f"EMP-{int(employee_id):06d}"
+    try:
+        updated = (
+            supabase.table("employees")
+            .update({"employee_code": generated_code})
+            .eq("id", employee_id)
+            .execute()
+        )
+        updated_rows = updated.data or []
+        if updated_rows:
+            return updated_rows[0]
+        created_row["employee_code"] = generated_code
+    except Exception as e:
+        print("[ensure_employee_code] erro:", e)
+        created_row["employee_code"] = generated_code
+
+    return created_row
 
 def _is_competence_context_closed(comp: _date, ctx: dict) -> bool:
     """
@@ -643,11 +717,15 @@ def create_employee():
             }), 423
 
         # ✅ employees NÃO tem coluna "competence" e nem deve receber "admin_code"
+        
         data.pop("competence", None)
         data.pop("admin_code", None)
+        data = _hydrate_employee_context_from_existing(data)
 
         # 1) cria o employee
         r = supabase.table('employees').insert(data).execute()
+
+        
         created = (r.data or [])
         if not created:
             return jsonify({'error': 'Falha ao criar employee (sem retorno do Supabase)'}), 500
@@ -656,7 +734,10 @@ def create_employee():
         if not employee_id:
             return jsonify({'error': 'Falha ao criar employee (id não retornou)'}), 500
 
-        # 2) salva histórico (snapshot completo do registro criado)
+        created[0] = _ensure_employee_code(int(employee_id), created[0])
+
+        # 2) salva histórico
+        
         _save_employee_history(
             employee_id=int(employee_id),
             data_snapshot=created[0],
