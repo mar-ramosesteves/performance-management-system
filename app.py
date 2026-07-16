@@ -715,6 +715,33 @@ def api_turnover_selection_success():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/turnover/timeseries', methods=['GET'])
+def api_turnover_timeseries():
+    try:
+        params = _turnover_rpc_context()
+        params.update({
+            'p_start_month': _turnover_arg('start_month'),
+            'p_end_month': _turnover_arg('end_month'),
+            'p_company_name': _turnover_arg('company_name'),
+            'p_branch_name': _turnover_arg('branch_name'),
+            'p_manager_name': _turnover_arg('manager_name'),
+            'p_genero': _turnover_arg('genero'),
+            'p_etnia': _turnover_arg('etnia'),
+            'p_termination_reason_primary': _turnover_arg('termination_reason_primary'),
+            'p_termination_root_cause': _turnover_arg('termination_root_cause'),
+        })
+
+        rows = supabase.rpc('hrkey_turnover_timeseries', params).execute().data or []
+        return jsonify({
+            'items': rows,
+            'count': len(rows),
+            'formula': 'saidas / (ativos_fim_mes + saidas)',
+            'ytd_formula': 'sum(saidas) / sum(base_calculo)'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 @app.route('/api/employees/by-manager', methods=['GET'])
 def get_employees_by_manager():
