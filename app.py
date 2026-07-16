@@ -668,6 +668,52 @@ def get_employees():
         print(f"Erro no endpoint /api/employees: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+def _turnover_arg(name):
+    value = str(request.args.get(name) or '').strip()
+    return value or None
+
+
+def _turnover_rpc_context():
+    return {
+        'p_cliente_id': _turnover_arg('cliente_id'),
+        'p_holding_id': _turnover_arg('holding_id'),
+        'p_empresa_id': _turnover_arg('empresa_id'),
+        'p_filial_id': _turnover_arg('filial_id'),
+    }
+
+
+@app.route('/api/turnover/monthly', methods=['GET'])
+def api_turnover_monthly():
+    try:
+        params = _turnover_rpc_context()
+        params['p_start_month'] = _turnover_arg('start_month')
+        params['p_end_month'] = _turnover_arg('end_month')
+
+        rows = supabase.rpc('hrkey_turnover_monthly', params).execute().data or []
+        return jsonify({
+            'items': rows,
+            'count': len(rows),
+            'formula': 'saidas / (ativos_fim_mes + saidas)'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/turnover/selection-success', methods=['GET'])
+def api_turnover_selection_success():
+    try:
+        params = _turnover_rpc_context()
+        params['p_reference_date'] = _turnover_arg('reference_date')
+
+        rows = supabase.rpc('hrkey_selection_success', params).execute().data or []
+        return jsonify({
+            'items': rows,
+            'count': len(rows),
+            'formula': 'contratados_que_sairam / contratados'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/api/employees/by-manager', methods=['GET'])
