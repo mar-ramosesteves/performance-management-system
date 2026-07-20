@@ -742,6 +742,181 @@ def api_turnover_timeseries():
         return jsonify({'error': str(e)}), 500
 
 
+def _leadertrack_game_arg(name):
+    value = request.args.get(name)
+    if value is None:
+        return None
+    value = str(value).strip()
+    return value or None
+
+
+def _leadertrack_game_is_answered(row):
+    status = str(row.get('status') or '').strip().lower()
+    return bool(row.get('respondido_em')) or status in {
+        'respondido',
+        'respondida',
+        'answered',
+        'completed',
+        'concluido',
+        'concluida',
+    }
+
+
+def _leadertrack_game_unit_from_token(row, employee_by_id):
+    emp = employee_by_id.get(row.get('employee_id')) or {}
+    for value in (
+        emp.get('branch_name'),
+        emp.get('company_name'),
+        emp.get('empresa'),
+        row.get('empresa_chave_leadertrack'),
+        row.get('holding_chave_leadertrack'),
+    ):
+        value = str(value or '').strip()
+        if value:
+            return value.upper()
+    return 'SEM UNIDADE'
+
+
+@app.route('/api/leadertrack/game-scoreboard', methods=['GET'])
+def api_leadertrack_game_scoreboard():
+    """
+    Placar publico/agregado para TV: percentual de inventarios respondidos
+    por unidade, sem expor nome, e-mail ou token dos colaboradores.
+    """
+    try:
+        codrodada = _leadertrack_game_arg('codrodada')
+        cliente_id = _leadertrack_game_arg('cliente_id')
+        holding_id = _leadertrack_game_arg('holding_id')
+        empresa_id = _leadertrack_game_arg('empresa_id')
+        filial_id = _leadertrack_game_arg('filial_id')
+
+        if not codrodada:
+            return jsonify({'error': 'Informe codrodada.'}), 400
+
+        query = (
+            supabase.table('leadertrack_tokens')
+            .select(
+                'id,cliente_id,holding_id,empresa_id,filial_id,employee_id,'
+                'codrodada,tipo_avaliacao,status,respondido_em,'
+                'empresa_chave_leadertrack,holding_chave_leadertrack'
+            )
+            .eq('codrodada', codrodada)
+            .limit(5000)
+        )
+        if cliente_id:
+            query = query.eq('cliente_id', cliente_id)
+        if holding_id:
+            query = query.eq('holding_id', holding_id)
+        if empresa_id:
+            query = query.eq('empresa_id', empresa_id)
+        if filial_id:
+            query = query.eq('filial_id', filial_id)
+
+        tokens = query.execute().data or []
+
+        employee_ids = sorted({
+            row.get('employee_id')
+            for row in tokens
+            if row.get('employee_id') is not None
+        })
+        employee_by_id = {}
+        if employee_ids:
+            for start in range(0, len(employee_ids), 500):
+                chunk = employee_ids[start:start + 500]
+                emp_rows = (
+                    supabase.table('employees')
+                    .select('id,nome,company_name,empresa,branch_name,holding')
+                    .in_('id', chunk)
+                    .execute()
+                    .data or []
+                )
+                for emp in emp_rows:
+                    employee_by_id[emp.get('id')] = emp
+
+        units = {}
+        totals_by_type = {}
+        for row in tokens:
+            unit = _leadertrack_game_unit_from_token(row, employee_by_id)
+            tipo = str(row.get('tipo_avaliacao') or 'nao_classificado').strip().lower() or 'nao_classificado'
+            answered = _leadertrack_game_is_answered(row)
+
+            if unit not in units:
+                units[unit] = {
+                    'unidade': unit,
+                    'tokens_enviados': 0,
+                    'respondidos': 0,
+                    'pendentes': 0,
+                    'percentual': 0.0,
+                    'tipos': {},
+                }
+            units[unit]['tokens_enviados'] += 1
+            if answered:
+                units[unit]['respondidos'] += 1
+
+            if tipo not in units[unit]['tipos']:
+                units[unit]['tipos'][tipo] = {'total': 0, 'respondidos': 0}
+            units[unit]['tipos'][tipo]['total'] += 1
+            if answered:
+                units[unit]['tipos'][tipo]['respondidos'] += 1
+
+            if tipo not in totals_by_type:
+                totals_by_type[tipo] = {'total': 0, 'respondidos': 0}
+            totals_by_type[tipo]['total'] += 1
+            if answered:
+                totals_by_type[tipo]['respondidos'] += 1
+
+        items = []
+        total_sent = 0
+        total_answered = 0
+        for unit in units.values():
+            unit['pendentes'] = max(unit['tokens_enviados'] - unit['respondidos'], 0)
+            unit['percentual'] = round(
+                (unit['respondidos'] / unit['tokens_enviados']) * 100,
+                2
+            ) if unit['tokens_enviados'] else 0.0
+            for values in unit['tipos'].values():
+                values['pendentes'] = max(values['total'] - values['respondidos'], 0)
+                values['percentual'] = round(
+                    (values['respondidos'] / values['total']) * 100,
+                    2
+                ) if values['total'] else 0.0
+            items.append(unit)
+            total_sent += unit['tokens_enviados']
+            total_answered += unit['respondidos']
+
+        items.sort(key=lambda x: (-x['percentual'], -x['respondidos'], x['unidade']))
+
+        for position, item in enumerate(items, start=1):
+            item['posicao'] = position
+
+        for values in totals_by_type.values():
+            values['pendentes'] = max(values['total'] - values['respondidos'], 0)
+            values['percentual'] = round(
+                (values['respondidos'] / values['total']) * 100,
+                2
+            ) if values['total'] else 0.0
+
+        payload = {
+            'codrodada': codrodada,
+            'generated_at': datetime.now(timezone.utc).isoformat(),
+            'total_enviado': total_sent,
+            'total_respondido': total_answered,
+            'total_pendente': max(total_sent - total_answered, 0),
+            'percentual_geral': round((total_answered / total_sent) * 100, 2) if total_sent else 0.0,
+            'unidades': items,
+            'totais_por_tipo': totals_by_type,
+            'count_unidades': len(items),
+            'formula': 'respondidos / tokens_enviados',
+        }
+        return jsonify(payload), 200
+    except Exception as e:
+        print('[api_leadertrack_game_scoreboard] erro:', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+
 
 @app.route('/api/employees/by-manager', methods=['GET'])
 def get_employees_by_manager():
