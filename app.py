@@ -750,31 +750,34 @@ def _leadertrack_game_arg(name):
     return value or None
 
 
-def _leadertrack_game_is_answered(row):
-    status = str(row.get('status') or '').strip().lower()
-    return bool(row.get('respondido_em')) or status in {
-        'respondido',
-        'respondida',
-        'answered',
-        'completed',
-        'concluido',
-        'concluida',
-    }
+def _leadertrack_game_norm(value):
+    return str(value or '').strip().lower()
 
 
-def _leadertrack_game_unit_from_token(row, employee_by_id):
-    emp = employee_by_id.get(row.get('employee_id')) or {}
-    for value in (
-        emp.get('branch_name'),
-        emp.get('company_name'),
-        emp.get('empresa'),
-        row.get('empresa_chave_leadertrack'),
-        row.get('holding_chave_leadertrack'),
-    ):
-        value = str(value or '').strip()
-        if value:
-            return value.upper()
-    return 'SEM UNIDADE'
+def _leadertrack_game_unit(value):
+    value = str(value or '').strip()
+    return value.upper() if value else 'SEM UNIDADE'
+
+
+def _leadertrack_game_response_key(modulo, row):
+    return '|'.join([
+        _leadertrack_game_norm(modulo),
+        _leadertrack_game_norm(row.get('empresa')),
+        _leadertrack_game_norm(row.get('tipo')),
+        _leadertrack_game_norm(row.get('email')),
+        _leadertrack_game_norm(row.get('emailLider')),
+    ])
+
+
+def _leadertrack_game_response_tipo(modulo, tipo):
+    tipo_norm = _leadertrack_game_norm(tipo)
+    if modulo == 'microambiente':
+        if 'auto' in tipo_norm:
+            return 'microambiente_autoavaliacao'
+        return 'microambiente_equipe'
+    if 'auto' in tipo_norm:
+        return 'arquetipos_autoavaliacao'
+    return 'arquetipos_equipe'
 
 
 @app.route('/api/leadertrack/game-scoreboard', methods=['GET'])
@@ -782,6 +785,10 @@ def api_leadertrack_game_scoreboard():
     """
     Placar publico/agregado para TV: percentual de inventarios respondidos
     por unidade, sem expor nome, e-mail ou token dos colaboradores.
+
+    Quando existe cadastro em leadertrack_scoreboard_targets, ele usa essa
+    tabela como denominador oficial da campanha. As respostas vÃªm das tabelas
+    reais do LeaderTrack: relatorios_microambiente e relatorios_arquetipos.
     """
     try:
         codrodada = _leadertrack_game_arg('codrodada')
@@ -793,52 +800,61 @@ def api_leadertrack_game_scoreboard():
         if not codrodada:
             return jsonify({'error': 'Informe codrodada.'}), 400
 
-        query = (
-            supabase.table('leadertrack_tokens')
-            .select(
-                'id,cliente_id,holding_id,empresa_id,filial_id,employee_id,'
-                'codrodada,tipo_avaliacao,status,respondido_em,'
-                'empresa_chave_leadertrack,holding_chave_leadertrack'
-            )
+        targets_query = (
+            supabase.table('leadertrack_scoreboard_targets')
+            .select('id,cliente_id,holding_id,holding_nome,codrodada,unidade,total_tokens,active')
             .eq('codrodada', codrodada)
-            .limit(5000)
+            .eq('active', True)
+            .limit(1000)
         )
         if cliente_id:
-            query = query.eq('cliente_id', cliente_id)
+            targets_query = targets_query.eq('cliente_id', cliente_id)
         if holding_id:
-            query = query.eq('holding_id', holding_id)
-        if empresa_id:
-            query = query.eq('empresa_id', empresa_id)
-        if filial_id:
-            query = query.eq('filial_id', filial_id)
-
-        tokens = query.execute().data or []
-
-        employee_ids = sorted({
-            row.get('employee_id')
-            for row in tokens
-            if row.get('employee_id') is not None
-        })
-        employee_by_id = {}
-        if employee_ids:
-            for start in range(0, len(employee_ids), 500):
-                chunk = employee_ids[start:start + 500]
-                emp_rows = (
-                    supabase.table('employees')
-                    .select('id,nome,company_name,empresa,branch_name,holding')
-                    .in_('id', chunk)
-                    .execute()
-                    .data or []
-                )
-                for emp in emp_rows:
-                    employee_by_id[emp.get('id')] = emp
+            targets_query = targets_query.eq('holding_id', holding_id)
 
         units = {}
+        targets = targets_query.execute().data or []
+        for row in targets:
+            unit = _leadertrack_game_unit(row.get('unidade'))
+            units[unit] = {
+                'unidade': unit,
+                'tokens_enviados': int(row.get('total_tokens') or 0),
+                'respondidos': 0,
+                'pendentes': 0,
+                'percentual': 0.0,
+                'tipos': {},
+            }
+
+        unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
+        response_rows = []
+        for modulo, table_name in (
+            ('microambiente', 'relatorios_microambiente'),
+            ('arquetipos', 'relatorios_arquetipos'),
+        ):
+            rows = (
+                supabase.table(table_name)
+                .select('empresa,codrodada,tipo,email,emailLider,data_criacao')
+                .eq('codrodada', codrodada)
+                .limit(10000)
+                .execute()
+                .data or []
+            )
+            for row in rows:
+                row['_modulo'] = modulo
+                response_rows.append(row)
+
+        seen_response_keys = set()
         totals_by_type = {}
-        for row in tokens:
-            unit = _leadertrack_game_unit_from_token(row, employee_by_id)
-            tipo = str(row.get('tipo_avaliacao') or 'nao_classificado').strip().lower() or 'nao_classificado'
-            answered = _leadertrack_game_is_answered(row)
+        for row in response_rows:
+            unit = _leadertrack_game_unit(row.get('empresa'))
+            unit_norm = _leadertrack_game_norm(unit)
+            if unit_names_norm and unit_norm not in unit_names_norm:
+                continue
+
+            response_key = _leadertrack_game_response_key(row.get('_modulo'), row)
+            if response_key in seen_response_keys:
+                continue
+            seen_response_keys.add(response_key)
 
             if unit not in units:
                 units[unit] = {
@@ -849,32 +865,30 @@ def api_leadertrack_game_scoreboard():
                     'percentual': 0.0,
                     'tipos': {},
                 }
-            units[unit]['tokens_enviados'] += 1
-            if answered:
-                units[unit]['respondidos'] += 1
+                unit_names_norm.add(unit_norm)
 
+            tipo = _leadertrack_game_response_tipo(row.get('_modulo'), row.get('tipo'))
+            units[unit]['respondidos'] += 1
             if tipo not in units[unit]['tipos']:
                 units[unit]['tipos'][tipo] = {'total': 0, 'respondidos': 0}
-            units[unit]['tipos'][tipo]['total'] += 1
-            if answered:
-                units[unit]['tipos'][tipo]['respondidos'] += 1
+            units[unit]['tipos'][tipo]['respondidos'] += 1
 
             if tipo not in totals_by_type:
                 totals_by_type[tipo] = {'total': 0, 'respondidos': 0}
-            totals_by_type[tipo]['total'] += 1
-            if answered:
-                totals_by_type[tipo]['respondidos'] += 1
+            totals_by_type[tipo]['respondidos'] += 1
 
         items = []
         total_sent = 0
         total_answered = 0
         for unit in units.values():
+            unit['respondidos'] = min(unit['respondidos'], unit['tokens_enviados']) if unit['tokens_enviados'] else unit['respondidos']
             unit['pendentes'] = max(unit['tokens_enviados'] - unit['respondidos'], 0)
             unit['percentual'] = round(
                 (unit['respondidos'] / unit['tokens_enviados']) * 100,
                 2
             ) if unit['tokens_enviados'] else 0.0
             for values in unit['tipos'].values():
+                values['total'] = unit['tokens_enviados']
                 values['pendentes'] = max(values['total'] - values['respondidos'], 0)
                 values['percentual'] = round(
                     (values['respondidos'] / values['total']) * 100,
@@ -890,6 +904,7 @@ def api_leadertrack_game_scoreboard():
             item['posicao'] = position
 
         for values in totals_by_type.values():
+            values['total'] = total_sent
             values['pendentes'] = max(values['total'] - values['respondidos'], 0)
             values['percentual'] = round(
                 (values['respondidos'] / values['total']) * 100,
@@ -906,12 +921,13 @@ def api_leadertrack_game_scoreboard():
             'unidades': items,
             'totais_por_tipo': totals_by_type,
             'count_unidades': len(items),
-            'formula': 'respondidos / tokens_enviados',
+            'formula': 'respostas_unicas / meta_de_tokens_da_rodada',
         }
         return jsonify(payload), 200
     except Exception as e:
         print('[api_leadertrack_game_scoreboard] erro:', str(e))
         return jsonify({'error': str(e)}), 500
+
 
 
 
