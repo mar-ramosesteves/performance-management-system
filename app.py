@@ -933,6 +933,174 @@ def api_leadertrack_game_scoreboard():
 
 
 
+def _leadertrack_layers_arg(name):
+    value = request.args.get(name)
+    if value is None:
+        return None
+    value = str(value).strip()
+    return value or None
+
+
+def _leadertrack_layers_csv(name):
+    value = _leadertrack_layers_arg(name)
+    if not value:
+        return []
+    return [part.strip() for part in value.split(',') if part.strip()]
+
+
+def _leadertrack_layers_count(rows, key):
+    counts = {}
+    for row in rows:
+        value = row.get(key) or 'NAO_INFORMADO'
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+@app.route('/api/leadertrack/exibicao-lider', methods=['GET'])
+def api_leadertrack_exibicao_lider():
+    """
+    Camada segura para consultar a visao final de exibicao do LeaderTrack.
+
+    Esta rota nao recalcula nem altera respostas. Ela apenas expÃµe a view
+    v_leadertrack_exibicao_lider_final, que separa equipe direta, equipe
+    funcional, interino, autoavaliacao e regras de amostra/tempo de casa.
+    """
+    try:
+        codrodada = _leadertrack_layers_arg('codrodada')
+        if not codrodada:
+            return jsonify({'error': 'Informe codrodada.'}), 400
+
+        query = (
+            supabase.table('v_leadertrack_exibicao_lider_final')
+            .select('*')
+            .eq('codrodada', codrodada)
+            .limit(1000)
+        )
+
+        for field, param in (
+            ('modulo', 'modulo'),
+            ('empresa', 'empresa'),
+            ('email_lider_avaliado', 'email_lider'),
+            ('tipo_relacao_lider', 'tipo_relacao_lider'),
+            ('nome_camada_exibicao', 'camada'),
+            ('status_exibicao_final', 'status_exibicao'),
+        ):
+            value = _leadertrack_layers_arg(param)
+            if value:
+                query = query.eq(field, value)
+
+        rows = query.execute().data or []
+
+        somente_exibiveis = str(request.args.get('somente_exibiveis') or '').strip().lower()
+        if somente_exibiveis in ('1', 'true', 'sim', 'yes'):
+            rows = [
+                row for row in rows
+                if str(row.get('status_exibicao_final') or '').startswith('EXIBIR')
+                or row.get('status_exibicao_final') == 'AUTOAVALIACAO'
+            ]
+
+        return jsonify({
+            'codrodada': codrodada,
+            'count': len(rows),
+            'items': rows,
+            'resumo': {
+                'por_modulo': _leadertrack_layers_count(rows, 'modulo'),
+                'por_camada': _leadertrack_layers_count(rows, 'nome_camada_exibicao'),
+                'por_status': _leadertrack_layers_count(rows, 'status_exibicao_final'),
+                'por_empresa': _leadertrack_layers_count(rows, 'empresa'),
+            },
+            'filtros': {
+                'modulo': _leadertrack_layers_arg('modulo'),
+                'empresa': _leadertrack_layers_arg('empresa'),
+                'email_lider': _leadertrack_layers_arg('email_lider'),
+                'tipo_relacao_lider': _leadertrack_layers_arg('tipo_relacao_lider'),
+                'camada': _leadertrack_layers_arg('camada'),
+                'status_exibicao': _leadertrack_layers_arg('status_exibicao'),
+                'somente_exibiveis': somente_exibiveis in ('1', 'true', 'sim', 'yes'),
+            },
+        }), 200
+    except Exception as e:
+        print('[api_leadertrack_exibicao_lider] erro:', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/leadertrack/respostas-classificadas', methods=['GET'])
+def api_leadertrack_respostas_classificadas():
+    """
+    Consulta operacional das respostas classificadas por camada.
+
+    Por padrao nao devolve dados_json para evitar payload pesado. Use
+    include_json=1 apenas quando uma tela precisar montar graficos pela API.
+    """
+    try:
+        codrodada = _leadertrack_layers_arg('codrodada')
+        if not codrodada:
+            return jsonify({'error': 'Informe codrodada.'}), 400
+
+        include_json = str(request.args.get('include_json') or '').strip().lower() in ('1', 'true', 'sim', 'yes')
+        select_fields = '*'
+        if not include_json:
+            select_fields = (
+                'modulo,resposta_id,codrodada,empresa,tipo,nome,email_respondente,'
+                'nome_lider_avaliado,email_lider_avaliado,data_criacao,employee_id,'
+                'nome_cadastro,holding,company_name,empresa_cadastro,branch_name,cargo,'
+                'admission_date,lider_1_cadastro,email_lider_1_cadastro,link_lider_2_id,'
+                'lider_2_employee_id,lider_2_cadastro,email_lider_2_cadastro,inicio_lider_2,'
+                'exception_id,relationship_exception_type,relationship_exception_reason,'
+                'tipo_relacao_lider,tempo_convivencia_meses,status_tempo_convivencia,'
+                'precisa_correcao_cadastro'
+            )
+
+        query = (
+            supabase.table('v_leadertrack_respostas_classificadas')
+            .select(select_fields)
+            .eq('codrodada', codrodada)
+            .limit(10000)
+        )
+
+        for field, param in (
+            ('modulo', 'modulo'),
+            ('empresa', 'empresa'),
+            ('email_lider_avaliado', 'email_lider'),
+            ('tipo_relacao_lider', 'tipo_relacao_lider'),
+            ('status_tempo_convivencia', 'status_tempo'),
+        ):
+            value = _leadertrack_layers_arg(param)
+            if value:
+                query = query.eq(field, value)
+
+        precisa_correcao = _leadertrack_layers_arg('precisa_correcao')
+        if precisa_correcao:
+            query = query.eq('precisa_correcao_cadastro', precisa_correcao.lower() in ('1', 'true', 'sim', 'yes'))
+
+        rows = query.execute().data or []
+        return jsonify({
+            'codrodada': codrodada,
+            'count': len(rows),
+            'items': rows,
+            'resumo': {
+                'por_modulo': _leadertrack_layers_count(rows, 'modulo'),
+                'por_tipo_relacao': _leadertrack_layers_count(rows, 'tipo_relacao_lider'),
+                'por_status_tempo': _leadertrack_layers_count(rows, 'status_tempo_convivencia'),
+                'por_empresa': _leadertrack_layers_count(rows, 'empresa'),
+                'pendentes_correcao': sum(1 for row in rows if row.get('precisa_correcao_cadastro') is True),
+            },
+            'filtros': {
+                'modulo': _leadertrack_layers_arg('modulo'),
+                'empresa': _leadertrack_layers_arg('empresa'),
+                'email_lider': _leadertrack_layers_arg('email_lider'),
+                'tipo_relacao_lider': _leadertrack_layers_arg('tipo_relacao_lider'),
+                'status_tempo': _leadertrack_layers_arg('status_tempo'),
+                'precisa_correcao': precisa_correcao,
+                'include_json': include_json,
+            },
+        }), 200
+    except Exception as e:
+        print('[api_leadertrack_respostas_classificadas] erro:', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+
 
 @app.route('/api/employees/by-manager', methods=['GET'])
 def get_employees_by_manager():
