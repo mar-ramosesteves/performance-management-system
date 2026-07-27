@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 from flask import make_response
 
 import psycopg2
+from pdi_module import register_pdi_routes
 
 
 DEMO_WORKFLOW_MARKER = 'HRK_DEMO_WORKFLOW_RESET_V1'
@@ -3547,7 +3548,9 @@ def buscar_avaliacoes_brutas(
             .table('employees')
             .select(
                 'id,'
-                'nome,cargo,empresa,'
+                
+                'nome,cargo,empresa,cliente_id,holding_id,'
+                
                 'empresa_id,filial_id,'
                 'company_name,branch_name,department_name,'
                 'manager_name,manager_code'
@@ -3624,7 +3627,13 @@ def buscar_avaliacoes_brutas(
             'cargo': emp.get('cargo'),
 
             # Campos importantes para contexto/filtro no front
+
+            
             'empresa': emp.get('empresa'),
+            'cliente_id': emp.get('cliente_id'),
+            'holding_id': emp.get('holding_id'),
+
+            
             'empresa_id': emp.get('empresa_id'),
             'company_name': emp.get('company_name'),
             'filial_id': emp.get('filial_id'),
@@ -4177,6 +4186,9 @@ def _get_active_round_code():
 
          .execute())
     return (r.data or {}).get('config_value')
+
+register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, _get_active_round_code, _require_rh_code)
+    
 
 
 @app.route('/api/rounds/active', methods=['GET'])
