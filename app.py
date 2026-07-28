@@ -833,6 +833,12 @@ def _leadertrack_game_period_key(value):
         .replace('Ãº', 'u')
         .replace('Ã§', 'c')
     )
+
+    if value in ('sem_periodo', 'sem periodo', 'sem-periodo'):
+        return 'sem_periodo'
+    if value in ('outros_periodos', 'outros periodos', 'outros-periodos', 'integral', 'comercial', 'manha + tarde', 'manha+tarde'):
+        return 'outros_periodos'
+    
     if value in ('m', 'manha', 'matutino', 'diurno manha'):
         return 'manha'
     if value in ('t', 'tarde', 'vespertino', 'diurno tarde'):
@@ -1139,7 +1145,8 @@ def api_leadertrack_game_scoreboard():
                     'tipos': {},
                 }
                 unit_names_norm.add(unit_norm)
-
+                
+            units[unit]['tokens_enviados'] += 1
             target_email = _leadertrack_game_token_email(target)
             employee = employees_by_email.get(target_email)
             period_key = _leadertrack_game_token_period(target, employee)
