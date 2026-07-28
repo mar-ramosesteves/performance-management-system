@@ -1102,7 +1102,10 @@ def api_leadertrack_game_scoreboard():
                 'tipos': {},
             }
 
-        unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
+                unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
+                has_unit_filter = bool(unit_names_norm)
+
+        
         employees_by_email = _leadertrack_game_load_employees(
             cliente_id=cliente_id,
             holding_id=holding_id,
@@ -1122,7 +1125,9 @@ def api_leadertrack_game_scoreboard():
         for target in token_target_rows:
             unit = _leadertrack_game_token_unit(target)
             unit_norm = _leadertrack_game_norm(unit)
-            if unit_names_norm and unit_norm not in unit_names_norm:
+            
+            if has_unit_filter and unit_norm not in unit_names_norm:
+                
                 continue
             if unit not in units:
                 units[unit] = {
@@ -1175,7 +1180,11 @@ def api_leadertrack_game_scoreboard():
         for row in response_rows:
             unit = _leadertrack_game_unit(row.get('empresa'))
             unit_norm = _leadertrack_game_norm(unit)
-            if unit_names_norm and unit_norm not in unit_names_norm:
+
+            
+            if has_unit_filter and unit_norm not in unit_names_norm:
+
+                
                 continue
 
             response_key = _leadertrack_game_response_key(row.get('_modulo'), row)
