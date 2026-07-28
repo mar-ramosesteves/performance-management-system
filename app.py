@@ -771,14 +771,290 @@ def _leadertrack_game_response_key(modulo, row):
 
 
 def _leadertrack_game_response_tipo(modulo, tipo):
+    modulo_norm = _leadertrack_game_norm(modulo)
     tipo_norm = _leadertrack_game_norm(tipo)
-    if modulo == 'microambiente':
+    if 'micro' in modulo_norm:
         if 'auto' in tipo_norm:
             return 'microambiente_autoavaliacao'
         return 'microambiente_equipe'
     if 'auto' in tipo_norm:
         return 'arquetipos_autoavaliacao'
     return 'arquetipos_equipe'
+
+
+_LEADERTRACK_GAME_PERIODS = {
+    'manha': {'label': 'Manha', 'sort': 1},
+    'tarde': {'label': 'Tarde', 'sort': 2},
+    'noite': {'label': 'Noite', 'sort': 3},
+    'outros_periodos': {'label': 'Outros periodos', 'sort': 4},
+    'sem_periodo': {'label': 'Sem periodo', 'sort': 5},
+}
+
+
+def _leadertrack_game_period_from_employee(row):
+    if not isinstance(row, dict):
+        return 'sem_periodo'
+
+    for field in (
+        'periodo',
+        'periodo_trabalho',
+        'periodo_de_trabalho',
+        'periodo_atuacao',
+        'period',
+        'turno',
+        'turno_trabalho',
+        'jornada',
+        'jornada_trabalho',
+        'horario',
+        'escala',
+    ):
+        period_key = _leadertrack_game_period_key(row.get(field))
+        if period_key != 'sem_periodo':
+            return period_key
+
+    return 'sem_periodo'
+
+
+def _leadertrack_game_period_key(value):
+    raw = str(value or '').strip().lower()
+    if not raw:
+        return 'sem_periodo'
+    value = (
+        raw.replace('ã', 'a')
+        .replace('á', 'a')
+        .replace('â', 'a')
+        .replace('à', 'a')
+        .replace('é', 'e')
+        .replace('ê', 'e')
+        .replace('í', 'i')
+        .replace('ó', 'o')
+        .replace('ô', 'o')
+        .replace('õ', 'o')
+        .replace('ú', 'u')
+        .replace('ç', 'c')
+    )
+    if value in ('m', 'manha', 'matutino', 'diurno manha'):
+        return 'manha'
+    if value in ('t', 'tarde', 'vespertino', 'diurno tarde'):
+        return 'tarde'
+    if value in ('n', 'noite', 'noturno'):
+        return 'noite'
+    if 'noite' in value or 'noturn' in value:
+        return 'noite'
+    if 'tarde' in value or 'vespert' in value:
+        return 'tarde'
+    if 'manh' in value or 'matut' in value:
+        return 'manha'
+    if value in ('integral', 'comercial', 'manha + tarde', 'manha+tarde'):
+        return 'outros_periodos'
+    return 'sem_periodo'
+
+
+def _leadertrack_game_employee_key(value):
+    return str(value or '').strip().lower()
+
+
+def _leadertrack_game_response_employee_key(row):
+    return _leadertrack_game_employee_key(row.get('email'))
+
+
+def _leadertrack_game_empty_period(period_key):
+    meta = _LEADERTRACK_GAME_PERIODS.get(period_key, _LEADERTRACK_GAME_PERIODS['sem_periodo'])
+    return {
+        'periodo': period_key,
+        'periodo_label': meta['label'],
+        'periodo_ordem': meta['sort'],
+        'total_enviado': 0,
+        'total_respondido': 0,
+        'total_pendente': 0,
+        'percentual': 0.0,
+        'unidades': [],
+        'totais_por_tipo': {},
+    }
+
+
+def _leadertrack_game_empty_unit_period(period_key, unit):
+    meta = _LEADERTRACK_GAME_PERIODS.get(period_key, _LEADERTRACK_GAME_PERIODS['sem_periodo'])
+    return {
+        'periodo': period_key,
+        'periodo_label': meta['label'],
+        'periodo_ordem': meta['sort'],
+        'unidade': unit,
+        'tokens_enviados': 0,
+        'respondidos': 0,
+        'pendentes': 0,
+        'percentual': 0.0,
+        'tipos': {},
+    }
+
+
+def _leadertrack_game_period_template():
+    return {
+        key: _leadertrack_game_empty_period(key)
+        for key in _LEADERTRACK_GAME_PERIODS.keys()
+    }
+
+
+def _leadertrack_game_period_key_from_response(row, employees_by_email, periods_by_email=None):
+    email = _leadertrack_game_response_employee_key(row)
+    if email and periods_by_email and periods_by_email.get(email):
+        return periods_by_email[email]
+    employee = employees_by_email.get(email) if email else None
+    return _leadertrack_game_period_from_employee(employee)
+
+
+def _leadertrack_game_sort_periods(periods):
+    return sorted(
+        periods.values(),
+        key=lambda item: (
+            int(item.get('periodo_ordem') or 99),
+            str(item.get('periodo_label') or '')
+        )
+    )
+
+
+def _leadertrack_game_sort_units(units):
+    items = list(units.values())
+    items.sort(key=lambda x: (-x['percentual'], -x['respondidos'], x['unidade']))
+    for position, item in enumerate(items, start=1):
+        item['posicao'] = position
+    return items
+
+
+def _leadertrack_game_finalize_types(totals_by_type, total_sent):
+    for values in totals_by_type.values():
+        values['total'] = total_sent
+        values['pendentes'] = max(values['total'] - values['respondidos'], 0)
+        values['percentual'] = round(
+            (values['respondidos'] / values['total']) * 100,
+            2
+        ) if values['total'] else 0.0
+
+
+def _leadertrack_game_finalize_periods(periods):
+    for period in periods.values():
+        period_total_sent = 0
+        period_total_answered = 0
+        for unit in period.get('unidades_by_name', {}).values():
+            unit['respondidos'] = min(unit['respondidos'], unit['tokens_enviados']) if unit['tokens_enviados'] else unit['respondidos']
+            unit['pendentes'] = max(unit['tokens_enviados'] - unit['respondidos'], 0)
+            unit['percentual'] = round(
+                (unit['respondidos'] / unit['tokens_enviados']) * 100,
+                2
+            ) if unit['tokens_enviados'] else 0.0
+            for values in unit['tipos'].values():
+                values['total'] = unit['tokens_enviados']
+                values['pendentes'] = max(values['total'] - values['respondidos'], 0)
+                values['percentual'] = round(
+                    (values['respondidos'] / values['total']) * 100,
+                    2
+                ) if values['total'] else 0.0
+            period_total_sent += unit['tokens_enviados']
+            period_total_answered += unit['respondidos']
+
+        period['total_enviado'] = period_total_sent
+        period['total_respondido'] = period_total_answered
+        period['total_pendente'] = max(period_total_sent - period_total_answered, 0)
+        period['percentual'] = round(
+            (period_total_answered / period_total_sent) * 100,
+            2
+        ) if period_total_sent else 0.0
+        _leadertrack_game_finalize_types(period['totais_por_tipo'], period_total_sent)
+        period['unidades'] = _leadertrack_game_sort_units(period.pop('unidades_by_name', {}))
+
+
+def _leadertrack_game_load_employees(cliente_id=None, holding_id=None, empresa_id=None, filial_id=None):
+    try:
+        query = (
+            supabase.table('employees')
+            .select('*')
+            .limit(20000)
+        )
+        if cliente_id:
+            query = query.eq('cliente_id', cliente_id)
+        if holding_id:
+            query = query.eq('holding_id', holding_id)
+        if empresa_id:
+            query = query.eq('empresa_id', empresa_id)
+        if filial_id:
+            query = query.eq('filial_id', filial_id)
+
+        rows = query.execute().data or []
+    except Exception as e:
+        print('[leadertrack_game_load_employees] erro ao buscar employees:', e)
+        rows = []
+
+    by_email = {}
+    for row in rows:
+        email = _leadertrack_game_employee_key(row.get('email'))
+        if email:
+            by_email[email] = row
+    return by_email
+
+
+def _leadertrack_game_load_token_targets(codrodada, cliente_id=None, holding_id=None, empresa_id=None, filial_id=None):
+    try:
+        query = (
+            supabase.table('leadertrack_scoreboard_token_targets')
+            .select('*')
+            .eq('codrodada', codrodada)
+            .limit(20000)
+        )
+        if cliente_id:
+            query = query.eq('cliente_id', cliente_id)
+        if holding_id:
+            query = query.eq('holding_id', holding_id)
+        if empresa_id:
+            query = query.eq('empresa_id', empresa_id)
+        if filial_id:
+            query = query.eq('filial_id', filial_id)
+
+        rows = query.execute().data or []
+    except Exception as e:
+        print('[leadertrack_game_load_token_targets] tabela detalhada indisponivel:', e)
+        rows = []
+
+    return [
+        row for row in rows
+        if bool(row.get('active', True))
+    ]
+
+
+def _leadertrack_game_token_unit(row):
+    return _leadertrack_game_unit(
+        row.get('unidade')
+        or row.get('empresa')
+        or row.get('company')
+        or row.get('company_name')
+    )
+
+
+def _leadertrack_game_token_email(row):
+    return _leadertrack_game_employee_key(
+        row.get('email')
+        or row.get('email_respondente')
+        or row.get('employee_email')
+    )
+
+
+def _leadertrack_game_token_tipo(row):
+    modulo = row.get('modulo') or row.get('produto') or ''
+    return _leadertrack_game_response_tipo(modulo, row.get('tipo'))
+
+
+def _leadertrack_game_token_period(row, employee=None):
+    for field in (
+        'periodo',
+        'periodo_trabalho',
+        'periodo_de_trabalho',
+        'period',
+        'turno',
+        'jornada',
+    ):
+        period_key = _leadertrack_game_period_key(row.get(field))
+        if period_key != 'sem_periodo':
+            return period_key
+    return _leadertrack_game_period_from_employee(employee)
 
 
 @app.route('/api/leadertrack/game-scoreboard', methods=['GET'])
@@ -827,6 +1103,56 @@ def api_leadertrack_game_scoreboard():
             }
 
         unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
+        employees_by_email = _leadertrack_game_load_employees(
+            cliente_id=cliente_id,
+            holding_id=holding_id,
+            empresa_id=empresa_id,
+            filial_id=filial_id,
+        )
+        token_target_rows = _leadertrack_game_load_token_targets(
+            codrodada,
+            cliente_id=cliente_id,
+            holding_id=holding_id,
+            empresa_id=empresa_id,
+            filial_id=filial_id,
+        )
+        periods = _leadertrack_game_period_template()
+        periods_by_email = {}
+
+        for target in token_target_rows:
+            unit = _leadertrack_game_token_unit(target)
+            unit_norm = _leadertrack_game_norm(unit)
+            if unit_names_norm and unit_norm not in unit_names_norm:
+                continue
+            if unit not in units:
+                units[unit] = {
+                    'unidade': unit,
+                    'tokens_enviados': 0,
+                    'respondidos': 0,
+                    'pendentes': 0,
+                    'percentual': 0.0,
+                    'tipos': {},
+                }
+                unit_names_norm.add(unit_norm)
+
+            target_email = _leadertrack_game_token_email(target)
+            employee = employees_by_email.get(target_email)
+            period_key = _leadertrack_game_token_period(target, employee)
+            if target_email and period_key != 'sem_periodo':
+                periods_by_email[target_email] = period_key
+            period = periods[period_key]
+            period.setdefault('unidades_by_name', {})
+            if unit not in period['unidades_by_name']:
+                period['unidades_by_name'][unit] = _leadertrack_game_empty_unit_period(period_key, unit)
+
+            tipo = _leadertrack_game_token_tipo(target)
+            period_unit = period['unidades_by_name'][unit]
+            period_unit['tokens_enviados'] += 1
+            if tipo not in period_unit['tipos']:
+                period_unit['tipos'][tipo] = {'total': 0, 'respondidos': 0}
+            if tipo not in period['totais_por_tipo']:
+                period['totais_por_tipo'][tipo] = {'total': 0, 'respondidos': 0}
+
         response_rows = []
         for modulo, table_name in (
             ('microambiente', 'relatorios_microambiente'),
@@ -878,6 +1204,22 @@ def api_leadertrack_game_scoreboard():
                 totals_by_type[tipo] = {'total': 0, 'respondidos': 0}
             totals_by_type[tipo]['respondidos'] += 1
 
+            period_key = _leadertrack_game_period_key_from_response(row, employees_by_email, periods_by_email)
+            period = periods[period_key]
+            period.setdefault('unidades_by_name', {})
+            if unit not in period['unidades_by_name']:
+                period['unidades_by_name'][unit] = _leadertrack_game_empty_unit_period(period_key, unit)
+
+            period_unit = period['unidades_by_name'][unit]
+            period_unit['respondidos'] += 1
+            if tipo not in period_unit['tipos']:
+                period_unit['tipos'][tipo] = {'total': 0, 'respondidos': 0}
+            period_unit['tipos'][tipo]['respondidos'] += 1
+
+            if tipo not in period['totais_por_tipo']:
+                period['totais_por_tipo'][tipo] = {'total': 0, 'respondidos': 0}
+            period['totais_por_tipo'][tipo]['respondidos'] += 1
+
         items = []
         total_sent = 0
         total_answered = 0
@@ -912,6 +1254,8 @@ def api_leadertrack_game_scoreboard():
                 2
             ) if values['total'] else 0.0
 
+        _leadertrack_game_finalize_periods(periods)
+
         payload = {
             'codrodada': codrodada,
             'generated_at': datetime.now(timezone.utc).isoformat(),
@@ -921,6 +1265,8 @@ def api_leadertrack_game_scoreboard():
             'percentual_geral': round((total_answered / total_sent) * 100, 2) if total_sent else 0.0,
             'unidades': items,
             'totais_por_tipo': totals_by_type,
+            'periodos': _leadertrack_game_sort_periods(periods),
+            'periodos_meta_fonte': 'leadertrack_scoreboard_token_targets' if token_target_rows else 'indisponivel',
             'count_unidades': len(items),
             'formula': 'respostas_unicas / meta_de_tokens_da_rodada',
         }
