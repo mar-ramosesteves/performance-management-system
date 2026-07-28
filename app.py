@@ -1102,8 +1102,8 @@ def api_leadertrack_game_scoreboard():
                 'tipos': {},
             }
 
-                unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
-                has_unit_filter = bool(unit_names_norm)
+        unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
+        has_unit_filter = bool(unit_names_norm)
 
         
         employees_by_email = _leadertrack_game_load_employees(
