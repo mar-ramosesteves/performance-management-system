@@ -88,6 +88,46 @@ def _plan_title(item, cycle_code):
     return f'PDI {cycle_code} - {employee_name}' if cycle_code else f'PDI - {employee_name}'
 
 
+def _leadertrack_action_type(week_payload):
+    text = ' '.join([
+        str(week_payload.get('foco_da_semana') or ''),
+        str(week_payload.get('formato_sugerido') or ''),
+        ' '.join([str(x) for x in (week_payload.get('acoes_praticas') or [])]),
+    ]).lower()
+    if 'trein' in text or 'capacita' in text:
+        return 'treinamento'
+    if 'feedback' in text or 'devolutiva' in text:
+        return 'feedback'
+    if 'mentoria' in text:
+        return 'mentoria'
+    if 'leitura' in text:
+        return 'leitura'
+    if 'projeto' in text:
+        return 'projeto'
+    return 'acao_pratica'
+
+
+def _leadertrack_week_description(week_payload):
+    parts = []
+    if week_payload.get('objetivo'):
+        parts.append(f"Objetivo: {week_payload.get('objetivo')}")
+    if week_payload.get('formato_sugerido'):
+        parts.append(f"Formato sugerido: {week_payload.get('formato_sugerido')}")
+    if week_payload.get('acoes_praticas'):
+        parts.append("Acoes praticas: " + "; ".join([str(x) for x in week_payload.get('acoes_praticas') or []]))
+    if week_payload.get('tarefa_do_lider'):
+        parts.append("Tarefa do lider: " + "; ".join([str(x) for x in week_payload.get('tarefa_do_lider') or []]))
+    if week_payload.get('tarefa_da_equipe'):
+        parts.append("Tarefa da equipe: " + "; ".join([str(x) for x in week_payload.get('tarefa_da_equipe') or []]))
+    if week_payload.get('perguntas_para_equipe'):
+        parts.append("Perguntas para equipe: " + "; ".join([str(x) for x in week_payload.get('perguntas_para_equipe') or []]))
+    if week_payload.get('indicadores_operacionais_relacionados'):
+        parts.append("Indicadores operacionais: " + "; ".join([str(x) for x in week_payload.get('indicadores_operacionais_relacionados') or []]))
+    if week_payload.get('resultado_esperado'):
+        parts.append(f"Resultado esperado: {week_payload.get('resultado_esperado')}")
+    return "\n".join(parts)
+
+
 def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_round_code, require_rh_code):
     def validate_rh_read_access(user_email, cliente_id='', holding_id='', empresa_id='', filial_id=''):
         email = (user_email or '').strip().lower()
@@ -664,6 +704,346 @@ def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_roun
             }), 200
         except Exception as exc:
             print('[pdi] erro interno generate:', exc)
+            return jsonify({'error': 'internal', 'detail': str(exc)}), 500
+
+    @app.route('/api/pdi/from-leadertrack', methods=['POST', 'OPTIONS'])
+    def api_pdi_from_leadertrack():
+        if request.method == 'OPTIONS':
+            return ('', 204)
+        try:
+            payload = request.get_json() or {}
+            ok, err, status = require_rh_code(payload)
+            if not ok:
+                return jsonify(err), status
+
+            actor_email = (payload.get('user_email') or payload.get('actor_email') or '').strip().lower()
+            if not actor_email:
+                return jsonify({'error': 'USER_EMAIL_REQUIRED'}), 400
+
+            cliente_id = (payload.get('cliente_id') or '').strip() or None
+            holding_id = (payload.get('holding_id') or '').strip() or None
+            empresa_id = (payload.get('empresa_id') or '').strip() or None
+            filial_id = (payload.get('filial_id') or '').strip() or None
+
+            ok_access, err_access, status_access = validate_rh_read_access(
+                actor_email,
+                cliente_id=cliente_id or '',
+                holding_id=holding_id or '',
+                empresa_id=empresa_id or '',
+                filial_id=filial_id or '',
+            )
+            if not ok_access:
+                return jsonify(err_access), status_access
+
+            try:
+                employee_id = int(payload.get('employee_id'))
+            except Exception:
+                return jsonify({'error': 'INVALID_EMPLOYEE_ID'}), 400
+
+            cycle_code = (
+                payload.get('cycle_code')
+                or payload.get('round_code')
+                or payload.get('ciclo_codigo')
+                or ''
+            ).strip()
+            if not cycle_code:
+                return jsonify({'error': 'CYCLE_CODE_REQUIRED'}), 400
+
+            leadertrack_payload = payload.get('leadertrack_payload') or {}
+            if not isinstance(leadertrack_payload, dict):
+                return jsonify({'error': 'INVALID_LEADERTRACK_PAYLOAD'}), 400
+
+            gap = leadertrack_payload.get('gap') or {}
+            gap_id = (
+                payload.get('leadertrack_gap_id')
+                or leadertrack_payload.get('gap_id')
+                or gap.get('gap_id')
+                or gap.get('questao')
+                or ''
+            )
+            gap_id = str(gap_id or '').strip()
+            if not gap_id:
+                return jsonify({'error': 'LEADERTRACK_GAP_ID_REQUIRED'}), 400
+
+            devolutiva_id = payload.get('devolutiva_id') or payload.get('leadertrack_devolutiva_id')
+            leadertrack_codrodada = (
+                payload.get('leadertrack_codrodada')
+                or payload.get('codrodada_leadertrack')
+                or payload.get('codrodada')
+                or ''
+            ).strip() or None
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+
+            try:
+                existing = (
+                    supabase.table('pdi_plans')
+                    .select('id,status,origin_type,leadertrack_gap_id')
+                    .eq('employee_id', employee_id)
+                    .eq('cycle_code', cycle_code)
+                    .eq('leadertrack_gap_id', gap_id)
+                    .limit(1)
+                    .execute()
+                )
+                existing_rows = existing.data or []
+                if existing_rows:
+                    return jsonify({
+                        'message': 'PDI LeaderTrack ja existia para este profissional, ciclo e gap.',
+                        'created': False,
+                        'pdi_plan_id': existing_rows[0].get('id'),
+                        'item': existing_rows[0],
+                    }), 200
+            except Exception as exc:
+                print('[pdi] erro ao verificar PDI LeaderTrack existente:', exc)
+                return jsonify({
+                    'error': 'LEADERTRACK_EXISTING_PLAN_CHECK_FAILED',
+                    'detail': str(exc),
+                }), 500
+
+            title = (
+                payload.get('title')
+                or f"PDI LeaderTrack {cycle_code} - {payload.get('employee_name') or 'Profissional'}"
+            )
+            summary = payload.get('summary') or (
+                "PDI gerado a partir da devolutiva LeaderTrack, com acompanhamento por gap, "
+                "indicadores operacionais e revisoes informais."
+            )
+
+            plan_payload = {
+                'cliente_id': cliente_id,
+                'holding_id': holding_id,
+                'empresa_id': empresa_id,
+                'filial_id': filial_id,
+                'employee_id': employee_id,
+                'manager_name': payload.get('manager_name'),
+                'cycle_code': cycle_code,
+                'year': payload.get('year'),
+                'origin_type': 'leadertrack_devolutiva',
+                'origin_evaluation_id': payload.get('origin_evaluation_id'),
+                'origin_ninebox_position': payload.get('origin_ninebox_position'),
+                'leadertrack_devolutiva_id': devolutiva_id,
+                'leadertrack_gap_id': gap_id,
+                'leadertrack_codrodada': leadertrack_codrodada,
+                'status': 'ativo',
+                'title': title,
+                'summary': summary,
+                'created_by_email': actor_email,
+                'created_at': now_iso,
+                'updated_at': now_iso,
+            }
+
+            try:
+                inserted_plan = supabase.table('pdi_plans').insert(plan_payload).execute()
+                plan = (inserted_plan.data or [{}])[0]
+                plan_id = plan.get('id')
+                if not plan_id:
+                    return jsonify({'error': 'PDI_PLAN_CREATION_FAILED'}), 500
+
+                weekly_actions = []
+                for week in leadertrack_payload.get('plano_12_semanas') or []:
+                    week_number = week.get('semana')
+                    focus = (week.get('foco_da_semana') or '').strip() or f"Semana {week_number}"
+                    action_row = {
+                        'pdi_plan_id': plan_id,
+                        'dimension_id': None,
+                        'action_type': _leadertrack_action_type(week),
+                        'title': f"Semana {week_number} - {focus}" if week_number else focus,
+                        'description': _leadertrack_week_description(week),
+                        'due_date': week.get('prazo') if str(week.get('prazo') or '').startswith('20') else None,
+                        'owner_role': 'profissional',
+                        'status': 'pendente',
+                        'evidence_text': week.get('evidencia_esperada'),
+                        'manager_validation_status': 'pendente',
+                        'created_at': now_iso,
+                        'updated_at': now_iso,
+                    }
+                    weekly_actions.append(action_row)
+
+                inserted_actions = []
+                if weekly_actions:
+                    action_result = supabase.table('pdi_actions').insert(weekly_actions).execute()
+                    inserted_actions = action_result.data or []
+
+                supabase.table('pdi_events').insert({
+                    'pdi_plan_id': plan_id,
+                    'event_type': 'pdi_created_from_leadertrack',
+                    'event_payload': {
+                        'leadertrack_devolutiva_id': devolutiva_id,
+                        'leadertrack_gap_id': gap_id,
+                        'leadertrack_codrodada': leadertrack_codrodada,
+                        'gap': gap,
+                        'diagnostico': leadertrack_payload.get('diagnostico'),
+                        'revisoes_parciais_informais': leadertrack_payload.get('revisoes_parciais_informais') or [],
+                        'actions_created': len(inserted_actions),
+                        'contexto': {
+                            'cliente_id': cliente_id,
+                            'holding_id': holding_id,
+                            'empresa_id': empresa_id,
+                            'filial_id': filial_id,
+                        },
+                    },
+                    'actor_email': actor_email,
+                    'created_at': now_iso,
+                }).execute()
+
+                return jsonify({
+                    'message': 'PDI criado a partir da devolutiva LeaderTrack.',
+                    'created': True,
+                    'pdi_plan_id': plan_id,
+                    'actions_created': len(inserted_actions),
+                    'item': plan,
+                    'actions': inserted_actions,
+                }), 201
+            except Exception as exc:
+                print('[pdi] erro ao criar PDI from LeaderTrack:', exc)
+                return jsonify({
+                    'error': 'LEADERTRACK_PDI_CREATION_FAILED',
+                    'detail': str(exc),
+                }), 500
+        except Exception as exc:
+            print('[pdi] erro interno from leadertrack:', exc)
+            return jsonify({'error': 'internal', 'detail': str(exc)}), 500
+
+    @app.route('/api/pdi/plans/<int:pdi_plan_id>/actions', methods=['POST', 'OPTIONS'])
+    def api_pdi_action_create(pdi_plan_id):
+        if request.method == 'OPTIONS':
+            return ('', 204)
+        try:
+            payload = request.get_json() or {}
+            ok, err, status = require_rh_code(payload)
+            if not ok:
+                return jsonify(err), status
+
+            actor_email = (payload.get('user_email') or payload.get('actor_email') or '').strip().lower()
+            title = (payload.get('title') or '').strip()
+            if not actor_email:
+                return jsonify({'error': 'USER_EMAIL_REQUIRED'}), 400
+            if not title:
+                return jsonify({'error': 'TITLE_REQUIRED'}), 400
+
+            action_type = (payload.get('action_type') or 'acao_pratica').strip()
+            valid_action_types = {
+                'acao_pratica', 'mentoria', 'treinamento', 'leitura',
+                'projeto', 'feedback', 'job_rotation', 'outro',
+            }
+            if action_type not in valid_action_types:
+                return jsonify({'error': 'INVALID_ACTION_TYPE'}), 400
+
+            owner_role = (payload.get('owner_role') or 'profissional').strip()
+            if owner_role not in {'rh', 'gestor', 'profissional'}:
+                return jsonify({'error': 'INVALID_OWNER_ROLE'}), 400
+
+            action_status = (payload.get('status') or 'pendente').strip()
+            if action_status not in {'pendente', 'em_andamento', 'concluida', 'atrasada', 'cancelada'}:
+                return jsonify({'error': 'INVALID_STATUS'}), 400
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            row = {
+                'pdi_plan_id': pdi_plan_id,
+                'dimension_id': payload.get('dimension_id'),
+                'action_type': action_type,
+                'title': title,
+                'description': payload.get('description'),
+                'due_date': payload.get('due_date') or None,
+                'owner_role': owner_role,
+                'status': action_status,
+                'evidence_text': payload.get('evidence_text'),
+                'manager_validation_status': 'pendente',
+                'created_at': now_iso,
+                'updated_at': now_iso,
+            }
+
+            result = supabase.table('pdi_actions').insert(row).execute()
+            item = (result.data or [row])[0]
+            try:
+                supabase.table('pdi_events').insert({
+                    'pdi_plan_id': pdi_plan_id,
+                    'event_type': 'pdi_action_created',
+                    'event_payload': {
+                        'action_id': item.get('id'),
+                        'action_type': action_type,
+                        'title': title,
+                    },
+                    'actor_email': actor_email,
+                    'created_at': now_iso,
+                }).execute()
+            except Exception as exc:
+                print('[pdi] erro ao registrar evento de acao:', exc)
+
+            return jsonify({
+                'message': 'Acao do PDI cadastrada.',
+                'item': item,
+            }), 201
+        except Exception as exc:
+            print('[pdi] erro interno action create:', exc)
+            return jsonify({'error': 'internal', 'detail': str(exc)}), 500
+
+    @app.route('/api/pdi/actions/<int:action_id>', methods=['PUT', 'OPTIONS'])
+    def api_pdi_action_update(action_id):
+        if request.method == 'OPTIONS':
+            return ('', 204)
+        try:
+            payload = request.get_json() or {}
+            ok, err, status = require_rh_code(payload)
+            if not ok:
+                return jsonify(err), status
+
+            actor_email = (payload.get('user_email') or payload.get('actor_email') or '').strip().lower()
+            if not actor_email:
+                return jsonify({'error': 'USER_EMAIL_REQUIRED'}), 400
+
+            allowed = {
+                'action_type', 'title', 'description', 'due_date', 'owner_role',
+                'status', 'evidence_text', 'manager_validation_status',
+            }
+            row = {k: payload.get(k) for k in allowed if k in payload}
+            if not row:
+                return jsonify({'error': 'NO_FIELDS_TO_UPDATE'}), 400
+
+            if 'action_type' in row and row['action_type'] not in {
+                'acao_pratica', 'mentoria', 'treinamento', 'leitura',
+                'projeto', 'feedback', 'job_rotation', 'outro',
+            }:
+                return jsonify({'error': 'INVALID_ACTION_TYPE'}), 400
+            if 'owner_role' in row and row['owner_role'] not in {'rh', 'gestor', 'profissional'}:
+                return jsonify({'error': 'INVALID_OWNER_ROLE'}), 400
+            if 'status' in row and row['status'] not in {'pendente', 'em_andamento', 'concluida', 'atrasada', 'cancelada'}:
+                return jsonify({'error': 'INVALID_STATUS'}), 400
+            if 'manager_validation_status' in row and row['manager_validation_status'] not in {'pendente', 'validado', 'reprovado'}:
+                return jsonify({'error': 'INVALID_MANAGER_VALIDATION_STATUS'}), 400
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            row['updated_at'] = now_iso
+            if row.get('status') == 'concluida':
+                row['completed_by_email'] = actor_email
+                row['completed_at'] = now_iso
+
+            result = (
+                supabase.table('pdi_actions')
+                .update(row)
+                .eq('id', action_id)
+                .execute()
+            )
+            item = (result.data or [{}])[0]
+            plan_id = item.get('pdi_plan_id') or payload.get('pdi_plan_id')
+            if plan_id:
+                try:
+                    supabase.table('pdi_events').insert({
+                        'pdi_plan_id': plan_id,
+                        'event_type': 'pdi_action_updated',
+                        'event_payload': {'action_id': action_id, 'fields': sorted(row.keys())},
+                        'actor_email': actor_email,
+                        'created_at': now_iso,
+                    }).execute()
+                except Exception as exc:
+                    print('[pdi] erro ao registrar evento de atualizacao de acao:', exc)
+
+            return jsonify({
+                'message': 'Acao do PDI atualizada.',
+                'item': item,
+            }), 200
+        except Exception as exc:
+            print('[pdi] erro interno action update:', exc)
             return jsonify({'error': 'internal', 'detail': str(exc)}), 500
 
     @app.route('/api/pdi/plans/<int:pdi_plan_id>/monthly-checkin', methods=['PUT', 'OPTIONS'])

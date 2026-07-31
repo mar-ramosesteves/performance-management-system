@@ -833,6 +833,10 @@ def _leadertrack_game_period_key(value):
         .replace('ú', 'u')
         .replace('ç', 'c')
     )
+    if value in ('sem_periodo', 'sem periodo', 'sem-periodo'):
+        return 'sem_periodo'
+    if value in ('outros_periodos', 'outros periodos', 'outros-periodos', 'integral', 'comercial', 'manha + tarde', 'manha+tarde'):
+        return 'outros_periodos'
     if value in ('m', 'manha', 'matutino', 'diurno manha'):
         return 'manha'
     if value in ('t', 'tarde', 'vespertino', 'diurno tarde'):
@@ -845,8 +849,6 @@ def _leadertrack_game_period_key(value):
         return 'tarde'
     if 'manh' in value or 'matut' in value:
         return 'manha'
-    if value in ('integral', 'comercial', 'manha + tarde', 'manha+tarde'):
-        return 'outros_periodos'
     return 'sem_periodo'
 
 
@@ -1103,6 +1105,7 @@ def api_leadertrack_game_scoreboard():
             }
 
         unit_names_norm = {_leadertrack_game_norm(unit) for unit in units.keys()}
+        has_unit_filter = bool(unit_names_norm)
         employees_by_email = _leadertrack_game_load_employees(
             cliente_id=cliente_id,
             holding_id=holding_id,
@@ -1122,7 +1125,7 @@ def api_leadertrack_game_scoreboard():
         for target in token_target_rows:
             unit = _leadertrack_game_token_unit(target)
             unit_norm = _leadertrack_game_norm(unit)
-            if unit_names_norm and unit_norm not in unit_names_norm:
+            if has_unit_filter and unit_norm not in unit_names_norm:
                 continue
             if unit not in units:
                 units[unit] = {
@@ -1135,6 +1138,7 @@ def api_leadertrack_game_scoreboard():
                 }
                 unit_names_norm.add(unit_norm)
 
+            units[unit]['tokens_enviados'] += 1
             target_email = _leadertrack_game_token_email(target)
             employee = employees_by_email.get(target_email)
             period_key = _leadertrack_game_token_period(target, employee)
@@ -1161,7 +1165,7 @@ def api_leadertrack_game_scoreboard():
             rows = (
                 supabase.table(table_name)
                 .select('empresa,codrodada,tipo,email,emailLider,data_criacao')
-                .eq('codrodada', codrodada)
+                .ilike('codrodada', codrodada)
                 .limit(10000)
                 .execute()
                 .data or []
@@ -1175,7 +1179,7 @@ def api_leadertrack_game_scoreboard():
         for row in response_rows:
             unit = _leadertrack_game_unit(row.get('empresa'))
             unit_norm = _leadertrack_game_norm(unit)
-            if unit_names_norm and unit_norm not in unit_names_norm:
+            if has_unit_filter and unit_norm not in unit_names_norm:
                 continue
 
             response_key = _leadertrack_game_response_key(row.get('_modulo'), row)
@@ -2772,6 +2776,77 @@ def create_individual_goal():
         r = supabase.table('individual_goals').insert(data).execute()
         return jsonify(r.data)
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/performance/goals/from-leadertrack-pdi', methods=['POST', 'OPTIONS'])
+def create_performance_goal_from_leadertrack_pdi():
+    if request.method == 'OPTIONS':
+        return ('', 204)
+    try:
+        data = request.get_json() or {}
+        ok, err, status = _require_rh_code(data)
+        if not ok:
+            return jsonify(err), status
+
+        try:
+            employee_id = int(data.get('employee_id'))
+        except Exception:
+            return jsonify({'error': 'INVALID_EMPLOYEE_ID'}), 400
+
+        round_code = (data.get('round_code') or data.get('codrodada_desempenho') or '').strip()
+        if not round_code:
+            return jsonify({'error': 'ROUND_CODE_REQUIRED'}), 400
+
+        goal = data.get('goal') or {}
+        if not isinstance(goal, dict):
+            return jsonify({'error': 'INVALID_GOAL'}), 400
+
+        goal_name = (
+            goal.get('name')
+            or goal.get('goal_name')
+            or 'Cumprimento e evidencia do PDI LeaderTrack'
+        )
+        goal_description = (
+            goal.get('description')
+            or goal.get('goal_description')
+            or 'Executar ciclo aprovado, registrar evidencias, participar das revisoes e acompanhar indicadores operacionais.'
+        )
+
+        try:
+            weight = float(goal.get('weight')) if goal.get('weight') not in (None, '') else 0
+        except Exception:
+            weight = 0
+
+        row = {
+            'employee_id': employee_id,
+            'evaluation_id': data.get('evaluation_id'),
+            'round_code': round_code,
+            'cliente_id': data.get('cliente_id'),
+            'holding_id': data.get('holding_id'),
+            'empresa_id': data.get('empresa_id'),
+            'filial_id': data.get('filial_id'),
+            'source_module': 'leadertrack_pdi',
+            'pdi_plan_id': data.get('pdi_plan_id'),
+            'leadertrack_devolutiva_id': data.get('devolutiva_id') or data.get('leadertrack_devolutiva_id'),
+            'leadertrack_gap_id': data.get('leadertrack_gap_id'),
+            'goal_name': goal_name,
+            'goal_description': goal_description,
+            'weight': weight,
+            'rating_1_criteria': goal.get('rating_1_criteria') or 'Nao executou o ciclo aprovado nem apresentou evidencias suficientes.',
+            'rating_2_criteria': goal.get('rating_2_criteria') or 'Executou parcialmente, com evidencias incompletas e pouca evolucao observavel.',
+            'rating_3_criteria': goal.get('rating_3_criteria') or 'Executou o ciclo em nivel adequado, com registros e participacao nas revisoes.',
+            'rating_4_criteria': goal.get('rating_4_criteria') or 'Executou bem o ciclo, com evidencias consistentes e sinais de evolucao no microambiente.',
+            'rating_5_criteria': goal.get('rating_5_criteria') or 'Executou com excelencia, gerando evidencias robustas, melhoria operacional e aprendizado replicavel.',
+            'rating': None,
+        }
+
+        r = supabase.table('individual_goals').insert(row).execute()
+        return jsonify({
+            'message': 'Meta de desempenho criada a partir do PDI LeaderTrack.',
+            'item': (r.data or [row])[0],
+        }), 201
+    except Exception as e:
+        print('[performance] erro ao criar meta LeaderTrack:', e)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/dimension-weights', methods=['GET'])
