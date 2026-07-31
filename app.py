@@ -819,20 +819,7 @@ def _leadertrack_game_period_key(value):
     raw = str(value or '').strip().lower()
     if not raw:
         return 'sem_periodo'
-    value = (
-        raw.replace('ã', 'a')
-        .replace('á', 'a')
-        .replace('â', 'a')
-        .replace('à', 'a')
-        .replace('é', 'e')
-        .replace('ê', 'e')
-        .replace('í', 'i')
-        .replace('ó', 'o')
-        .replace('ô', 'o')
-        .replace('õ', 'o')
-        .replace('ú', 'u')
-        .replace('ç', 'c')
-    )
+    value = _leadertrack_game_norm(raw)
     if value in ('sem_periodo', 'sem periodo', 'sem-periodo'):
         return 'sem_periodo'
     if value in ('outros_periodos', 'outros periodos', 'outros-periodos', 'integral', 'comercial', 'manha + tarde', 'manha+tarde'):
@@ -1066,7 +1053,7 @@ def api_leadertrack_game_scoreboard():
     por unidade, sem expor nome, e-mail ou token dos colaboradores.
 
     Quando existe cadastro em leadertrack_scoreboard_targets, ele usa essa
-    tabela como denominador oficial da campanha. As respostas vÃªm das tabelas
+    tabela como denominador oficial da campanha. As respostas vÃƒÂªm das tabelas
     reais do LeaderTrack: relatorios_microambiente e relatorios_arquetipos.
     """
     try:
@@ -1278,6 +1265,11 @@ def api_leadertrack_game_scoreboard():
     except Exception as e:
         print('[api_leadertrack_game_scoreboard] erro:', str(e))
         return jsonify({'error': str(e)}), 500
+
+
+
+
+
 
 
 
