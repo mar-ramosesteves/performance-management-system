@@ -129,6 +129,72 @@ def _leadertrack_week_description(week_payload):
 
 
 def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_round_code, require_rh_code):
+    def resolve_employee_from_leadertrack(payload, actor_email, cliente_id='', holding_id='', empresa_id='', filial_id=''):
+        raw_employee_id = payload.get('employee_id')
+        if raw_employee_id not in (None, ''):
+            try:
+                return int(raw_employee_id), None, None, None
+            except Exception:
+                return None, {
+                    'error': 'INVALID_EMPLOYEE_ID',
+                    'message': 'O employee_id informado para o PDI LeaderTrack nao e valido.'
+                }, 400, None
+
+        employee_email = (
+            payload.get('employee_email')
+            or payload.get('profissional_email')
+            or payload.get('leader_email')
+            or payload.get('email_lider')
+            or payload.get('emailLider')
+            or ''
+        ).strip().lower()
+        if not employee_email:
+            return None, {
+                'error': 'EMPLOYEE_ID_OR_EMAIL_REQUIRED',
+                'message': 'Informe employee_id ou employee_email para criar o PDI LeaderTrack.'
+            }, 400, None
+
+        try:
+            query = (
+                supabase
+                .table('employees')
+                .select('id,nome,email,manager_name,cliente_id,holding_id,empresa_id,filial_id')
+                .ilike('email', employee_email)
+            )
+            if cliente_id:
+                query = query.eq('cliente_id', cliente_id)
+            if holding_id:
+                query = query.eq('holding_id', holding_id)
+            if empresa_id:
+                query = query.eq('empresa_id', empresa_id)
+            if filial_id:
+                query = query.eq('filial_id', filial_id)
+            result = query.limit(2).execute()
+            rows = result.data or []
+        except Exception as exc:
+            print('[pdi] erro ao localizar employee LeaderTrack:', exc)
+            return None, {
+                'error': 'LEADERTRACK_EMPLOYEE_LOOKUP_FAILED',
+                'message': 'Nao foi possivel localizar o profissional do LeaderTrack no cadastro central.',
+                'detail': str(exc),
+            }, 500, None
+
+        if not rows:
+            return None, {
+                'error': 'LEADERTRACK_EMPLOYEE_NOT_FOUND',
+                'message': 'Nao encontrei este lider no cadastro central pelo e-mail informado e contexto selecionado.',
+                'employee_email': employee_email,
+            }, 404, None
+        if len(rows) > 1:
+            return None, {
+                'error': 'LEADERTRACK_EMPLOYEE_AMBIGUOUS',
+                'message': 'Encontrei mais de um profissional com este e-mail no contexto. Informe employee_id para evitar gravacao incorreta.',
+                'employee_email': employee_email,
+            }, 409, None
+
+        row = rows[0]
+        return int(row.get('id')), None, None, row
+
     def validate_rh_read_access(user_email, cliente_id='', holding_id='', empresa_id='', filial_id=''):
         email = (user_email or '').strip().lower()
         if not email:
@@ -735,10 +801,16 @@ def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_roun
             if not ok_access:
                 return jsonify(err_access), status_access
 
-            try:
-                employee_id = int(payload.get('employee_id'))
-            except Exception:
-                return jsonify({'error': 'INVALID_EMPLOYEE_ID'}), 400
+            employee_id, employee_err, employee_status, employee_row = resolve_employee_from_leadertrack(
+                payload,
+                actor_email,
+                cliente_id=cliente_id or '',
+                holding_id=holding_id or '',
+                empresa_id=empresa_id or '',
+                filial_id=filial_id or '',
+            )
+            if employee_err:
+                return jsonify(employee_err), employee_status
 
             cycle_code = (
                 payload.get('cycle_code')
@@ -802,7 +874,7 @@ def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_roun
 
             title = (
                 payload.get('title')
-                or f"PDI LeaderTrack {cycle_code} - {payload.get('employee_name') or 'Profissional'}"
+                or f"PDI LeaderTrack {cycle_code} - {payload.get('employee_name') or (employee_row or {}).get('nome') or 'Profissional'}"
             )
             summary = payload.get('summary') or (
                 "PDI gerado a partir da devolutiva LeaderTrack, com acompanhamento por gap, "
@@ -815,7 +887,7 @@ def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_roun
                 'empresa_id': empresa_id,
                 'filial_id': filial_id,
                 'employee_id': employee_id,
-                'manager_name': payload.get('manager_name'),
+                'manager_name': payload.get('manager_name') or (employee_row or {}).get('manager_name'),
                 'cycle_code': cycle_code,
                 'year': payload.get('year'),
                 'origin_type': 'leadertrack_devolutiva',
@@ -892,6 +964,7 @@ def register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, get_active_roun
                     'pdi_plan_id': plan_id,
                     'actions_created': len(inserted_actions),
                     'item': plan,
+                    'employee': employee_row,
                     'actions': inserted_actions,
                 }), 201
             except Exception as exc:
