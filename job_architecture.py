@@ -34,6 +34,12 @@ METHODOLOGY_DIMENSIONS = {
     },
 }
 
+METHODOLOGY_DIMENSION_ORDER = [
+    "saber_aplicado",
+    "complexidade_mental",
+    "responsabilidade_resultado",
+]
+
 QUESTION_TO_METHODOLOGY_DIMENSION = {
     question_id: dimension
     for dimension, data in METHODOLOGY_DIMENSIONS.items()
@@ -153,7 +159,8 @@ def _answer_value(rows_by_id, question_id):
 def _methodology_dimension_scores(answer_rows):
     rows_by_id = {row["question_id"]: row for row in answer_rows}
     scores = {}
-    for dimension, data in METHODOLOGY_DIMENSIONS.items():
+    for dimension in METHODOLOGY_DIMENSION_ORDER:
+        data = METHODOLOGY_DIMENSIONS[dimension]
         values = []
         missing = []
         for question_id in data["question_ids"]:
@@ -447,6 +454,7 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
             "version": "MVP_2026_08_06",
             "weights": WEIGHTS,
             "methodology_dimensions": METHODOLOGY_DIMENSIONS,
+            "methodology_dimension_order": METHODOLOGY_DIMENSION_ORDER,
             "classes": [{"class_code": c, "min_score": mn, "max_score": mx} for c, mn, mx in CLASSES],
             "questions": [
                 {
