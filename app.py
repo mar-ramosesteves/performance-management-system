@@ -4600,6 +4600,13 @@ def _get_active_round_code():
          .execute())
     return (r.data or {}).get('config_value')
 
+try:
+    from job_architecture import register_job_architecture_routes
+    register_job_architecture_routes(app, supabase, _require_rh_code)
+    print('[job_architecture] rotas registradas')
+except Exception as e:
+    print('[job_architecture] erro ao registrar rotas:', e)
+
 register_pdi_routes(app, supabase, buscar_avaliacoes_brutas, _get_active_round_code, _require_rh_code)
     
 
