@@ -280,6 +280,38 @@ def _similarity(left, right):
     return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
 
 
+def _first_clean(row, keys):
+    for key in keys:
+        value = _clean((row or {}).get(key))
+        if value:
+            return value
+    return None
+
+
+def _short_id(value):
+    value = _clean(value)
+    if not value:
+        return None
+    return value if len(value) <= 12 else f"{value[:8]}..."
+
+
+def _add_context_option(options, option_id, label=None, **extra):
+    option_id = _clean(option_id)
+    if not option_id:
+        return
+    current = options.get(option_id) or {"id": option_id}
+    current["label"] = _clean(label) or current.get("label") or _short_id(option_id) or option_id
+    for key, value in extra.items():
+        cleaned = _clean(value)
+        if cleaned and not current.get(key):
+            current[key] = cleaned
+    options[option_id] = current
+
+
+def _sort_context_options(options):
+    return sorted(options.values(), key=lambda row: (row.get("label") or "").lower())
+
+
 def register_job_architecture_routes(app, supabase, require_rh_code):
     @app.route("/api/job-architecture/questions", methods=["GET", "OPTIONS"])
     def api_job_architecture_questions():
@@ -292,6 +324,96 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
             "classes": [{"class_code": c, "min_score": mn, "max_score": mx} for c, mn, mx in CLASSES],
             "questions": QUESTIONS,
         }), 200
+
+    @app.route("/api/job-architecture/context-options", methods=["GET", "OPTIONS"])
+    def api_job_architecture_context_options():
+        if request.method == "OPTIONS":
+            return ("", 204)
+        try:
+            clientes = {}
+            holdings = {}
+            empresas = {}
+            filiais = {}
+            sources = []
+
+            # Preferencia: tabelas mestre, quando existirem. Se nao existirem,
+            # a rota continua funcionando com os dados reais de employees.
+            master_specs = [
+                ("clientes", clientes, ["id", "cliente_id"], ["nome", "name", "razao_social", "nome_fantasia", "cliente_nome"]),
+                ("holdings", holdings, ["id", "holding_id"], ["nome", "name", "razao_social", "nome_fantasia", "holding_nome"]),
+                ("empresas", empresas, ["id", "empresa_id"], ["nome", "name", "razao_social", "nome_fantasia", "empresa_nome", "company_name"]),
+                ("filiais", filiais, ["id", "filial_id"], ["nome", "name", "razao_social", "nome_fantasia", "filial_nome", "branch_name"]),
+            ]
+            for table_name, target, id_keys, label_keys in master_specs:
+                result = _safe_select(supabase, table_name, "*", limit=2000)
+                if not result.get("ok"):
+                    continue
+                rows = result.get("data") or []
+                if rows:
+                    sources.append(table_name)
+                for row in rows:
+                    item_id = _first_clean(row, id_keys)
+                    _add_context_option(
+                        target,
+                        item_id,
+                        _first_clean(row, label_keys),
+                        cliente_id=_first_clean(row, ["cliente_id"]),
+                        holding_id=_first_clean(row, ["holding_id"]),
+                        empresa_id=_first_clean(row, ["empresa_id"]),
+                    )
+
+            employees_result = _safe_select(
+                supabase,
+                "employees",
+                "cliente_id,holding_id,empresa_id,filial_id,holding,company_name,empresa,branch_name,business_line",
+                limit=5000,
+            )
+            employee_rows = employees_result.get("data") or []
+            if employees_result.get("ok") and employee_rows:
+                sources.append("employees")
+
+            for row in employee_rows:
+                cliente_id = _clean(row.get("cliente_id"))
+                holding_id = _clean(row.get("holding_id"))
+                empresa_id = _clean(row.get("empresa_id"))
+                filial_id = _clean(row.get("filial_id"))
+                holding_label = _first_clean(row, ["holding", "business_line"])
+                empresa_label = _first_clean(row, ["company_name", "empresa"])
+                filial_label = _first_clean(row, ["branch_name"])
+
+                if cliente_id:
+                    _add_context_option(clientes, cliente_id, None)
+                if holding_id:
+                    _add_context_option(holdings, holding_id, holding_label, cliente_id=cliente_id)
+                if empresa_id:
+                    _add_context_option(empresas, empresa_id, empresa_label, cliente_id=cliente_id, holding_id=holding_id)
+                if filial_id:
+                    _add_context_option(
+                        filiais,
+                        filial_id,
+                        filial_label,
+                        cliente_id=cliente_id,
+                        holding_id=holding_id,
+                        empresa_id=empresa_id,
+                    )
+
+            return jsonify({
+                "success": True,
+                "sources": sources,
+                "clientes": _sort_context_options(clientes),
+                "holdings": _sort_context_options(holdings),
+                "empresas": _sort_context_options(empresas),
+                "filiais": _sort_context_options(filiais),
+                "counts": {
+                    "clientes": len(clientes),
+                    "holdings": len(holdings),
+                    "empresas": len(empresas),
+                    "filiais": len(filiais),
+                },
+                "note": "Opcoes construidas apenas a partir de cadastros reais disponiveis no Supabase.",
+            }), 200
+        except Exception as exc:
+            return _table_error(exc)
 
     @app.route("/api/job-architecture/profile-interpretations", methods=["GET", "OPTIONS"])
     def api_job_architecture_profile_interpretations():
