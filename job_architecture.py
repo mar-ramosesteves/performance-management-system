@@ -491,6 +491,7 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
             payload = {
                 **ctx,
                 "title": title,
+                "normalized_title": _normalize_job_title(title),
                 "internal_code": _clean(data.get("internal_code")),
                 "job_family": _clean(data.get("job_family")),
                 "organizational_level": _clean(data.get("organizational_level")),
@@ -695,11 +696,14 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
             source_file_name = _clean(data.get("source_file_name")) or "hay_benchmark_import"
             records = data.get("records") or []
             factor_records = data.get("factor_records") or []
+            create_position_candidates = bool(data.get("create_position_candidates"))
+            position_candidate_status = _clean(data.get("position_candidate_status")) or "aprovado_hay"
 
             if not isinstance(records, list) or not records:
                 return jsonify({"success": False, "error": "records_obrigatorio"}), 400
 
             benchmark_rows = []
+            candidate_rows_by_title = {}
             factor_rows_by_title = {}
             for factor in factor_records:
                 title_key = _normalize_job_title(factor.get("cargo"))
@@ -710,11 +714,12 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
                 if not title:
                     continue
                 profile_value = _profile_value(row.get("profile_value")) if row.get("profile_value") not in [None, ""] else None
+                normalized_title = _normalize_job_title(title)
                 benchmark_rows.append({
                     **ctx,
                     "source_file_name": source_file_name,
                     "original_title": title,
-                    "normalized_title": _normalize_job_title(title),
+                    "normalized_title": normalized_title,
                     "hay_points": row.get("total_points") or row.get("hay_points"),
                     "hay_grade": row.get("grade") or row.get("hay_grade"),
                     "hay_profile_value": profile_value,
@@ -731,6 +736,36 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
                     },
                     "calibration_notes": row.get("remarks"),
                 })
+                if create_position_candidates and normalized_title and normalized_title not in candidate_rows_by_title:
+                    candidate_rows_by_title[normalized_title] = {
+                        **ctx,
+                        "title": title,
+                        "normalized_title": normalized_title,
+                        "current_grade_code": _clean(row.get("grade") or row.get("hay_grade")),
+                        "current_profile_value": profile_value,
+                        "status": position_candidate_status,
+                        "source": "hay_benchmark_import",
+                        "approval_notes": "Cargo aprovado historicamente na metodologia Hay. Requer revisao para aprovacao The HR Key.",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+
+            existing_position_norms = set()
+            if create_position_candidates:
+                existing_query = _apply_context(
+                    supabase.table("job_positions").select("id,normalized_title"),
+                    ctx,
+                )
+                existing_rows = existing_query.execute().data or []
+                existing_position_norms = {
+                    _clean(row.get("normalized_title"))
+                    for row in existing_rows
+                    if _clean(row.get("normalized_title"))
+                }
+            position_candidates_to_create = [
+                row for key, row in candidate_rows_by_title.items()
+                if key not in existing_position_norms
+            ]
 
             if dry_run:
                 return jsonify({
@@ -739,6 +774,11 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
                     "message": "Importacao validada sem gravar dados.",
                     "benchmark_rows": len(benchmark_rows),
                     "factor_rows_received": len(factor_records),
+                    "create_position_candidates": create_position_candidates,
+                    "position_candidate_status": position_candidate_status,
+                    "position_candidates_received": len(candidate_rows_by_title),
+                    "position_candidates_would_create": len(position_candidates_to_create),
+                    "position_candidates_already_existing": len(candidate_rows_by_title) - len(position_candidates_to_create),
                     "source_file_name": source_file_name,
                     "scope": ctx,
                 }), 200
@@ -773,11 +813,17 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
             if factor_payload:
                 inserted_factors = supabase.table("job_hay_benchmark_factor_points").insert(factor_payload).execute().data or []
 
+            inserted_positions = []
+            if position_candidates_to_create:
+                inserted_positions = supabase.table("job_positions").insert(position_candidates_to_create).execute().data or []
+
             return jsonify({
                 "success": True,
                 "status": "imported",
                 "benchmark_rows": len(inserted_rows),
                 "factor_rows": len(inserted_factors),
+                "position_candidates_created": len(inserted_positions),
+                "position_candidates_skipped_existing": len(candidate_rows_by_title) - len(position_candidates_to_create),
                 "source_file_name": source_file_name,
                 "scope": ctx,
             }), 201
