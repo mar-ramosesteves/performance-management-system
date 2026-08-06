@@ -133,19 +133,59 @@ def _alerts(answer_rows, pillar_scores):
     decision_horizon = _answer_value(rows_by_id, "AUT_04")
     specialization = _answer_value(rows_by_id, "CON_03")
     education = _answer_value(rows_by_id, "CON_01")
+    knowledge = (pillar_scores.get("conhecimento") or {}).get("score_0_100") or 0
     complexity = (pillar_scores.get("complexidade") or {}).get("score_0_100") or 0
+    accountability = (pillar_scores.get("responsabilidade") or {}).get("score_0_100") or 0
+    influence = (pillar_scores.get("lideranca_influencia") or {}).get("score_0_100") or 0
 
     if leadership_people <= 1 and leadership_leaders >= 3:
-        alerts.append({"code": "lidera_lideres_sem_time_direto", "message": "Cargo indica lideranca de lideres sem lideranca direta informada."})
+        alerts.append({"severity": "revisar", "code": "lidera_lideres_sem_time_direto", "message": "Cargo indica lideranca de lideres sem lideranca direta informada."})
     if leadership_people <= 1 and impact >= 5:
-        alerts.append({"code": "alto_impacto_sem_lideranca", "message": "Cargo sem lideranca direta foi marcado com impacto organizacional muito alto."})
+        alerts.append({"severity": "revisar", "code": "alto_impacto_sem_lideranca", "message": "Cargo sem lideranca direta foi marcado com impacto organizacional muito alto."})
     if education <= 2 and specialization >= 5:
-        alerts.append({"code": "especializacao_alta_com_escolaridade_baixa", "message": "Conhecimento de referencia tecnica com escolaridade minima baixa. Revisar evidencia."})
+        alerts.append({"severity": "bloquear", "code": "especializacao_alta_com_escolaridade_baixa", "message": "Conhecimento de referencia tecnica com escolaridade minima baixa. Revisar evidencia antes de salvar/aprovar."})
     if autonomy <= 2 and decision_horizon >= 5:
-        alerts.append({"code": "decisao_longa_com_baixa_autonomia", "message": "Decisoes de longo prazo foram combinadas com baixa autonomia."})
+        alerts.append({"severity": "revisar", "code": "decisao_longa_com_baixa_autonomia", "message": "Decisoes de longo prazo foram combinadas com baixa autonomia."})
     if complexity < 35 and impact >= 5:
-        alerts.append({"code": "baixa_complexidade_alto_impacto", "message": "Complexidade baixa combinada com impacto muito alto. Conferir respostas."})
+        alerts.append({"severity": "bloquear", "code": "baixa_complexidade_alto_impacto", "message": "Complexidade baixa combinada com impacto muito alto. Conferir respostas antes de salvar/aprovar."})
+    if complexity > accountability + 35:
+        alerts.append({"severity": "revisar", "code": "complexidade_muito_acima_responsabilidade", "message": "Processo mental/complexidade muito acima da responsabilidade. Conferir coerencia da combinacao."})
+    if accountability > knowledge + 35:
+        alerts.append({"severity": "bloquear", "code": "responsabilidade_muito_acima_conhecimento", "message": "Accountability/responsabilidade muito acima do know-how. Combinacao improvavel nesta versao da metodologia."})
+    if accountability >= 75 and complexity < 45:
+        alerts.append({"severity": "bloquear", "code": "alto_accountability_baixo_processo_mental", "message": "Responsabilidade alta com processo mental baixo. Regra de consistencia exige revisao."})
+    if knowledge >= 80 and complexity <= 35 and accountability <= 35:
+        alerts.append({"severity": "revisar", "code": "knowhow_alto_sem_complexidade_ou_impacto", "message": "Know-how alto com baixa complexidade e baixo impacto. Verificar se o cargo esta superestimado em conhecimento."})
+    if influence >= 75 and accountability < 45:
+        alerts.append({"severity": "revisar", "code": "influencia_alta_com_baixa_responsabilidade", "message": "Influencia/lideranca alta com responsabilidade baixa. Conferir escopo real do cargo."})
     return alerts
+
+
+def _consistency_status(alerts, missing):
+    if missing:
+        return {
+            "status": "incompleto",
+            "can_save": False,
+            "message": "Todas as perguntas devem ser respondidas antes de salvar uma avaliacao oficial.",
+        }
+    severities = {str(alert.get("severity") or "revisar") for alert in (alerts or [])}
+    if "bloquear" in severities:
+        return {
+            "status": "bloquear",
+            "can_save": False,
+            "message": "Ha combinacoes metodologicamente improvaveis. Revise as respostas antes de salvar/aprovar.",
+        }
+    if "revisar" in severities:
+        return {
+            "status": "revisar",
+            "can_save": True,
+            "message": "Avaliacao calculada com alertas. Salve apenas se houver justificativa tecnica.",
+        }
+    return {
+        "status": "ok",
+        "can_save": True,
+        "message": "Avaliacao calculada sem alertas de consistencia nesta versao.",
+    }
 
 
 def calculate_score(answers):
@@ -195,6 +235,7 @@ def calculate_score(answers):
         reverse=True,
     )
 
+    alerts = _alerts(answer_rows, pillar_scores)
     return {
         "score": score,
         "job_class": _class_for_score(score),
@@ -204,7 +245,8 @@ def calculate_score(answers):
         "answers": answer_rows,
         "missing_questions": missing,
         "completion": {"answered": len(answer_rows), "total": len(QUESTIONS), "percent": round((len(answer_rows) / len(QUESTIONS)) * 100, 1)},
-        "alerts": _alerts(answer_rows, pillar_scores),
+        "alerts": alerts,
+        "consistency": _consistency_status(alerts, missing),
     }
 
 
@@ -609,6 +651,50 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
         except Exception as exc:
             return _table_error(exc)
 
+    @app.route("/api/job-architecture/positions/<int:position_id>/hay-benchmark", methods=["GET", "OPTIONS"])
+    def api_job_architecture_position_hay_benchmark(position_id):
+        if request.method == "OPTIONS":
+            return ("", 204)
+        try:
+            position_result = _safe_select(supabase, "job_positions", "*", {"id": position_id}, limit=1)
+            position = (position_result.get("data") or [None])[0]
+            if not position:
+                return jsonify({"success": False, "error": "cargo_nao_encontrado"}), 404
+
+            ctx = _context(position)
+            normalized_title = _clean(position.get("normalized_title")) or _normalize_job_title(position.get("title"))
+            query = _apply_context(
+                supabase.table("job_hay_benchmark_imports").select("*"),
+                ctx,
+            ).eq("normalized_title", normalized_title)
+            result = query.order("imported_at", desc=True).limit(5).execute()
+            rows = result.data or []
+
+            factors = []
+            if rows and rows[0].get("id"):
+                factor_result = _safe_select(
+                    supabase,
+                    "job_hay_benchmark_factor_points",
+                    "*",
+                    {"hay_benchmark_import_id": rows[0].get("id")},
+                    "source_row",
+                    False,
+                    20,
+                )
+                factors = factor_result.get("data") or []
+
+            return jsonify({
+                "success": True,
+                "position": position,
+                "normalized_title": normalized_title,
+                "benchmarks": rows,
+                "best_match": rows[0] if rows else None,
+                "factors": factors,
+                "message": "Benchmark historico Hay. Usar como referencia de calibracao, nao como regra automatica The HR Key.",
+            }), 200
+        except Exception as exc:
+            return _table_error(exc)
+
     @app.route("/api/job-architecture/audit/cargo-variants", methods=["GET", "OPTIONS"])
     def api_job_architecture_audit_cargo_variants():
         if request.method == "OPTIONS":
@@ -928,6 +1014,14 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
                 return jsonify(err), status
 
             result = calculate_score(data.get("answers") or {})
+            if not (result.get("consistency") or {}).get("can_save"):
+                return jsonify({
+                    "success": False,
+                    "error": "avaliacao_inconsistente",
+                    "message": (result.get("consistency") or {}).get("message"),
+                    "result": result,
+                }), 422
+
             now_iso = datetime.now(timezone.utc).isoformat()
             version_payload = {
                 "job_position_id": position_id,
