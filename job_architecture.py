@@ -13,6 +13,33 @@ WEIGHTS = {
     "autonomia_risco": 0.12,
 }
 
+METHODOLOGY_DIMENSIONS = {
+    "saber_aplicado": {
+        "label": "Saber aplicado",
+        "hay_reference": "Know-How",
+        "description": "Conhecimento, experiencia, integracao, comunicacao e influencia necessarios para entregar o cargo.",
+        "question_ids": ["CON_01", "CON_02", "CON_03", "CON_04", "CON_05", "CON_06", "CON_07", "CON_08", "LID_03", "LID_04", "LID_05", "LID_08"],
+    },
+    "complexidade_mental": {
+        "label": "Complexidade mental",
+        "hay_reference": "Problem Solving / Processo Mental",
+        "description": "Liberdade para pensar, ambiguidade, inovacao, horizonte e dificuldade dos problemas tratados.",
+        "question_ids": ["COM_01", "COM_02", "COM_03", "COM_04", "COM_05", "COM_06", "COM_07", "COM_08", "AUT_02", "AUT_04", "AUT_07", "AUT_08"],
+    },
+    "responsabilidade_resultado": {
+        "label": "Responsabilidade por resultado",
+        "hay_reference": "Accountability",
+        "description": "Impacto, autonomia, risco, recursos, continuidade e responsabilidade por pessoas/resultados.",
+        "question_ids": ["RES_01", "RES_02", "RES_03", "RES_04", "RES_05", "RES_06", "RES_07", "RES_08", "LID_01", "LID_02", "LID_06", "LID_07", "AUT_03", "AUT_05", "AUT_06"],
+    },
+}
+
+QUESTION_TO_METHODOLOGY_DIMENSION = {
+    question_id: dimension
+    for dimension, data in METHODOLOGY_DIMENSIONS.items()
+    for question_id in data["question_ids"]
+}
+
 CLASSES = [
     ("A", 0, 149),
     ("B", 150, 249),
@@ -123,7 +150,59 @@ def _answer_value(rows_by_id, question_id):
     return int(row.get("value") or 0)
 
 
-def _alerts(answer_rows, pillar_scores):
+def _methodology_dimension_scores(answer_rows):
+    rows_by_id = {row["question_id"]: row for row in answer_rows}
+    scores = {}
+    for dimension, data in METHODOLOGY_DIMENSIONS.items():
+        values = []
+        missing = []
+        for question_id in data["question_ids"]:
+            row = rows_by_id.get(question_id)
+            if row:
+                values.append(int(row["value"]))
+            else:
+                missing.append(question_id)
+        avg = sum(values) / len(values) if values else None
+        scores[dimension] = {
+            "label": data["label"],
+            "hay_reference": data["hay_reference"],
+            "description": data["description"],
+            "average_raw": round(avg, 2) if avg else None,
+            "score_0_100": round(((avg - 1) / 4) * 100, 1) if avg else None,
+            "answered": len(values),
+            "total": len(data["question_ids"]),
+            "missing_questions": missing,
+        }
+    return scores
+
+
+def _methodology_consistency_alerts(methodology_scores):
+    alerts = []
+    saber = (methodology_scores.get("saber_aplicado") or {}).get("score_0_100")
+    mental = (methodology_scores.get("complexidade_mental") or {}).get("score_0_100")
+    resultado = (methodology_scores.get("responsabilidade_resultado") or {}).get("score_0_100")
+    if saber is None or mental is None or resultado is None:
+        return alerts
+
+    mental_pct_saber = round((mental / saber) * 100, 1) if saber else None
+    resultado_pct_saber = round((resultado / saber) * 100, 1) if saber else None
+
+    if mental > saber + 30:
+        alerts.append({"severity": "bloquear", "code": "complexidade_mental_acima_do_saber", "message": "Complexidade mental muito acima do saber aplicado. Combinacao improvavel."})
+    if resultado > saber + 35:
+        alerts.append({"severity": "bloquear", "code": "resultado_acima_do_saber", "message": "Responsabilidade por resultado muito acima do saber aplicado. Revisao obrigatoria."})
+    if resultado > mental + 45:
+        alerts.append({"severity": "revisar", "code": "resultado_muito_acima_da_complexidade", "message": "Responsabilidade muito acima da complexidade mental. Conferir impacto, autonomia e evidencias."})
+    if mental_pct_saber is not None and mental_pct_saber < 30 and resultado >= 65:
+        alerts.append({"severity": "bloquear", "code": "baixo_processo_mental_com_alto_resultado", "message": "Complexidade mental baixa para responsabilidade alta. Regra de consistencia exige revisao."})
+    if mental_pct_saber is not None and mental_pct_saber > 125:
+        alerts.append({"severity": "revisar", "code": "processo_mental_percentual_alto", "message": "Complexidade mental acima do esperado como proporcao do saber aplicado."})
+    if resultado_pct_saber is not None and resultado_pct_saber > 140:
+        alerts.append({"severity": "bloquear", "code": "resultado_percentual_alto", "message": "Responsabilidade por resultado muito alta como proporcao do saber aplicado."})
+    return alerts
+
+
+def _alerts(answer_rows, pillar_scores, methodology_scores=None):
     rows_by_id = {row["question_id"]: row for row in answer_rows}
     alerts = []
     leadership_people = _answer_value(rows_by_id, "LID_01")
@@ -158,6 +237,7 @@ def _alerts(answer_rows, pillar_scores):
         alerts.append({"severity": "revisar", "code": "knowhow_alto_sem_complexidade_ou_impacto", "message": "Know-how alto com baixa complexidade e baixo impacto. Verificar se o cargo esta superestimado em conhecimento."})
     if influence >= 75 and accountability < 45:
         alerts.append({"severity": "revisar", "code": "influencia_alta_com_baixa_responsabilidade", "message": "Influencia/lideranca alta com responsabilidade baixa. Conferir escopo real do cargo."})
+    alerts.extend(_methodology_consistency_alerts(methodology_scores or {}))
     return alerts
 
 
@@ -235,11 +315,14 @@ def calculate_score(answers):
         reverse=True,
     )
 
-    alerts = _alerts(answer_rows, pillar_scores)
+    methodology_scores = _methodology_dimension_scores(answer_rows)
+    alerts = _alerts(answer_rows, pillar_scores, methodology_scores)
     return {
         "score": score,
         "job_class": _class_for_score(score),
         "pillar_scores": pillar_scores,
+        "methodology_dimensions": methodology_scores,
+        "methodology_model": METHODOLOGY_DIMENSIONS,
         "strongest_pillars": sorted_pillars[:2],
         "weakest_pillars": sorted_pillars[-2:],
         "answers": answer_rows,
@@ -363,8 +446,18 @@ def register_job_architecture_routes(app, supabase, require_rh_code):
             "success": True,
             "version": "MVP_2026_08_06",
             "weights": WEIGHTS,
+            "methodology_dimensions": METHODOLOGY_DIMENSIONS,
             "classes": [{"class_code": c, "min_score": mn, "max_score": mx} for c, mn, mx in CLASSES],
-            "questions": QUESTIONS,
+            "questions": [
+                {
+                    **question,
+                    "methodology_dimension": QUESTION_TO_METHODOLOGY_DIMENSION.get(question["id"]),
+                    "methodology_dimension_label": (
+                        METHODOLOGY_DIMENSIONS.get(QUESTION_TO_METHODOLOGY_DIMENSION.get(question["id"])) or {}
+                    ).get("label"),
+                }
+                for question in QUESTIONS
+            ],
         }), 200
 
     @app.route("/api/job-architecture/context-options", methods=["GET", "OPTIONS"])
